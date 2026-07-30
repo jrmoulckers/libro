@@ -1,0 +1,30 @@
+[package]
+name = "libro"
+version = "0.1.0"
+description = "Libro — a cross-platform, pure-client media hub for books and audiobooks."
+authors = ["Libro contributors"]
+edition = "2021"
+rust-version = "1.77"
+
+# The `_lib` suffix keeps the library name from colliding with the binary on
+# some platforms (notably Windows) and is required for the mobile targets.
+[lib]
+name = "libro_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+bitflags = { version = "2", features = ["serde"] }
+thiserror = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[features]
+# This feature is used for production builds or when a dev server is not
+# specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
