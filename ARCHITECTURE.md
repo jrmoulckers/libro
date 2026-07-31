@@ -194,6 +194,45 @@ Target design (not yet implemented — the module is a typed stub):
 - No real cryptography is implemented yet; `load_config`/`save_config` are the
   seams where it will live.
 
+### Outward progress sync-back
+Libro's on-device stores (`ReadingStore`, `ListeningStore`) are always the
+**source of truth**. On top of them sit two *optional, opt-in* engines that
+mirror local progress back **out** to a user-owned/official service, sharing one
+design so they stay consistent:
+
+- **Reading → Hardcover** (`core/src/sync.rs`) — when reading progress is saved,
+  best-effort set the Hardcover shelf status (0→>0 ⇒ *currently-reading*,
+  finished ⇒ *read*) behind the `ProgressTracker` trait (implemented by
+  `HardcoverProvider`; tests inject a fake). It **resolves** the local `Book` to a
+  Hardcover book id (ISBN, else title+author) and caches that mapping.
+- **Listening → Audiobookshelf** (`core/src/listening_sync.rs`) — when listening
+  progress is saved, best-effort `PATCH /api/me/progress/{libraryItemId}` with
+  `currentTime` / `duration` / `progress` / `isFinished`, behind the
+  `ListeningTracker` trait (implemented by `AudiobookshelfProvider`; tests inject
+  a fake). No resolve step is needed — the audiobook `Book.id` **is** the ABS
+  `libraryItemId` (the same id `get_audiobook_stream` opens a play session with).
+  The pure `map_media_progress_body` helper builds the request body separately
+  from the HTTP call so it is unit-tested without a network.
+
+Both engines share the same guarantees:
+- **Opt-in, default off** — `hardcover.sync_reading_progress` /
+  `audiobookshelf.sync_listening_progress` (both `#[serde(default)]` false).
+  Writing to a user's account is never a silent side effect. No-op when the flag
+  is off or the provider isn't configured.
+- **Failure isolation** — the local save runs first and is the only thing that can
+  fail the command; every network/resolve/sync error is logged and swallowed
+  (`SyncOutcome` / `ListeningSyncOutcome`: `Disabled` / `NotConfigured` /
+  `NoChange` / `Updated` / `Finished` / `Failed`). The reader/player never breaks.
+- **Throttle** — per-item last-synced state (interior mutability; the lock is
+  never held across an `.await`) means the API is only hit on a real transition or
+  a meaningful delta (listening: a position change ≥ 15 s, plus pause / chapter
+  change / finish), never on every tick/page turn.
+
+TODOs: two-way sync (pull ABS/Hardcover progress *down* on library load to
+reconcile cross-device positions), conflict resolution (server-vs-local
+newer-wins), and session-based ABS progress via the `/api/session` close endpoint
+if richer than the `me/progress` PATCH.
+
 ## Component overview
 
 The Rust side is a two-crate Cargo workspace:
@@ -278,8 +317,10 @@ The Rust side is a two-crate Cargo workspace:
    handling. Pending: live ABS streaming needs a running server; multi-track
    (multi-file) gapless playback uses only the first track for now. **Native TODOs**
    (separate platform work): background playback, lockscreen / now-playing
-   controls, Android Auto / Apple CarPlay, Chromecast, sleep timer, equalizer, and
-   outward listening-progress sync to Audiobookshelf's progress API.)*
+   controls, Android Auto / Apple CarPlay, Chromecast, sleep timer, equalizer.
+   Outward listening-progress **sync-back to Audiobookshelf** is now wired
+   (opt-in `PATCH /api/me/progress/{id}`; see *Outward progress sync-back*); live
+   verification is pending a running ABS server.)*
 5. **Reading** — EPUB reading experience. *(Started: an in-app EPUB reader
    (`src/EpubReader.tsx`, built on `react-reader`/epub.js) renders the user's own
    DRM-free local EPUBs. It takes its content either as bytes from the Rust
@@ -287,9 +328,9 @@ The Rust side is a two-crate Cargo workspace:
    demo, from a bundled public-domain sample at `public/sample.epub`. Reading
    position (EPUB CFI + percent) is persisted per-book via
    `save_reading_progress` / `get_reading_progress`, backed by an on-device
-   `ReadingStore` (`core/src/config/reading.rs`). No DRM handling. TODOs:
-   highlights/annotations, full-text search, dark mode, and syncing progress to
-   reading trackers (Hardcover / Audiobookshelf).)*
+   `ReadingStore` (`core/src/config/reading.rs`). No DRM handling. Reading
+   progress **syncs back to Hardcover** (opt-in; see *Outward progress
+   sync-back*). TODOs: highlights/annotations, full-text search, and dark mode.)*
 
 ## Legal boundaries
 
