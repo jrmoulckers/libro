@@ -21,11 +21,33 @@ export interface Book {
   authors: string[];
   series?: string | null;
   cover_url?: string | null;
+  description?: string | null;
   /** Map of identifier scheme -> value, e.g. { isbn: "...", asin: "..." }. */
   identifiers: Record<string, string>;
   media_type: MediaType;
   source_provider_id: string;
   progress?: Progress | null;
+}
+
+/**
+ * Normalized bibliographic metadata (mirrors the Rust `metadata::BookMetadata`).
+ * Produced by the metadata-enrichment layer (Open Library / Google Books), which
+ * is distinct from the library `Provider`s that list a user's owned catalog.
+ */
+export interface BookMetadata {
+  title: string;
+  subtitle?: string | null;
+  authors: string[];
+  description?: string | null;
+  cover_url?: string | null;
+  series?: string | null;
+  identifiers: Record<string, string>;
+  publish_date?: string | null;
+  page_count?: number | null;
+  publisher?: string | null;
+  language?: string | null;
+  /** The metadata provider id that produced this record. */
+  source: string;
 }
 
 /**

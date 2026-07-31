@@ -130,3 +130,43 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+.app__metadata {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+}
+
+.app__metadata h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.app__metadata-form {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.app__metadata-form input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+}
+
+.app__metadata-results {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.app__metadata-source {
+  color: var(--accent);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-left: 0.4rem;
+}

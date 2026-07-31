@@ -16,7 +16,9 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::list_all_books,
-            commands::list_books_by_provider
+            commands::list_books_by_provider,
+            commands::search_metadata,
+            commands::lookup_metadata_by_isbn
         ])
         .run(tauri::generate_context!())
         .expect("error while running Libro");

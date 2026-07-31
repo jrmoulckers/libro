@@ -1,6 +1,7 @@
 //! Tauri command surface exposed to the frontend.
 
 use libro_core::config::{self, AppConfig, ProviderConfig};
+use libro_core::metadata::{BookMetadata, MetadataRegistry};
 use libro_core::models::Book;
 use libro_core::providers::audiobookshelf::{AudiobookshelfConfig, AudiobookshelfProvider};
 use libro_core::providers::hardcover::{HardcoverConfig, HardcoverProvider};
@@ -129,3 +130,24 @@ async fn collect_all() -> Result<Vec<ProviderBooks>, String> {
 
     Ok(out)
 }
+
+/// Free-text metadata search across the enabled metadata providers.
+///
+/// Unlike [`list_all_books`], this does not touch the user's library — it queries
+/// official public bibliographic APIs (Open Library, Google Books) and returns
+/// normalized [`BookMetadata`]. Used by the frontend's metadata lookup.
+#[tauri::command]
+pub async fn search_metadata(query: String) -> Result<Vec<BookMetadata>, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    let registry = MetadataRegistry::from_config(&app_config);
+    registry.search(&query, 10).await.map_err(|e| e.to_string())
+}
+
+/// Resolve a single ISBN to normalized [`BookMetadata`], if any provider has it.
+#[tauri::command]
+pub async fn lookup_metadata_by_isbn(isbn: String) -> Result<Option<BookMetadata>, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    let registry = MetadataRegistry::from_config(&app_config);
+    registry.by_isbn(&isbn).await.map_err(|e| e.to_string())
+}
+
