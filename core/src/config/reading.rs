@@ -82,7 +82,7 @@ impl ReadingStore {
 /// Platform data path for the reading-progress file, using only std env vars so
 /// no extra dependency is pulled in.
 fn default_path() -> PathBuf {
-    base_dir().join("Libro").join("reading.json")
+    super::data_dir().join("reading.json")
 }
 
 /// Platform data base directory, shared with the listening store. Uses only std

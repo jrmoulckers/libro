@@ -17,6 +17,15 @@ pub mod reading;
 pub use listening::ListeningStore;
 pub use reading::ReadingStore;
 
+use std::path::PathBuf;
+
+/// The Libro on-device data directory (`%APPDATA%/Libro`,
+/// `$XDG_CONFIG_HOME/Libro`, …). Home of the reading/listening stores, the
+/// (future) encrypted config blob, and the plugins directory.
+pub fn data_dir() -> PathBuf {
+    reading::base_dir().join("Libro")
+}
+
 /// A single configured provider instance.
 ///
 /// `provider_type` selects the connector (e.g. `"audiobookshelf"`) and

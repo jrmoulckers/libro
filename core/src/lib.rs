@@ -12,6 +12,7 @@
 //!   ([`metadata::MetadataProvider`]); distinct from library `Provider`s.
 //! * [`config`] — local, encrypted-at-rest configuration (boundary only).
 //! * [`sync`] — reading-progress sync to tracking services (e.g. Hardcover).
+//! * [`plugins`] — the declarative plugin SDK for third-party connectors.
 //!
 //! Keeping this logic in its own crate means the mapping/aggregation code can be
 //! unit-tested with a plain static test binary, independent of the WebView
@@ -20,5 +21,6 @@
 pub mod config;
 pub mod metadata;
 pub mod models;
+pub mod plugins;
 pub mod providers;
 pub mod sync;

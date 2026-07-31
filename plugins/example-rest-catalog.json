@@ -1,0 +1,34 @@
+{
+  "id": "example-rest-catalog",
+  "name": "Example REST Catalog",
+  "version": "1.0.0",
+  "author": "Libro contributors",
+  "plugin_api_version": 1,
+  "capabilities": ["catalog"],
+  "permissions": {
+    "allowed_domains": ["api.example-books.test"]
+  },
+  "config_schema": [
+    { "key": "base_url", "label": "Server URL", "type": "url", "required": true },
+    { "key": "api_key", "label": "API key", "type": "secret", "required": false }
+  ],
+  "catalog": {
+    "request": {
+      "method": "GET",
+      "url": "{base_url}/api/books",
+      "headers": { "Authorization": "Bearer {api_key}" },
+      "query": { "limit": "100" }
+    },
+    "items_path": "results",
+    "media_type": "Ebook",
+    "fields": {
+      "id": "id",
+      "title": "title",
+      "authors": "authors",
+      "series": "series.name",
+      "cover_url": "cover",
+      "description": "summary",
+      "isbn": "identifiers.isbn_13"
+    }
+  }
+}

@@ -23,7 +23,6 @@ use std::path::PathBuf;
 
 use crate::models::Progress;
 
-use super::reading::base_dir;
 use super::ConfigError;
 
 /// A file-backed store of per-book **listening** (audiobook) progress.
@@ -41,7 +40,7 @@ impl ListeningStore {
     /// The default store at the platform data location
     /// (`%APPDATA%/Libro/listening.json`, `$XDG_CONFIG_HOME/Libro/listening.json`, …).
     pub fn default_store() -> Self {
-        Self::new(base_dir().join("Libro").join("listening.json"))
+        Self::new(super::data_dir().join("listening.json"))
     }
 
     /// Read the whole map, treating a missing/corrupt file as an empty store.
