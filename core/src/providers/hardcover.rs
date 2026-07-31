@@ -88,6 +88,13 @@ pub struct HardcoverConfig {
     /// begins with `Bearer ` it is used as-is (Hardcover sometimes displays the
     /// token pre-prefixed).
     pub api_key: String,
+    /// Opt-in: mirror the user's in-app reading progress back to their Hardcover
+    /// account (start -> currently-reading, finish -> read).
+    ///
+    /// Defaults to **false**: writing to a user's public tracking account must be
+    /// an explicit choice, never a side effect of opening the reader.
+    #[serde(default)]
+    pub sync_reading_progress: bool,
 }
 
 /// The Hardcover connector.
@@ -315,6 +322,38 @@ impl Provider for HardcoverProvider {
             .iter()
             .filter_map(map_user_book_to_book)
             .collect())
+    }
+}
+
+/// Hardcover as a reading-progress sink for the in-app reader (see
+/// [`crate::sync`]). This adapts the connector's write methods to the
+/// [`ProgressTracker`](crate::sync::ProgressTracker) contract the sync engine
+/// depends on, so the sync logic stays connector-agnostic and testable.
+#[async_trait]
+impl crate::sync::ProgressTracker for HardcoverProvider {
+    async fn resolve_book_id(&self, book: &Book) -> ProviderResult<Option<i64>> {
+        // Disambiguate from the trait method of the same name.
+        HardcoverProvider::resolve_book_id(self, book).await
+    }
+
+    async fn set_status(
+        &self,
+        book_id: i64,
+        status: ReadingStatus,
+    ) -> ProviderResult<Option<i64>> {
+        let result = self.set_reading_status(book_id, status, None).await?;
+        Ok(result.user_book.and_then(|ub| ub.id).or(result.id))
+    }
+
+    async fn update_progress(&self, user_book_id: i64, _fraction: f32) -> ProviderResult<()> {
+        // TODO(hardcover): translating a reading `fraction` into a
+        // `progress_pages`/`progress_seconds` record needs a page/duration count we
+        // don't carry yet, and the `insert_user_book_read` input is still in flux.
+        // Status transitions (currently-reading / read) are the meaningful sync
+        // today; wire the real progress-record write here once a page count is
+        // available and the schema is confirmed against a live key.
+        let _ = user_book_id;
+        Ok(())
     }
 }
 
@@ -770,10 +809,11 @@ mod tests {
 
     #[test]
     fn auth_header_prefixes_bearer_and_tolerates_existing_prefix() {
-        let bare = HardcoverProvider::new(HardcoverConfig { api_key: "abc123".into() });
+        let bare = HardcoverProvider::new(HardcoverConfig { api_key: "abc123".into(), ..Default::default() });
         assert_eq!(bare.auth_header(), "Bearer abc123");
         let prefixed = HardcoverProvider::new(HardcoverConfig {
             api_key: "Bearer abc123".into(),
+            ..Default::default()
         });
         assert_eq!(prefixed.auth_header(), "Bearer abc123");
     }
