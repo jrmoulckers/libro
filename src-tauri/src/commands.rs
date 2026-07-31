@@ -1,7 +1,7 @@
 //! Tauri command surface exposed to the frontend.
 
 use libro_core::config::{self, AppConfig, ProviderConfig};
-use libro_core::metadata::{BookMetadata, MetadataRegistry};
+use libro_core::metadata::{enrich_catalog, BookMetadata, EnrichOptions, MetadataRegistry};
 use libro_core::models::Book;
 use libro_core::providers::audiobookshelf::{AudiobookshelfConfig, AudiobookshelfProvider};
 use libro_core::providers::hardcover::{HardcoverConfig, HardcoverProvider};
@@ -70,23 +70,35 @@ pub struct ProviderBooks {
 /// This is the core aggregation pattern: fan out over each [`Provider`],
 /// authenticate, pull its library, and merge the results. Per-provider failures
 /// are logged and skipped so one broken connector can't sink the whole catalog.
+///
+/// The merged list is then run through the metadata-enrichment pass (Open
+/// Library / Google Books) to backfill missing covers, descriptions, series, and
+/// identifiers — unless disabled via `metadata.enrich_catalog`.
 #[tauri::command]
 pub async fn list_all_books() -> Result<Vec<Book>, String> {
-    let per_provider = collect_all().await?;
-    Ok(per_provider.into_iter().flat_map(|p| p.books).collect())
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    let per_provider = collect_all(&app_config).await?;
+    let books: Vec<Book> = per_provider.into_iter().flat_map(|p| p.books).collect();
+
+    if app_config.metadata.enrich_catalog {
+        let registry = MetadataRegistry::from_config(&app_config);
+        Ok(enrich_catalog(&registry, books, &EnrichOptions::default()).await)
+    } else {
+        Ok(books)
+    }
 }
 
 /// Like [`list_all_books`] but preserves per-provider results and errors so the
 /// frontend can render a per-provider status/error state.
 #[tauri::command]
 pub async fn list_books_by_provider() -> Result<Vec<ProviderBooks>, String> {
-    collect_all().await
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    collect_all(&app_config).await
 }
 
-/// Shared aggregation: load config, build providers, authenticate + list each.
-async fn collect_all() -> Result<Vec<ProviderBooks>, String> {
-    let app_config = config::load_config().map_err(|e| e.to_string())?;
-    let mut providers = build_providers(&app_config);
+/// Shared aggregation: build providers, authenticate + list each.
+async fn collect_all(app_config: &AppConfig) -> Result<Vec<ProviderBooks>, String> {
+    let mut providers = build_providers(app_config);
 
     // Look up each provider's stored settings blob by type for authentication.
     let settings_for = |provider_id: &str| -> serde_json::Value {
