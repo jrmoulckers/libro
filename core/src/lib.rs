@@ -12,6 +12,7 @@
 //!   ([`metadata::MetadataProvider`]); distinct from library `Provider`s.
 //! * [`config`] — local, encrypted-at-rest configuration (boundary only).
 //! * [`sync`] — reading-progress sync to tracking services (e.g. Hardcover).
+//! * [`listening_sync`] — listening-progress sync-back to Audiobookshelf.
 //! * [`plugins`] — the declarative plugin SDK for third-party connectors.
 //!
 //! Keeping this logic in its own crate means the mapping/aggregation code can be
@@ -19,6 +20,7 @@
 //! runtime that the desktop/mobile shell links against.
 
 pub mod config;
+pub mod listening_sync;
 pub mod metadata;
 pub mod models;
 pub mod plugins;
