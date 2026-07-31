@@ -16,6 +16,7 @@
 //!
 //! [`Provider`]: crate::providers::Provider
 
+pub mod catalog;
 pub mod googlebooks;
 pub mod openlibrary;
 
@@ -27,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::AppConfig;
 use crate::models::Book;
 
+pub use catalog::{enrich_catalog, EnrichOptions};
 pub use googlebooks::GoogleBooksProvider;
 pub use openlibrary::OpenLibraryProvider;
 

@@ -11,7 +11,11 @@
 //! live success. Google Books may return HTTP 429 from shared/cloud IPs without
 //! an API key; that is an environmental rate limit, not a code failure.
 
-use libro_core::metadata::{GoogleBooksProvider, MetadataProvider, OpenLibraryProvider};
+use libro_core::metadata::{
+    enrich_catalog, EnrichOptions, GoogleBooksProvider, MetadataProvider, MetadataRegistry,
+    OpenLibraryProvider,
+};
+use libro_core::models::{Book, MediaType};
 
 const KNOWN_ISBN: &str = "9780134685991"; // Effective Java, 3rd ed.
 
@@ -73,4 +77,47 @@ async fn googlebooks_search_live() {
         }
         Err(e) => println!("[google books search] error (likely rate limit): {e}"),
     }
+}
+
+/// End-to-end enrichment: a bare catalog `Book` (only title/author/ISBN, no
+/// cover or description) is run through the REAL enrichment pass and should come
+/// back with a live cover and — via the Open Library Works endpoint — a
+/// description.
+#[tokio::test]
+#[ignore = "live network"]
+async fn enrich_catalog_live_before_after() {
+    // "A Brief History of Time" — chosen deliberately: its Open Library *edition*
+    // record has no description, but the linked *work* does, so this exercises the
+    // edition -> work fallback added to OpenLibraryProvider::by_isbn.
+    const ENRICH_ISBN: &str = "9780553380163";
+
+    // A book as a source connector (e.g. Audiobookshelf) might hand it to us:
+    // title + author + ISBN, but missing cover/description/series.
+    let mut book = Book::new(
+        "abs-1",
+        "A Brief History of Time",
+        MediaType::Ebook,
+        "audiobookshelf",
+    );
+    book.authors = vec!["Stephen Hawking".into()];
+    book.identifiers.insert("isbn13".into(), ENRICH_ISBN.into());
+
+    println!("[enrich BEFORE] {book:#?}");
+
+    // Open Library only (no Google Books) so this is deterministic without a key.
+    let registry = MetadataRegistry::new(vec![Box::new(OpenLibraryProvider::new())]);
+    let out = enrich_catalog(&registry, vec![book], &EnrichOptions::default()).await;
+    let after = &out[0];
+
+    println!("[enrich AFTER]  {after:#?}");
+
+    assert_eq!(out.len(), 1);
+    assert!(
+        after.cover_url.is_some(),
+        "expected a live cover to be filled"
+    );
+    assert!(
+        after.description.is_some(),
+        "expected a live description via the Works endpoint"
+    );
 }

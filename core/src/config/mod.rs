@@ -44,11 +44,25 @@ fn default_true() -> bool {
 /// books rather than list a user's owned catalog — so their settings live here
 /// rather than in [`ProviderConfig`]. Open Library needs no auth; Google Books
 /// works anonymously but an optional API key raises rate limits.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetadataConfig {
     /// Optional Google Books API key (raises the anonymous rate limit).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub google_books_api_key: Option<String>,
+    /// Whether the aggregation pipeline auto-enriches catalog books with missing
+    /// fields (cover, series, description, identifiers) from the metadata
+    /// providers. Defaults to `true`; set `false` to skip the enrichment pass.
+    #[serde(default = "default_true")]
+    pub enrich_catalog: bool,
+}
+
+impl Default for MetadataConfig {
+    fn default() -> Self {
+        Self {
+            google_books_api_key: None,
+            enrich_catalog: true,
+        }
+    }
 }
 
 /// Top-level application configuration persisted on the device.

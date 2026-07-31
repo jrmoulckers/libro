@@ -72,6 +72,28 @@ impl OpenLibraryProvider {
             other => Err(MetadataError::Api(format!("unexpected status {other} from {url}"))),
         }
     }
+
+    /// Best-effort description lookup for an edition OLID (e.g. `OL…M`).
+    ///
+    /// Open Library's `jscmd=data` books payload omits descriptions, so we follow
+    /// the edition doc (`/books/{olid}.json`) and, if it has no description, the
+    /// linked work (`/works/{id}.json`). Any failure returns `None` — enrichment
+    /// treats a missing description as simply absent, never an error.
+    async fn fetch_edition_description(&self, edition_olid: &str) -> Option<String> {
+        let edition_url = format!("{BASE}/books/{edition_olid}.json");
+        let edition: OlDoc = self.get_json(&edition_url).await.ok()?;
+        if let Some(desc) = edition.description.and_then(desc_to_string) {
+            return Some(desc);
+        }
+        // Fall back to the work record, following the first work key.
+        let work_key = edition.works.into_iter().next()?.key;
+        if work_key.is_empty() {
+            return None;
+        }
+        let work_url = format!("{BASE}{work_key}.json");
+        let work: OlDoc = self.get_json(&work_url).await.ok()?;
+        work.description.and_then(desc_to_string)
+    }
 }
 
 #[async_trait]
@@ -93,7 +115,18 @@ impl MetadataProvider for OpenLibraryProvider {
         // The Books API returns a map keyed by the bibkey; an unknown ISBN yields
         // an empty object (not a 404).
         let map: BTreeMap<String, OlBook> = self.get_json(&url).await?;
-        Ok(map.into_values().next().map(map_ol_book))
+        let Some(ol) = map.into_values().next() else {
+            return Ok(None);
+        };
+        let mut meta = map_ol_book(ol);
+        // The `jscmd=data` payload has no description, so best-effort fetch it
+        // from the edition/works endpoints (a failure just leaves it `None`).
+        if meta.description.is_none() {
+            if let Some(olid) = meta.identifiers.get("olid").cloned() {
+                meta.description = self.fetch_edition_description(&olid).await;
+            }
+        }
+        Ok(Some(meta))
     }
 
     async fn search(&self, query: &str, limit: usize) -> MetadataResult<Vec<BookMetadata>> {
@@ -168,6 +201,45 @@ struct OlCover {
 struct OlSearchResponse {
     #[serde(default)]
     docs: Vec<OlSearchDoc>,
+}
+
+/// Shared shape for the edition (`/books/{olid}.json`) and work
+/// (`/works/{id}.json`) documents — we only need description + work links.
+#[derive(Debug, Default, Deserialize)]
+struct OlDoc {
+    #[serde(default)]
+    description: Option<OlDescription>,
+    #[serde(default)]
+    works: Vec<OlKeyRef>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OlKeyRef {
+    #[serde(default)]
+    key: String,
+}
+
+/// Open Library returns descriptions either as a plain string or as a typed
+/// `{ "type": "/type/text", "value": "…" }` object.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum OlDescription {
+    Text(String),
+    Typed { value: String },
+}
+
+/// Normalize an [`OlDescription`] to a trimmed, non-empty `String`.
+fn desc_to_string(desc: OlDescription) -> Option<String> {
+    let value = match desc {
+        OlDescription::Text(s) => s,
+        OlDescription::Typed { value } => value,
+    };
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -398,5 +470,39 @@ mod tests {
     fn urlencode_escapes_spaces_and_reserved() {
         assert_eq!(urlencode("effective java"), "effective+java");
         assert_eq!(urlencode("ISBN:123"), "ISBN%3A123");
+    }
+
+    #[test]
+    fn parses_string_and_typed_descriptions() {
+        // Work doc with a plain-string description.
+        let work_str: OlDoc =
+            serde_json::from_str(r#"{ "description": "A plain string synopsis." }"#).unwrap();
+        assert_eq!(
+            work_str.description.and_then(desc_to_string).as_deref(),
+            Some("A plain string synopsis.")
+        );
+
+        // Edition doc with a typed description object + a work link.
+        let edition_typed: OlDoc = serde_json::from_str(
+            r#"{
+              "description": { "type": "/type/text", "value": "  Typed synopsis.  " },
+              "works": [{ "key": "/works/OL6223299W" }]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            edition_typed.description.and_then(desc_to_string).as_deref(),
+            Some("Typed synopsis.")
+        );
+        assert_eq!(edition_typed.works[0].key, "/works/OL6223299W");
+    }
+
+    #[test]
+    fn empty_or_missing_description_is_none() {
+        let no_desc: OlDoc = serde_json::from_str(r#"{ "works": [] }"#).unwrap();
+        assert!(no_desc.description.and_then(desc_to_string).is_none());
+
+        let blank: OlDoc = serde_json::from_str(r#"{ "description": "   " }"#).unwrap();
+        assert!(blank.description.and_then(desc_to_string).is_none());
     }
 }

@@ -19,6 +19,7 @@ async-trait = "0.1"
 bitflags = { version = "2", features = ["serde"] }
 thiserror = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 
 [dev-dependencies]
 # Only needed to drive the `#[ignore]`d live-network smoke tests
