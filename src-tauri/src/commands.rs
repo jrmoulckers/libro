@@ -16,6 +16,9 @@ use libro_core::providers::opds::{OpdsConfig, OpdsProvider};
 use libro_core::providers::Provider;
 use libro_core::plugins::{load_plugins, PluginProvider};
 use libro_core::sync::{sync_reading_progress, ReadingSyncState, SyncOutcome};
+use libro_core::listening_sync::{
+    sync_listening_progress, ListeningSyncOutcome, ListeningSyncState,
+};
 
 /// Instantiate the set of [`Provider`]s described by an [`AppConfig`].
 ///
@@ -345,17 +348,70 @@ pub async fn get_audiobook_stream(book_id: String) -> Result<AudioPlayback, Stri
 /// Persist the listening (audiobook) position for a book so it can be resumed.
 ///
 /// The audio player calls this on a throttled `timeupdate` (and on pause /
-/// chapter change) with the current position in seconds + percent. Stored in the
-/// on-device [`ListeningStore`], separate from reading positions.
+/// chapter change) with the current position in seconds + percent. The on-device
+/// [`ListeningStore`] is the **source of truth** and is written first; it always
+/// succeeds independently of any server.
 ///
-/// TODO(sync): a later phase will best-effort mirror this to Audiobookshelf's
-/// progress API (`PATCH /api/me/progress/{id}`), analogous to the Hardcover
-/// reading sync in [`libro_core::sync`]. Not built now.
+/// When `book` is supplied, the book came from Audiobookshelf, and ABS
+/// listening-sync is enabled (`audiobookshelf.sync_listening_progress`, default
+/// off), the position is *best-effort* pushed back to the ABS server via
+/// [`sync_listening_progress`]. Any network/sync error is logged and swallowed —
+/// it never fails this command or the player. See [`libro_core::listening_sync`].
 #[tauri::command]
-pub async fn save_listening_progress(book_id: String, progress: Progress) -> Result<(), String> {
+pub async fn save_listening_progress(
+    book_id: String,
+    progress: Progress,
+    book: Option<Book>,
+    sync_state: tauri::State<'_, ListeningSyncState>,
+) -> Result<(), String> {
+    // 1. Source of truth: persist locally. This must always succeed on its own.
     ListeningStore::default_store()
-        .save(&book_id, progress)
-        .map_err(|e| e.to_string())
+        .save(&book_id, progress.clone())
+        .map_err(|e| e.to_string())?;
+
+    // 2. Best-effort outward sync to Audiobookshelf. Failures are swallowed.
+    if let Some(book) = book {
+        if book.source_provider_id == AudiobookshelfProvider::ID {
+            // The ABS libraryItemId is the audiobook Book.id (the id
+            // get_audiobook_stream opens a play session with).
+            best_effort_abs_listening_sync(&sync_state, &book.id, &progress).await;
+        }
+    }
+    Ok(())
+}
+
+/// Push listening progress to Audiobookshelf if configured and opted in.
+/// Never returns an error — the local save already succeeded and is authoritative.
+async fn best_effort_abs_listening_sync(
+    state: &ListeningSyncState,
+    item_id: &str,
+    progress: &Progress,
+) {
+    let Ok(app_config) = config::load_config() else {
+        return;
+    };
+    let Some(pc) = app_config
+        .providers
+        .iter()
+        .find(|p| p.enabled && p.provider_type == AudiobookshelfProvider::ID)
+    else {
+        return; // ABS not configured → nothing to mirror to.
+    };
+
+    let cfg: AudiobookshelfConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+    let configured = !cfg.base_url.trim().is_empty() && !cfg.api_token.trim().is_empty();
+    let enabled = cfg.sync_listening_progress;
+    let tracker = if configured {
+        Some(AudiobookshelfProvider::new(cfg))
+    } else {
+        None
+    };
+
+    let outcome =
+        sync_listening_progress(enabled, tracker.as_ref(), state, item_id, progress).await;
+    if let ListeningSyncOutcome::Failed(e) = &outcome {
+        eprintln!("audiobookshelf listening-progress sync failed (ignored): {e}");
+    }
 }
 
 /// Fetch the stored listening position for a book, if any, so the player can

@@ -15,6 +15,7 @@ pub mod commands;
 pub fn run() {
     tauri::Builder::default()
         .manage(libro_core::sync::ReadingSyncState::new())
+        .manage(libro_core::listening_sync::ListeningSyncState::new())
         .invoke_handler(tauri::generate_handler![
             commands::list_all_books,
             commands::list_books_by_provider,
