@@ -32,6 +32,8 @@ pub enum ProviderError {
     Config(String),
     #[error("network error: {0}")]
     Network(String),
+    #[error("API error: {0}")]
+    Api(String),
     #[error("unexpected error: {0}")]
     Other(String),
 }
