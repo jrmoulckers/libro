@@ -92,7 +92,7 @@ The Rust side is a two-crate Cargo workspace:
                         │  libro-core  (core) — pure client, no GUI     │
                         │    providers::Provider (trait)                │
                         │     ├─ AudiobookshelfProvider (real REST)      │
-                        │     ├─ HardcoverProvider (stub, GraphQL)       │
+                        │     ├─ HardcoverProvider (real GraphQL)        │
                         │     ├─ LazyLibrarianProvider (stub, REST)      │
                         │     └─ LibbyProvider (deep-link-only)          │
                         │          │ list_library()                     │
@@ -173,7 +173,9 @@ Realistic connector targets, by tier:
 
 *Official public APIs (user-supplied key):*
 - **Hardcover** — official public GraphQL API for reading status, ratings, and
-  shelves (`PROGRESS_SYNC`; not a catalog/holds source). **Stub.**
+  shelves (`PROGRESS_SYNC`; not a catalog/holds source). **Real connector**
+  (`me`, `user_books`, `search`, `insert_user_book`, `update_user_book`,
+  `insert_user_book_read`); live verification pending a user-supplied API key.
 - **Open Library** — public API for metadata/covers (planned).
 - **Send-to-Kindle** — official email-to-`@kindle.com` path (`SEND_TO_KINDLE`).
 
@@ -191,8 +193,9 @@ Realistic connector targets, by tier:
 ## Deliberately deferred implementation
 
 These are intentionally left as TODOs with clear seams:
-- Hardcover GraphQL queries, and LazyLibrarian REST calls (both are typed stubs
-  with the right config shape and capabilities).
+- LazyLibrarian REST calls (a typed stub with the right config shape and
+  capabilities). *(Hardcover's GraphQL client is now a real connector; a few
+  write-mutation input type names are marked TODO pending the beta schema.)*
 - Live end-to-end verification of the Audiobookshelf connector against a running
   server (the mapping is code-complete and unit-tested against captured API
   response shapes; no live server is available yet).
