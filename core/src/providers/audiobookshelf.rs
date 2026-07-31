@@ -16,6 +16,8 @@
 //! * `GET /api/items/{id}/cover`       — per-item cover image.
 //! * `POST /api/items/{id}/play`       — open a playback session (audio tracks +
 //!                                       chapters) for the audiobook player.
+//! * `PATCH /api/me/progress/{id}`      — push the user's listening position
+//!                                       back to the server (opt-in sync).
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -69,6 +71,12 @@ pub struct AudiobookshelfConfig {
     pub base_url: String,
     /// API token for the authenticating user.
     pub api_token: String,
+    /// Opt-in: mirror the in-app player's local listening position **up** to this
+    /// ABS server (`PATCH /api/me/progress/{id}`). Default `false` — writing to
+    /// the user's server must never be a silent side effect of pressing play.
+    /// See [`crate::listening_sync`].
+    #[serde(default)]
+    pub sync_listening_progress: bool,
 }
 
 /// The Audiobookshelf connector.
@@ -133,6 +141,109 @@ impl AudiobookshelfProvider {
             ))),
         }
     }
+
+    /// Push the user's listening position for one library item back to the
+    /// server: `PATCH /api/me/progress/{libraryItemId}` (Bearer auth) with a body
+    /// carrying `currentTime`, `duration`, `progress` (fraction), and
+    /// `isFinished`. The request body is built by the pure, unit-tested
+    /// [`map_media_progress_body`] helper (kept separate from the HTTP call, like
+    /// [`map_playback_session`]).
+    ///
+    /// Best-effort by contract: used through the [`crate::listening_sync`] engine,
+    /// which swallows any error so it can never disturb the local (source-of-truth)
+    /// listening store or the player.
+    ///
+    /// TODO(live): there is no ABS server in this build environment, so only the
+    /// pure body mapping is exercised by tests — live verification against a
+    /// running instance is pending. See `ARCHITECTURE.md` → audiobook playback.
+    pub async fn update_media_progress(
+        &self,
+        item_id: &str,
+        position_seconds: f64,
+        duration_seconds: Option<f64>,
+        is_finished: bool,
+    ) -> ProviderResult<()> {
+        if self.base().is_empty() {
+            return Err(ProviderError::Config("base_url is empty".into()));
+        }
+        let url = format!("{}/api/me/progress/{item_id}", self.base());
+        let body = map_media_progress_body(position_seconds, duration_seconds, is_finished);
+        let resp = self
+            .client
+            .patch(&url)
+            .json(&body)
+            .bearer_auth(&self.config.api_token)
+            .send()
+            .await
+            .map_err(|e| ProviderError::Network(e.to_string()))?;
+
+        match resp.status().as_u16() {
+            200 | 204 => Ok(()),
+            401 | 403 => Err(ProviderError::NotAuthenticated),
+            404 => Err(ProviderError::Api(format!("item {item_id} not found"))),
+            other => Err(ProviderError::Other(format!(
+                "unexpected status {other} from {url}"
+            ))),
+        }
+    }
+}
+
+/// ABS as a listening-progress sink for the in-app player (see
+/// [`crate::listening_sync`]). Adapts the connector's media-progress write to the
+/// [`ListeningTracker`](crate::listening_sync::ListeningTracker) contract so the
+/// sync engine stays connector-agnostic and testable against a fake.
+#[async_trait]
+impl crate::listening_sync::ListeningTracker for AudiobookshelfProvider {
+    async fn update_media_progress(
+        &self,
+        item_id: &str,
+        position_seconds: f64,
+        duration_seconds: Option<f64>,
+        is_finished: bool,
+    ) -> ProviderResult<()> {
+        // Disambiguate from the inherent method of the same name.
+        AudiobookshelfProvider::update_media_progress(
+            self,
+            item_id,
+            position_seconds,
+            duration_seconds,
+            is_finished,
+        )
+        .await
+    }
+}
+
+/// Build the `PATCH /api/me/progress/{id}` request body from a listening
+/// position. Pure and unit-tested (no network), mirroring [`map_playback_session`].
+///
+/// Emits `currentTime` (seconds) and `isFinished` always; adds `duration` and the
+/// derived `progress` fraction (`currentTime / duration`, clamped to `0.0..=1.0`)
+/// when a positive duration is known. A finished item reports `progress: 1.0`.
+pub fn map_media_progress_body(
+    position_seconds: f64,
+    duration_seconds: Option<f64>,
+    is_finished: bool,
+) -> serde_json::Value {
+    let mut body = serde_json::Map::new();
+    body.insert(
+        "currentTime".into(),
+        serde_json::json!(position_seconds.max(0.0)),
+    );
+    body.insert("isFinished".into(), serde_json::json!(is_finished));
+
+    if let Some(dur) = duration_seconds.filter(|d| *d > 0.0) {
+        body.insert("duration".into(), serde_json::json!(dur));
+        let fraction = if is_finished {
+            1.0
+        } else {
+            (position_seconds / dur).clamp(0.0, 1.0)
+        };
+        body.insert("progress".into(), serde_json::json!(fraction));
+    } else if is_finished {
+        body.insert("progress".into(), serde_json::json!(1.0));
+    }
+
+    serde_json::Value::Object(body)
 }
 
 #[async_trait]
@@ -758,5 +869,30 @@ mod tests {
             serde_json::from_str(r#"{ "audioTracks": [], "chapters": [] }"#).unwrap();
         let err = map_playback_session(&session, "https://s", "T").unwrap_err();
         assert!(matches!(err, ProviderError::Api(_)));
+    }
+
+    #[test]
+    fn media_progress_body_carries_current_time_duration_and_fraction() {
+        let body = map_media_progress_body(1800.0, Some(3600.0), false);
+        assert_eq!(body["currentTime"], serde_json::json!(1800.0));
+        assert_eq!(body["duration"], serde_json::json!(3600.0));
+        assert_eq!(body["isFinished"], serde_json::json!(false));
+        assert_eq!(body["progress"], serde_json::json!(0.5));
+    }
+
+    #[test]
+    fn media_progress_body_marks_finished_as_full_progress() {
+        let body = map_media_progress_body(3600.0, Some(3600.0), true);
+        assert_eq!(body["isFinished"], serde_json::json!(true));
+        assert_eq!(body["progress"], serde_json::json!(1.0));
+    }
+
+    #[test]
+    fn media_progress_body_without_duration_omits_duration_and_fraction() {
+        let body = map_media_progress_body(120.0, None, false);
+        assert_eq!(body["currentTime"], serde_json::json!(120.0));
+        assert_eq!(body["isFinished"], serde_json::json!(false));
+        assert!(body.get("duration").is_none());
+        assert!(body.get("progress").is_none());
     }
 }
