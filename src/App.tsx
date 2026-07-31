@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AudioChapter, AudioPlayback, Book, BookMetadata, ProviderBooks } from "./types";
+import type { AudioChapter, AudioPlayback, Book, BookMetadata, PluginInfo, ProviderBooks } from "./types";
 import { EpubReader, type EpubSource } from "./EpubReader";
 import { AudioPlayer } from "./AudioPlayer";
 import { isTauri } from "./tauri";
@@ -53,6 +53,9 @@ function App() {
   const [metaLoading, setMetaLoading] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
 
+  // Phase 3: installed connector plugins (declarative manifests).
+  const [plugins, setPlugins] = useState<PluginInfo[]>([]);
+
   const loadLibrary = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -86,6 +89,15 @@ function App() {
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary]);
+
+  // Load the installed plugins list (Tauri only; the browser demo has no
+  // on-device plugins directory).
+  useEffect(() => {
+    if (!isTauri()) return;
+    invoke<PluginInfo[]>("list_plugins")
+      .then(setPlugins)
+      .catch((e) => console.warn("list_plugins failed", e));
+  }, []);
 
   // Open a locally-scanned EPUB: fetch its bytes from the Rust core and hand the
   // ArrayBuffer to the reader. Only usable for Local Files books under Tauri.
@@ -244,6 +256,28 @@ function App() {
           </ul>
         )}
       </section>
+
+      {plugins.length > 0 && (
+        <section className="app__plugins">
+          <h2>Installed plugins</h2>
+          <p className="app__tagline">
+            Declarative connectors added without recompiling Libro. Each is
+            sandboxed to the network domains its manifest declares.
+          </p>
+          <ul className="app__plugin-list">
+            {plugins.map((p) => (
+              <li key={p.id}>
+                <strong>{p.name}</strong> <span>v{p.version}</span>
+                {p.author && <> — {p.author}</>}
+                <span className="app__plugin-domains">
+                  {" "}
+                  reaches: {p.allowed_domains.join(", ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {failed.length > 0 && (
         <section className="app__provider-errors">

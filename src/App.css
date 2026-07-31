@@ -199,3 +199,29 @@ body {
   letter-spacing: 0.06em;
   margin-left: 0.4rem;
 }
+
+.app__plugins {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+}
+
+.app__plugins h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.app__plugin-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.app__plugin-domains {
+  color: var(--accent);
+  font-size: 0.75rem;
+}

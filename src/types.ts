@@ -90,3 +90,20 @@ export interface AudioPlayback {
   mime_type?: string | null;
   chapters: AudioChapter[];
 }
+
+/**
+ * A minimal, frontend-facing view of an installed plugin (mirrors the Rust
+ * `PluginInfo`), returned by the `list_plugins` command. Never carries the
+ * user's secret config values — only what the loader validated.
+ */
+export interface PluginInfo {
+  id: string;
+  name: string;
+  version: string;
+  author?: string | null;
+  plugin_api_version: number;
+  /** Raw capability bits (see the Rust `ProviderCapabilities`). */
+  capabilities: number;
+  /** Domains this plugin is sandboxed to (its only permitted network hosts). */
+  allowed_domains: string[];
+}
