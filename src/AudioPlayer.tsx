@@ -30,9 +30,9 @@ export interface AudioPlayerProps {
    */
   bookId?: string;
   /**
-   * The full catalog book — reserved for a future opt-in listening-progress
-   * sync to Audiobookshelf (analogous to the Hardcover reading sync). Not used
-   * for outward sync yet.
+   * The full catalog book. When it came from Audiobookshelf and ABS
+   * listening-sync is opted in, the backend best-effort mirrors the local
+   * position back to the server (analogous to the Hardcover reading sync).
    */
   book?: Book;
   /** Seconds to skip on the back/forward buttons (default 30). */
@@ -74,6 +74,7 @@ export function AudioPlayer({
   chapters = [],
   title,
   bookId,
+  book,
   skipSeconds = 30,
   onClose,
 }: AudioPlayerProps) {
@@ -116,9 +117,11 @@ export function AudioPlayer({
         locator: null,
         finished: finished || fraction >= 0.999,
       };
-      void tryInvoke("save_listening_progress", { bookId, progress });
+      // `book` lets the backend best-effort mirror the position to Audiobookshelf
+      // (opt-in; only for ABS-sourced books). See libro_core::listening_sync.
+      void tryInvoke("save_listening_progress", { bookId, progress, book });
     },
-    [bookId],
+    [bookId, book],
   );
 
   // Throttled progress save: at most every SAVE_INTERVAL_MS during playback.
