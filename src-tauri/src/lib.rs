@@ -19,7 +19,10 @@ pub fn run() {
             commands::list_books_by_provider,
             commands::search_metadata,
             commands::lookup_metadata_by_isbn,
-            commands::get_local_cover
+            commands::get_local_cover,
+            commands::get_book_file,
+            commands::save_reading_progress,
+            commands::get_reading_progress
         ])
         .run(tauri::generate_context!())
         .expect("error while running Libro");

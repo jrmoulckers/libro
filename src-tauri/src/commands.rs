@@ -1,13 +1,15 @@
 //! Tauri command surface exposed to the frontend.
 
-use libro_core::config::{self, AppConfig, ProviderConfig};
+use libro_core::config::{self, AppConfig, ProviderConfig, ReadingStore};
 use libro_core::metadata::{enrich_catalog, BookMetadata, EnrichOptions, MetadataRegistry};
-use libro_core::models::Book;
+use libro_core::models::{Book, Progress};
 use libro_core::providers::audiobookshelf::{AudiobookshelfConfig, AudiobookshelfProvider};
 use libro_core::providers::hardcover::{HardcoverConfig, HardcoverProvider};
 use libro_core::providers::lazylibrarian::{LazyLibrarianConfig, LazyLibrarianProvider};
 use libro_core::providers::libby::{LibbyConfig, LibbyProvider};
-use libro_core::providers::localfiles::{extract_cover, LocalFilesConfig, LocalFilesProvider};
+use libro_core::providers::localfiles::{
+    extract_cover, read_book_file, LocalFilesConfig, LocalFilesProvider,
+};
 use libro_core::providers::opds::{OpdsConfig, OpdsProvider};
 use libro_core::providers::Provider;
 
@@ -194,5 +196,51 @@ pub async fn get_local_cover(book_id: String) -> Result<Option<Vec<u8>>, String>
         }
     }
     Ok(None)
+}
+
+/// Return the raw EPUB file bytes for a locally-scanned book, for the in-app
+/// reader.
+///
+/// Searches every configured Local Files provider for the matching book id and
+/// returns the file bytes. Like [`get_local_cover`], it can only read files under
+/// the user's configured library folders (the id is matched against hashes of
+/// discovered paths, never used to build a path), so it can't be steered outside
+/// the library. An unknown id is an error.
+#[tauri::command]
+pub async fn get_book_file(book_id: String) -> Result<Vec<u8>, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    for pc in app_config
+        .providers
+        .iter()
+        .filter(|p| p.enabled && p.provider_type == LocalFilesProvider::ID)
+    {
+        let cfg: LocalFilesConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+        if let Some(bytes) = read_book_file(&cfg, &book_id) {
+            return Ok(bytes);
+        }
+    }
+    Err(format!("book file not found for id {book_id}"))
+}
+
+/// Persist the reading position for a book so it can be resumed later.
+///
+/// The reader calls this on location change with the current EPUB CFI/locator and
+/// percent. Progress is stored on-device in the reading-progress store (see
+/// [`ReadingStore`]). TODO(sync): also push to reading-tracker connectors
+/// (Hardcover / Audiobookshelf).
+#[tauri::command]
+pub async fn save_reading_progress(book_id: String, progress: Progress) -> Result<(), String> {
+    ReadingStore::default_store()
+        .save(&book_id, progress)
+        .map_err(|e| e.to_string())
+}
+
+/// Fetch the stored reading position for a book, if any, so the reader can resume
+/// where the user left off.
+#[tauri::command]
+pub async fn get_reading_progress(book_id: String) -> Result<Option<Progress>, String> {
+    ReadingStore::default_store()
+        .get(&book_id)
+        .map_err(|e| e.to_string())
 }
 
