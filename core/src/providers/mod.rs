@@ -15,6 +15,7 @@ pub mod hardcover;
 pub mod lazylibrarian;
 pub mod libby;
 pub mod localfiles;
+pub mod opds;
 
 use async_trait::async_trait;
 use bitflags::bitflags;
