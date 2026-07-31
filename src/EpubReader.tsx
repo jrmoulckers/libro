@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactReader } from "react-reader";
 import type { Rendition } from "epubjs";
-import type { Progress } from "./types";
+import type { Book, Progress } from "./types";
 import { tryInvoke } from "./tauri";
 import "./EpubReader.css";
 
@@ -24,6 +24,12 @@ export interface EpubReaderProps {
    * `save_reading_progress` commands. Omit for the anonymous sample demo.
    */
   bookId?: string;
+  /**
+   * The full catalog book, passed through to `save_reading_progress` so the
+   * backend can resolve it on a tracking service (e.g. Hardcover) for opt-in
+   * progress sync. Omit for the anonymous sample demo (no sync).
+   */
+  book?: Book;
   /** Close the reader and return to the library. */
   onClose?: () => void;
 }
@@ -44,7 +50,7 @@ const FONT_STEP = 10;
  * search, themes/dark-mode, and syncing progress to reading trackers
  * (Hardcover / Audiobookshelf).
  */
-export function EpubReader({ source, title, bookId, onClose }: EpubReaderProps) {
+export function EpubReader({ source, title, bookId, book, onClose }: EpubReaderProps) {
   const [location, setLocation] = useState<string | number>(0);
   const [percent, setPercent] = useState<number | null>(null);
   const [fontSize, setFontSize] = useState(100);
@@ -84,9 +90,11 @@ export function EpubReader({ source, title, bookId, onClose }: EpubReaderProps) 
         position_seconds: null,
         finished: fraction >= 0.999,
       };
-      void tryInvoke("save_reading_progress", { bookId, progress });
+      // `book` lets the backend resolve this title on a tracking service for
+      // opt-in progress sync (Hardcover). Harmless when sync is off/unconfigured.
+      void tryInvoke("save_reading_progress", { bookId, progress, book });
     },
-    [bookId],
+    [bookId, book],
   );
 
   const handleLocationChanged = useCallback(

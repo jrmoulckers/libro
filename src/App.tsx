@@ -10,6 +10,8 @@ interface ReaderState {
   source: EpubSource;
   title: string;
   bookId?: string;
+  /** Full catalog book, for opt-in reading-progress sync (omitted for the sample). */
+  book?: Book;
 }
 
 function App() {
@@ -73,6 +75,7 @@ function App() {
         source: buffer,
         title: book.title,
         bookId: book.id,
+        book,
       });
     } catch (e) {
       setError(`Couldn't open “${book.title}”: ${String(e)}`);
@@ -104,6 +107,7 @@ function App() {
         source={reader.source}
         title={reader.title}
         bookId={reader.bookId}
+        book={reader.book}
         onClose={() => setReader(null)}
       />
     );
