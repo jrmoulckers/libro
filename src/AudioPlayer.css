@@ -1,0 +1,149 @@
+.player {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #14161a;
+  color: #e8e8ea;
+}
+
+.player__bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #2a2d33;
+}
+
+.player__close {
+  background: transparent;
+  border: 1px solid #3a3f47;
+  color: inherit;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.player__title {
+  flex: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player__percent {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.player__stage {
+  flex: 1;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.player__seek {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.player__scrub {
+  flex: 1;
+}
+
+.player__time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  min-width: 3.5rem;
+  text-align: center;
+}
+
+.player__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.player__controls button {
+  background: #21252b;
+  border: 1px solid #3a3f47;
+  color: inherit;
+  padding: 0.55rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.player__play {
+  font-weight: 700;
+  min-width: 7rem;
+}
+
+.player__speed {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.player__speed select {
+  background: #21252b;
+  color: inherit;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+}
+
+.player__chapters h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+  opacity: 0.8;
+}
+
+.player__chapters ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.player__chapters button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #1b1e23;
+  border: 1px solid transparent;
+  color: inherit;
+  padding: 0.55rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.player__chapters button.is-active {
+  border-color: #5b8cff;
+  background: #1e2530;
+}
+
+.player__chapter-time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.player__hint {
+  text-align: center;
+  opacity: 0.55;
+  font-size: 0.85rem;
+  margin: 0;
+}

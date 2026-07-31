@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Book, BookMetadata, ProviderBooks } from "./types";
+import type { AudioChapter, AudioPlayback, Book, BookMetadata, ProviderBooks } from "./types";
 import { EpubReader, type EpubSource } from "./EpubReader";
+import { AudioPlayer } from "./AudioPlayer";
 import { isTauri } from "./tauri";
 import "./App.css";
 
@@ -14,6 +15,26 @@ interface ReaderState {
   book?: Book;
 }
 
+/** What the audio player is currently playing (null = not playing). */
+interface PlayerState {
+  src: string;
+  title: string;
+  chapters: AudioChapter[];
+  bookId?: string;
+  book?: Book;
+}
+
+/**
+ * Chapter markers for the bundled synthetic sample audiobook: three 4-second
+ * tone segments, so the chapter list / jump-to-chapter is demoable in a plain
+ * browser (`npm run dev`) with no backend.
+ */
+const SAMPLE_CHAPTERS: AudioChapter[] = [
+  { id: 0, start: 0, end: 4, title: "Prologue" },
+  { id: 1, start: 4, end: 8, title: "Chapter One" },
+  { id: 2, start: 8, end: 12, title: "Chapter Two" },
+];
+
 function App() {
   const [providers, setProviders] = useState<ProviderBooks[]>([]);
   const [loading, setLoading] = useState(false);
@@ -22,6 +43,9 @@ function App() {
   // Reading phase: the currently-open EPUB, if any.
   const [reader, setReader] = useState<ReaderState | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
+
+  // Playback phase: the currently-playing audiobook, if any.
+  const [player, setPlayer] = useState<PlayerState | null>(null);
 
   // Metadata enrichment demo (Open Library / Google Books).
   const [query, setQuery] = useState("");
@@ -90,9 +114,48 @@ function App() {
     setReader({ source: "/sample.epub", title: "The Fables of Aesop (sample)" });
   }, []);
 
+  // Open an Audiobookshelf audiobook: resolve a playable stream + chapters from
+  // the Rust core, then hand them to the audio player. Only for ABS audiobooks
+  // under Tauri.
+  const openAudiobook = useCallback(async (book: Book) => {
+    setOpeningId(book.id);
+    setError(null);
+    try {
+      const playback = await invoke<AudioPlayback>("get_audiobook_stream", {
+        bookId: book.id,
+      });
+      setPlayer({
+        src: playback.stream_url,
+        title: book.title,
+        chapters: playback.chapters,
+        bookId: book.id,
+        book,
+      });
+    } catch (e) {
+      setError(`Couldn't play “${book.title}”: ${String(e)}`);
+    } finally {
+      setOpeningId(null);
+    }
+  }, []);
+
+  // Open the bundled public-domain sample audiobook so the player is demoable in
+  // a plain browser without the Tauri backend.
+  const openSampleAudiobook = useCallback(() => {
+    setPlayer({
+      src: "/sample-audiobook.wav",
+      title: "Synthetic Sample Audiobook",
+      chapters: SAMPLE_CHAPTERS,
+    });
+  }, []);
+
   const canRead = (book: Book) =>
     book.media_type === "Ebook" &&
     book.source_provider_id === "localfiles" &&
+    isTauri();
+
+  const canListen = (book: Book) =>
+    book.media_type === "Audiobook" &&
+    book.source_provider_id === "audiobookshelf" &&
     isTauri();
 
   const books = useMemo<Book[]>(
@@ -113,6 +176,19 @@ function App() {
     );
   }
 
+  if (player) {
+    return (
+      <AudioPlayer
+        src={player.src}
+        title={player.title}
+        chapters={player.chapters}
+        bookId={player.bookId}
+        book={player.book}
+        onClose={() => setPlayer(null)}
+      />
+    );
+  }
+
   return (
     <main className="app">
       <header className="app__header">
@@ -123,6 +199,7 @@ function App() {
             {loading ? "Loading…" : "Refresh library"}
           </button>
           <button onClick={openSample}>Open sample book</button>
+          <button onClick={openSampleAudiobook}>Open sample audiobook</button>
         </div>
       </header>
 
@@ -207,6 +284,15 @@ function App() {
                   disabled={openingId === book.id}
                 >
                   {openingId === book.id ? "Opening…" : "Read"}
+                </button>
+              )}
+              {canListen(book) && (
+                <button
+                  className="card__read"
+                  onClick={() => void openAudiobook(book)}
+                  disabled={openingId === book.id}
+                >
+                  {openingId === book.id ? "Loading…" : "Listen"}
                 </button>
               )}
             </div>

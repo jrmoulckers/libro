@@ -66,3 +66,27 @@ export interface ProviderBooks {
   /** `null` on success; a human-readable message on failure. */
   error?: string | null;
 }
+
+/**
+ * A normalized audiobook chapter marker (mirrors the Rust `AudioChapter`).
+ * Times are seconds from the start of the audiobook.
+ */
+export interface AudioChapter {
+  id: number;
+  start: number;
+  end: number;
+  title: string;
+}
+
+/**
+ * A directly-playable audiobook stream + chapters (mirrors the Rust
+ * `AudioPlayback`), returned by the `get_audiobook_stream` command. `stream_url`
+ * is loadable straight into an `<audio>` element (auth token in the query
+ * string, since a media element can't send an Authorization header).
+ */
+export interface AudioPlayback {
+  stream_url: string;
+  duration?: number | null;
+  mime_type?: string | null;
+  chapters: AudioChapter[];
+}
