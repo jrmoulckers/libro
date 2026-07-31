@@ -23,7 +23,10 @@ pub fn run() {
             commands::get_local_cover,
             commands::get_book_file,
             commands::save_reading_progress,
-            commands::get_reading_progress
+            commands::get_reading_progress,
+            commands::get_audiobook_stream,
+            commands::save_listening_progress,
+            commands::get_listening_progress
         ])
         .run(tauri::generate_context!())
         .expect("error while running Libro");

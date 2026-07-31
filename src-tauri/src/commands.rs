@@ -1,9 +1,11 @@
 //! Tauri command surface exposed to the frontend.
 
-use libro_core::config::{self, AppConfig, ProviderConfig, ReadingStore};
+use libro_core::config::{self, AppConfig, ListeningStore, ProviderConfig, ReadingStore};
 use libro_core::metadata::{enrich_catalog, BookMetadata, EnrichOptions, MetadataRegistry};
 use libro_core::models::{Book, Progress};
-use libro_core::providers::audiobookshelf::{AudiobookshelfConfig, AudiobookshelfProvider};
+use libro_core::providers::audiobookshelf::{
+    AudioPlayback, AudiobookshelfConfig, AudiobookshelfProvider,
+};
 use libro_core::providers::hardcover::{HardcoverConfig, HardcoverProvider};
 use libro_core::providers::lazylibrarian::{LazyLibrarianConfig, LazyLibrarianProvider};
 use libro_core::providers::libby::{LibbyConfig, LibbyProvider};
@@ -288,6 +290,64 @@ async fn best_effort_hardcover_sync(state: &ReadingSyncState, book: &Book, progr
 #[tauri::command]
 pub async fn get_reading_progress(book_id: String) -> Result<Option<Progress>, String> {
     ReadingStore::default_store()
+        .get(&book_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Resolve a directly-playable audiobook stream + chapter list for the in-app
+/// audio player.
+///
+/// `book_id` is an Audiobookshelf library-item id (the `id` of a `Book` whose
+/// `source_provider_id == "audiobookshelf"`). This opens an ABS playback session
+/// with the connector's auth and returns a normalized [`AudioPlayback`] the
+/// frontend `<audio>` element can load directly.
+///
+/// TODO(live): there is no ABS server in this build environment, so this path is
+/// only structurally verified (the pure session→playback mapping is unit-tested
+/// in [`libro_core::providers::audiobookshelf`]). Live streaming needs a running
+/// ABS instance — see `ARCHITECTURE.md`.
+#[tauri::command]
+pub async fn get_audiobook_stream(book_id: String) -> Result<AudioPlayback, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+
+    let mut last_err = String::from("no Audiobookshelf provider configured");
+    for pc in app_config
+        .providers
+        .iter()
+        .filter(|p| p.enabled && p.provider_type == AudiobookshelfProvider::ID)
+    {
+        let cfg: AudiobookshelfConfig =
+            serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+        let provider = AudiobookshelfProvider::new(cfg);
+        match provider.resolve_playback(&book_id).await {
+            Ok(playback) => return Ok(playback),
+            Err(e) => last_err = e.to_string(),
+        }
+    }
+    Err(last_err)
+}
+
+/// Persist the listening (audiobook) position for a book so it can be resumed.
+///
+/// The audio player calls this on a throttled `timeupdate` (and on pause /
+/// chapter change) with the current position in seconds + percent. Stored in the
+/// on-device [`ListeningStore`], separate from reading positions.
+///
+/// TODO(sync): a later phase will best-effort mirror this to Audiobookshelf's
+/// progress API (`PATCH /api/me/progress/{id}`), analogous to the Hardcover
+/// reading sync in [`libro_core::sync`]. Not built now.
+#[tauri::command]
+pub async fn save_listening_progress(book_id: String, progress: Progress) -> Result<(), String> {
+    ListeningStore::default_store()
+        .save(&book_id, progress)
+        .map_err(|e| e.to_string())
+}
+
+/// Fetch the stored listening position for a book, if any, so the player can
+/// resume where the user left off.
+#[tauri::command]
+pub async fn get_listening_progress(book_id: String) -> Result<Option<Progress>, String> {
+    ListeningStore::default_store()
         .get(&book_id)
         .map_err(|e| e.to_string())
 }
