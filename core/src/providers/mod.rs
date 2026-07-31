@@ -11,6 +11,9 @@
 //! the remote API from the user's device. There is no Libro server in the middle.
 
 pub mod audiobookshelf;
+pub mod hardcover;
+pub mod lazylibrarian;
+pub mod libby;
 
 use async_trait::async_trait;
 use bitflags::bitflags;
@@ -56,6 +59,10 @@ bitflags! {
         const SEND_TO_KINDLE = 0b0001_0000;
         /// Can read and/or write reading/listening progress.
         const PROGRESS_SYNC  = 0b0010_0000;
+        /// Not a real integration: the provider is a walled garden surfaced as a
+        /// "open in the official app" deep link (e.g. Libby/OverDrive holds).
+        /// Connectors with this flag must never call the provider's API.
+        const DEEP_LINK_ONLY = 0b0100_0000;
     }
 }
 

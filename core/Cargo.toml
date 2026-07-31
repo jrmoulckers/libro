@@ -1,0 +1,21 @@
+[package]
+name = "libro-core"
+version = "0.1.0"
+description = "Libro core: the pure-client domain model, provider/plugin contract, and config boundary (no UI, no Tauri)."
+authors = ["Libro contributors"]
+edition = "2021"
+rust-version = "1.77"
+
+# Pure library crate. Deliberately free of any Tauri/GUI dependency so the
+# domain logic and connector mapping can be unit-tested with a plain, static
+# test binary (no WebView runtime required to run `cargo test`).
+[lib]
+name = "libro_core"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+bitflags = { version = "2", features = ["serde"] }
+thiserror = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

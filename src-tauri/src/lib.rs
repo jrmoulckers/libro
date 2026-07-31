@@ -1,19 +1,11 @@
-//! Libro core library.
+//! Libro — the Tauri shell for the Libro pure-client media hub.
 //!
-//! Libro is a cross-platform, **pure-client** media hub for books and
-//! audiobooks. All business logic lives here in Rust (the Tauri core); the
-//! React/TypeScript frontend is a thin UI over the [`commands`] surface.
-//!
-//! Module map:
-//! * [`models`] — the normalized, provider-agnostic domain model.
-//! * [`providers`] — the connector/plugin contract ([`providers::Provider`]).
-//! * [`config`] — local, encrypted-at-rest configuration (boundary only).
-//! * [`commands`] — Tauri commands invoked from the frontend.
+//! All business logic lives in the [`libro_core`] crate (the normalized domain
+//! model, the connector/plugin contract, and the config boundary). This crate
+//! is a thin shell: it re-exposes `libro_core` to the React/TypeScript frontend
+//! through the Tauri [`commands`] surface.
 
 pub mod commands;
-pub mod config;
-pub mod models;
-pub mod providers;
 
 /// Build and run the Tauri application.
 ///
@@ -22,7 +14,10 @@ pub mod providers;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![commands::list_all_books])
+        .invoke_handler(tauri::generate_handler![
+            commands::list_all_books,
+            commands::list_books_by_provider
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Libro");
 }

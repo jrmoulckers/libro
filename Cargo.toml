@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["core", "src-tauri"]
+
+# Two crates make up the Rust side of Libro:
+# * `core`      — `libro-core`: pure-client domain logic (no Tauri/GUI).
+# * `src-tauri` — `libro`: the Tauri shell that wires `libro-core` to the UI.
