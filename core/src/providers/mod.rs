@@ -14,6 +14,7 @@ pub mod audiobookshelf;
 pub mod hardcover;
 pub mod lazylibrarian;
 pub mod libby;
+pub mod localfiles;
 
 use async_trait::async_trait;
 use bitflags::bitflags;

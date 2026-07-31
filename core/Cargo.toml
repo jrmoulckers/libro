@@ -20,8 +20,12 @@ bitflags = { version = "2", features = ["serde"] }
 thiserror = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+roxmltree = "0.20"
 
 [dev-dependencies]
 # Only needed to drive the `#[ignore]`d live-network smoke tests
 # (`cargo test -p libro-core -- --ignored`); the default offline suite is sync.
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# Temp dirs for the Local Files connector tests (generate throwaway EPUBs).
+tempfile = "3"
