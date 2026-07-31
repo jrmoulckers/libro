@@ -161,6 +161,7 @@ The Rust side is a two-crate Cargo workspace:
                         │     ├─ HardcoverProvider (real GraphQL)        │
                         │     ├─ LazyLibrarianProvider (real REST)      │
                         │     ├─ LocalFilesProvider (EPUB on disk)       │
+                        │     ├─ OpdsProvider (real OPDS 1.2 Atom)       │
                         │     └─ LibbyProvider (deep-link-only)          │
                         │          │ list_library()                     │
                         │          ▼                                    │
@@ -248,6 +249,18 @@ Realistic connector targets, by tier:
   them. **No DRM handling** — DRM-protected files are read for open metadata only
   or skipped, never decrypted. Fully local; live-verified end-to-end via the
   enrichment synergy test.
+- **OPDS** — a generic connector for the [OPDS](https://specs.opds.io/) standard
+  (`CATALOG` + `DOWNLOAD`), so one connector reaches **Calibre-Web**, Calibre's
+  content server, **Kavita**, **Komga**, and public catalogs (Standard Ebooks,
+  Project Gutenberg). Targets **OPDS 1.2 (Atom/XML)**; parses feeds with
+  `roxmltree`, distinguishes navigation from acquisition feeds, and does a
+  **bounded** crawl (depth + total-page cap) following `rel="next"` pagination to
+  discover books. Maps each acquisition entry → normalized `Book` (title, authors,
+  description, ISBN, series best-effort, absolute cover URL, and the primary
+  acquisition link/type for `DOWNLOAD`). Supports HTTP Basic auth (Calibre-Web's
+  default) and unauthenticated public feeds. Live-verified against Project
+  Gutenberg; Calibre-Web-specific verification pending the user's own instance.
+  *TODO:* OPDS 2.0 (JSON), download-to-disk + UI, richer series extraction.
 
 *Official public APIs (user-supplied key):*
 - **Hardcover** — official public GraphQL API for reading status, ratings, and

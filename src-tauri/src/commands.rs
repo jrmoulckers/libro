@@ -8,6 +8,7 @@ use libro_core::providers::hardcover::{HardcoverConfig, HardcoverProvider};
 use libro_core::providers::lazylibrarian::{LazyLibrarianConfig, LazyLibrarianProvider};
 use libro_core::providers::libby::{LibbyConfig, LibbyProvider};
 use libro_core::providers::localfiles::{extract_cover, LocalFilesConfig, LocalFilesProvider};
+use libro_core::providers::opds::{OpdsConfig, OpdsProvider};
 use libro_core::providers::Provider;
 
 /// Instantiate the set of [`Provider`]s described by an [`AppConfig`].
@@ -43,6 +44,10 @@ fn build_providers(config: &AppConfig) -> Vec<Box<dyn Provider>> {
             LocalFilesProvider::ID => {
                 let cfg: LocalFilesConfig = serde_json::from_value(settings).unwrap_or_default();
                 providers.push(Box::new(LocalFilesProvider::new(cfg)));
+            }
+            OpdsProvider::ID => {
+                let cfg: OpdsConfig = serde_json::from_value(settings).unwrap_or_default();
+                providers.push(Box::new(OpdsProvider::new(cfg)));
             }
             other => {
                 // Unknown connector type; ignore for now. A later phase may
