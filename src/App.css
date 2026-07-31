@@ -60,6 +60,17 @@ body {
   cursor: default;
 }
 
+.app__header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.app__header-actions button {
+  margin-top: 0;
+}
+
 .app__error {
   color: #e06c6c;
 }
@@ -129,6 +140,24 @@ body {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.card__read {
+  margin-top: 0.5rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #14110f;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.card__read:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .app__metadata {

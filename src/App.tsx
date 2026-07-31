@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Book, BookMetadata, ProviderBooks } from "./types";
+import { EpubReader, type EpubSource } from "./EpubReader";
+import { isTauri } from "./tauri";
 import "./App.css";
+
+/** What the reader is currently showing (null = library view). */
+interface ReaderState {
+  source: EpubSource;
+  title: string;
+  bookId?: string;
+}
 
 function App() {
   const [providers, setProviders] = useState<ProviderBooks[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reading phase: the currently-open EPUB, if any.
+  const [reader, setReader] = useState<ReaderState | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   // Metadata enrichment demo (Open Library / Google Books).
   const [query, setQuery] = useState("");
@@ -48,20 +61,65 @@ function App() {
     void loadLibrary();
   }, [loadLibrary]);
 
+  // Open a locally-scanned EPUB: fetch its bytes from the Rust core and hand the
+  // ArrayBuffer to the reader. Only usable for Local Files books under Tauri.
+  const openBook = useCallback(async (book: Book) => {
+    setOpeningId(book.id);
+    setError(null);
+    try {
+      const bytes = await invoke<number[]>("get_book_file", { bookId: book.id });
+      const buffer = new Uint8Array(bytes).buffer;
+      setReader({
+        source: buffer,
+        title: book.title,
+        bookId: book.id,
+      });
+    } catch (e) {
+      setError(`Couldn't open “${book.title}”: ${String(e)}`);
+    } finally {
+      setOpeningId(null);
+    }
+  }, []);
+
+  // Open the bundled public-domain sample so the reader is demoable in a plain
+  // browser (`npm run dev`) without the Tauri backend.
+  const openSample = useCallback(() => {
+    setReader({ source: "/sample.epub", title: "The Fables of Aesop (sample)" });
+  }, []);
+
+  const canRead = (book: Book) =>
+    book.media_type === "Ebook" &&
+    book.source_provider_id === "localfiles" &&
+    isTauri();
+
   const books = useMemo<Book[]>(
     () => providers.flatMap((p) => p.books),
     [providers],
   );
   const failed = useMemo(() => providers.filter((p) => p.error), [providers]);
 
+  if (reader) {
+    return (
+      <EpubReader
+        source={reader.source}
+        title={reader.title}
+        bookId={reader.bookId}
+        onClose={() => setReader(null)}
+      />
+    );
+  }
+
   return (
     <main className="app">
       <header className="app__header">
         <h1>Libro</h1>
         <p className="app__tagline">Your library, aggregated. Pure client.</p>
-        <button onClick={() => void loadLibrary()} disabled={loading}>
-          {loading ? "Loading…" : "Refresh library"}
-        </button>
+        <div className="app__header-actions">
+          <button onClick={() => void loadLibrary()} disabled={loading}>
+            {loading ? "Loading…" : "Refresh library"}
+          </button>
+          <button onClick={openSample}>Open sample book</button>
+        </div>
       </header>
 
       {error && <p className="app__error">Failed to load: {error}</p>}
@@ -138,6 +196,15 @@ function App() {
                 {book.authors.length > 0 ? book.authors.join(", ") : "Unknown author"}
               </p>
               <p className="card__source">via {book.source_provider_id}</p>
+              {canRead(book) && (
+                <button
+                  className="card__read"
+                  onClick={() => void openBook(book)}
+                  disabled={openingId === book.id}
+                >
+                  {openingId === book.id ? "Opening…" : "Read"}
+                </button>
+              )}
             </div>
           </article>
         ))}

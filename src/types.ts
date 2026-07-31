@@ -11,6 +11,8 @@ export interface Progress {
   fraction: number;
   /** Last playback/reading position in seconds (audio) or locator (text). */
   position_seconds?: number | null;
+  /** Opaque text locator (EPUB CFI / foliate locator) used to resume reading. */
+  locator?: string | null;
   /** Whether the item is marked finished. */
   finished: boolean;
 }
