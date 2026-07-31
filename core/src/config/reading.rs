@@ -85,7 +85,9 @@ fn default_path() -> PathBuf {
     base_dir().join("Libro").join("reading.json")
 }
 
-fn base_dir() -> PathBuf {
+/// Platform data base directory, shared with the listening store. Uses only std
+/// env vars so no extra dependency is pulled in.
+pub(super) fn base_dir() -> PathBuf {
     #[cfg(windows)]
     {
         if let Ok(v) = env::var("APPDATA") {

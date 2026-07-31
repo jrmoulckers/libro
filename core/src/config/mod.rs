@@ -12,7 +12,9 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod listening;
 pub mod reading;
+pub use listening::ListeningStore;
 pub use reading::ReadingStore;
 
 /// A single configured provider instance.

@@ -14,12 +14,50 @@
 //! * `GET /api/libraries`              — enumerate libraries.
 //! * `GET /api/libraries/{id}/items`   — list items in a library (minified).
 //! * `GET /api/items/{id}/cover`       — per-item cover image.
+//! * `POST /api/items/{id}/play`       — open a playback session (audio tracks +
+//!                                       chapters) for the audiobook player.
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::models::{Book, MediaType, Progress};
 use crate::providers::{Provider, ProviderCapabilities, ProviderError, ProviderResult};
+
+/// A single audiobook chapter marker (normalized, provider-agnostic).
+///
+/// Times are in seconds from the start of the (logical) audiobook. Consumed by
+/// the frontend audio player for the chapter list / jump-to-chapter control.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AudioChapter {
+    pub id: u32,
+    /// Start offset in seconds.
+    pub start: f64,
+    /// End offset in seconds.
+    pub end: f64,
+    pub title: String,
+}
+
+/// A normalized, directly-playable audiobook stream + its chapter list.
+///
+/// This is what [`crate::providers::audiobookshelf::AudiobookshelfProvider::resolve_playback`]
+/// produces and the Tauri `get_audiobook_stream` command returns to the player.
+/// The player only needs a URL an `<audio>` element can load, so the auth token
+/// is embedded in `stream_url`'s query string (an HTML media element cannot send
+/// an `Authorization` header — see the note in [`map_playback_session`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AudioPlayback {
+    /// Absolute, directly-playable stream URL (auth token in the query string).
+    pub stream_url: String,
+    /// Total duration in seconds, if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<f64>,
+    /// MIME type hint for the stream (e.g. `"audio/mpeg"`), if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Chapter markers for the jump-to-chapter UI (may be empty).
+    #[serde(default)]
+    pub chapters: Vec<AudioChapter>,
+}
 
 /// Connection settings for an Audiobookshelf instance.
 ///
@@ -54,6 +92,46 @@ impl AudiobookshelfProvider {
     /// Base URL with any trailing slash removed.
     fn base(&self) -> &str {
         self.config.base_url.trim_end_matches('/')
+    }
+
+    /// Open a playback session for one library item and resolve it into a
+    /// normalized, directly-playable [`AudioPlayback`] (stream URL + chapters).
+    ///
+    /// Uses `POST /api/items/{id}/play`, which returns the item's audio tracks
+    /// and chapter markers. The heavy lifting (URL resolution, chapter mapping)
+    /// is delegated to the pure, unit-tested [`map_playback_session`] helper.
+    ///
+    /// TODO(live): this path needs verification against a running ABS server —
+    /// there is none in the build/CI environment, so only the pure mapping is
+    /// exercised by tests. See `ARCHITECTURE.md` → audiobook playback.
+    pub async fn resolve_playback(&self, item_id: &str) -> ProviderResult<AudioPlayback> {
+        if self.base().is_empty() {
+            return Err(ProviderError::Config("base_url is empty".into()));
+        }
+        let url = format!("{}/api/items/{item_id}/play", self.base());
+        let resp = self
+            .client
+            .post(&url)
+            // ABS accepts an empty JSON body; defaults pick the item's tracks.
+            .json(&serde_json::json!({}))
+            .bearer_auth(&self.config.api_token)
+            .send()
+            .await
+            .map_err(|e| ProviderError::Network(e.to_string()))?;
+
+        match resp.status().as_u16() {
+            200 => {
+                let session: AbsPlaybackSession = resp.json().await.map_err(|e| {
+                    ProviderError::Other(format!("invalid play-session response: {e}"))
+                })?;
+                map_playback_session(&session, self.base(), &self.config.api_token)
+            }
+            401 | 403 => Err(ProviderError::NotAuthenticated),
+            404 => Err(ProviderError::Api(format!("item {item_id} not found"))),
+            other => Err(ProviderError::Other(format!(
+                "unexpected status {other} from {url}"
+            ))),
+        }
     }
 }
 
@@ -350,6 +428,120 @@ fn merge_progress(books: &mut [Book], progress: &[AbsMediaProgress]) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// ABS playback-session response types (`POST /api/items/{id}/play`).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AbsPlaybackSession {
+    #[serde(default)]
+    audio_tracks: Vec<AbsAudioTrack>,
+    #[serde(default)]
+    chapters: Vec<AbsChapter>,
+    /// Total duration of the item in seconds, if the session reports it.
+    #[serde(default)]
+    duration: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AbsAudioTrack {
+    /// Server-relative URL for the track's audio content,
+    /// e.g. `/api/items/{id}/file/{ino}` (may already carry query params).
+    #[serde(default)]
+    content_url: String,
+    #[serde(default)]
+    duration: Option<f64>,
+    #[serde(default)]
+    mime_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AbsChapter {
+    #[serde(default)]
+    id: u32,
+    #[serde(default)]
+    start: f64,
+    #[serde(default)]
+    end: f64,
+    #[serde(default)]
+    title: Option<String>,
+}
+
+/// Resolve an ABS play session into a normalized [`AudioPlayback`].
+///
+/// Pure and unit-tested (no network). Responsibilities:
+///   * pick a playable audio track and resolve its (possibly server-relative)
+///     `contentUrl` to an **absolute** URL against `base_url`;
+///   * embed the auth `token` in the URL's query string, because an HTML
+///     `<audio>` element cannot send an `Authorization: Bearer` header — ABS
+///     accepts `?token=` for this reason;
+///   * carry the chapter markers and duration through.
+///
+/// v1 uses the **first** audio track. Multi-file audiobooks (ABS returns one
+/// track per source file) therefore expose only their first file for now;
+/// gapless multi-track playback (a playlist/`MediaSource` queue, or the server's
+/// merged/HLS stream) is a TODO — see `ARCHITECTURE.md`.
+fn map_playback_session(
+    session: &AbsPlaybackSession,
+    base_url: &str,
+    token: &str,
+) -> ProviderResult<AudioPlayback> {
+    let track = session
+        .audio_tracks
+        .first()
+        .ok_or_else(|| ProviderError::Api("play session has no audio tracks".into()))?;
+
+    let stream_url = resolve_stream_url(base_url, &track.content_url, token);
+
+    let chapters = session
+        .chapters
+        .iter()
+        .map(|c| AudioChapter {
+            id: c.id,
+            start: c.start,
+            end: c.end,
+            title: c
+                .title
+                .clone()
+                .filter(|t| !t.is_empty())
+                .unwrap_or_else(|| format!("Chapter {}", c.id + 1)),
+        })
+        .collect();
+
+    let duration = session
+        .duration
+        .or(track.duration)
+        .filter(|d| *d > 0.0);
+
+    Ok(AudioPlayback {
+        stream_url,
+        duration,
+        mime_type: track.mime_type.clone().filter(|m| !m.is_empty()),
+        chapters,
+    })
+}
+
+/// Resolve a (possibly server-relative) content URL to an absolute stream URL
+/// with the auth token appended as a query parameter.
+fn resolve_stream_url(base_url: &str, content_url: &str, token: &str) -> String {
+    let base = base_url.trim_end_matches('/');
+    let absolute = if content_url.starts_with("http://") || content_url.starts_with("https://") {
+        content_url.to_string()
+    } else if let Some(stripped) = content_url.strip_prefix('/') {
+        format!("{base}/{stripped}")
+    } else {
+        format!("{base}/{content_url}")
+    };
+    if token.is_empty() {
+        absolute
+    } else {
+        let sep = if absolute.contains('?') { '&' } else { '?' };
+        format!("{absolute}{sep}token={token}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,5 +683,80 @@ mod tests {
 
         // The ebook item had no matching progress entry.
         assert!(books[1].progress.is_none());
+    }
+
+    // Representative `POST /api/items/{id}/play` session payload, shaped after
+    // the public ABS API docs.
+    fn play_session_fixture() -> &'static str {
+        r#"{
+          "id": "play_session_abc",
+          "duration": 3600.0,
+          "audioTracks": [
+            {
+              "index": 1,
+              "startOffset": 0,
+              "duration": 3600.0,
+              "title": "track1.mp3",
+              "contentUrl": "/api/items/li_abc/file/aud1",
+              "mimeType": "audio/mpeg"
+            }
+          ],
+          "chapters": [
+            { "id": 0, "start": 0.0, "end": 1200.0, "title": "Chapter One" },
+            { "id": 1, "start": 1200.0, "end": 2400.0, "title": "" },
+            { "id": 2, "start": 2400.0, "end": 3600.0, "title": "The End" }
+          ]
+        }"#
+    }
+
+    #[test]
+    fn maps_play_session_to_absolute_stream_url_with_token_and_chapters() {
+        let session: AbsPlaybackSession = serde_json::from_str(play_session_fixture()).unwrap();
+        let pb = map_playback_session(&session, "https://abs.example.com/", "TESTTOKEN").unwrap();
+
+        assert_eq!(
+            pb.stream_url,
+            "https://abs.example.com/api/items/li_abc/file/aud1?token=TESTTOKEN"
+        );
+        assert_eq!(pb.mime_type.as_deref(), Some("audio/mpeg"));
+        assert_eq!(pb.duration, Some(3600.0));
+        assert_eq!(pb.chapters.len(), 3);
+        assert_eq!(pb.chapters[0].title, "Chapter One");
+        assert!((pb.chapters[0].end - 1200.0).abs() < f64::EPSILON);
+        // An empty chapter title falls back to a generated "Chapter N" label.
+        assert_eq!(pb.chapters[1].title, "Chapter 2");
+    }
+
+    #[test]
+    fn resolve_stream_url_appends_token_respecting_existing_query() {
+        assert_eq!(
+            resolve_stream_url("https://s/", "/api/x", "T"),
+            "https://s/api/x?token=T"
+        );
+        // Relative without a leading slash.
+        assert_eq!(
+            resolve_stream_url("https://s", "api/x", "T"),
+            "https://s/api/x?token=T"
+        );
+        // Existing query string uses `&`.
+        assert_eq!(
+            resolve_stream_url("https://s", "/api/x?a=1", "T"),
+            "https://s/api/x?a=1&token=T"
+        );
+        // An already-absolute content URL is preserved.
+        assert_eq!(
+            resolve_stream_url("https://s", "https://cdn/y.mp3", "T"),
+            "https://cdn/y.mp3?token=T"
+        );
+        // No token → no query param added.
+        assert_eq!(resolve_stream_url("https://s", "/api/x", ""), "https://s/api/x");
+    }
+
+    #[test]
+    fn play_session_without_audio_tracks_is_an_error_not_a_panic() {
+        let session: AbsPlaybackSession =
+            serde_json::from_str(r#"{ "audioTracks": [], "chapters": [] }"#).unwrap();
+        let err = map_playback_session(&session, "https://s", "T").unwrap_err();
+        assert!(matches!(err, ProviderError::Api(_)));
     }
 }
