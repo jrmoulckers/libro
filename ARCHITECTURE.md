@@ -93,7 +93,7 @@ The Rust side is a two-crate Cargo workspace:
                         │    providers::Provider (trait)                │
                         │     ├─ AudiobookshelfProvider (real REST)      │
                         │     ├─ HardcoverProvider (real GraphQL)        │
-                        │     ├─ LazyLibrarianProvider (stub, REST)      │
+                        │     ├─ LazyLibrarianProvider (real REST)      │
                         │     └─ LibbyProvider (deep-link-only)          │
                         │          │ list_library()                     │
                         │          ▼                                    │
@@ -169,7 +169,9 @@ Realistic connector targets, by tier:
 - **LazyLibrarian** — the user's own instance via its REST API
   (`CATALOG`/`REQUEST`/`DOWNLOAD`). *(Context: Readarr was retired June 2025;
   LazyLibrarian and its forks are the living self-hosted path. Libro bundles no
-  indexers — it only drives the user's instance.)* **Stub.**
+  indexers — it only drives the user's instance.)* **Real connector**
+  (`getVersion`, `getAllBooks`, `findBook`, `addBook`, `queueBook`, `searchBook`);
+  live verification pending a running instance.
 
 *Official public APIs (user-supplied key):*
 - **Hardcover** — official public GraphQL API for reading status, ratings, and
@@ -193,12 +195,11 @@ Realistic connector targets, by tier:
 ## Deliberately deferred implementation
 
 These are intentionally left as TODOs with clear seams:
-- LazyLibrarian REST calls (a typed stub with the right config shape and
-  capabilities). *(Hardcover's GraphQL client is now a real connector; a few
-  write-mutation input type names are marked TODO pending the beta schema.)*
-- Live end-to-end verification of the Audiobookshelf connector against a running
-  server (the mapping is code-complete and unit-tested against captured API
-  response shapes; no live server is available yet).
+- Live end-to-end verification of the Audiobookshelf, Hardcover, and LazyLibrarian
+  connectors against a running server / real key (each is code-complete and
+  unit-tested against captured API response shapes; no live instances are
+  available yet). Hardcover's write mutations additionally carry TODOs for a few
+  input type names pending its beta schema.
 - Real config encryption + OS keychain + Signal-style backup blob (`config`).
 - Audio playback and EPUB reading.
 - De-duplication of items across providers via `identifiers`.

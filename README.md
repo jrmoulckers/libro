@@ -4,10 +4,11 @@ A cross-platform, **pure-client** media hub for books, audiobooks, and your pers
 
 Libro aggregates your books and audiobooks across many providers into one normalized catalog — with no backend server. The app talks directly to each provider's API from your device; configuration stays local and (in a later phase) syncs device-to-device, Signal-style, via an encrypted backup blob you control.
 
-> **Status:** early skeleton. The Audiobookshelf (self-hosted REST) and Hardcover
-> (official public GraphQL) connectors are real clients — live end-to-end
-> verification is pending a running server / a user-supplied API key. LazyLibrarian
-> and Libby ship as stubs/placeholders. See [`ARCHITECTURE.md`](./ARCHITECTURE.md)
+> **Status:** early skeleton. The Audiobookshelf (self-hosted REST), Hardcover
+> (official public GraphQL), and LazyLibrarian (self-hosted REST) connectors are
+> real clients — live end-to-end verification is pending a running server / a
+> user-supplied API key. Libby ships as a deep-link-only placeholder. See
+> [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > for the design, roadmap, and legal boundaries.
 
 ## Stack
