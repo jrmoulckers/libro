@@ -184,7 +184,16 @@ The Rust side is a two-crate Cargo workspace:
 3. **Plugin / connector system** — harden the `Provider` abstraction, dynamic
    registration, per-connector config UI.
 4. **Audiobook playback** — in-app player with progress sync.
-5. **Reading** — EPUB reading experience.
+5. **Reading** — EPUB reading experience. *(Started: an in-app EPUB reader
+   (`src/EpubReader.tsx`, built on `react-reader`/epub.js) renders the user's own
+   DRM-free local EPUBs. It takes its content either as bytes from the Rust
+   `get_book_file` command (Local Files connector) or, for a backend-free browser
+   demo, from a bundled public-domain sample at `public/sample.epub`. Reading
+   position (EPUB CFI + percent) is persisted per-book via
+   `save_reading_progress` / `get_reading_progress`, backed by an on-device
+   `ReadingStore` (`core/src/config/reading.rs`). No DRM handling. TODOs:
+   highlights/annotations, full-text search, dark mode, and syncing progress to
+   reading trackers (Hardcover / Audiobookshelf).)*
 
 ## Legal boundaries
 

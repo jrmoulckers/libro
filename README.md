@@ -63,6 +63,13 @@ Frontend only (no native shell):
 npm run dev          # Vite dev server on http://localhost:1420
 ```
 
+In this backend-free mode the in-app EPUB reader can still be demoed: click
+**Open sample book** to read the bundled public-domain sample
+(`public/sample.epub`, regenerate with `node scripts/make-sample-epub.mjs`).
+Reading a book from your own Local Files library requires the native shell
+(`npm run tauri dev`), which serves the EPUB bytes over the `get_book_file`
+command.
+
 ## Build
 
 ```bash
