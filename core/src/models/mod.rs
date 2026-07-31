@@ -31,6 +31,10 @@ pub struct Progress {
     /// Last position in seconds (audio) or an opaque locator offset (text).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position_seconds: Option<f64>,
+    /// Opaque text locator (e.g. an EPUB CFI / foliate locator) used to resume a
+    /// reading position precisely. `None` for audio or when unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locator: Option<String>,
     /// Whether the user has marked the item finished.
     pub finished: bool,
 }

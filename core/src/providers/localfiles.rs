@@ -138,6 +138,31 @@ pub fn extract_cover(config: &LocalFilesConfig, book_id: &str) -> Option<Vec<u8>
     None
 }
 
+/// Read the full EPUB file bytes for the local book identified by `book_id`.
+///
+/// Like [`extract_cover`], this resolves the id by walking the configured library
+/// paths and matching the path hash — so it can only ever return a file that
+/// lives *under* a configured folder. A `book_id` that doesn't match any scanned
+/// file yields `None`; there is no way to make it read an arbitrary path, because
+/// the id is never used to construct a path (only compared against hashes of
+/// paths we discovered ourselves).
+pub fn read_book_file(config: &LocalFilesConfig, book_id: &str) -> Option<Vec<u8>> {
+    for root in &config.library_paths {
+        if !root.exists() {
+            continue;
+        }
+        let mut epubs = Vec::new();
+        collect_epubs(root, &mut epubs);
+        for path in epubs {
+            let abs = canonical(&path);
+            if book_id_for(&abs) == book_id {
+                return fs::read(&abs).ok();
+            }
+        }
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // Filesystem scanning
 // ---------------------------------------------------------------------------
@@ -615,6 +640,25 @@ mod tests {
 
         // Unknown id -> None, no panic.
         assert!(extract_cover(&cfg, "deadbeefdeadbeef").is_none());
+    }
+
+    #[tokio::test]
+    async fn read_book_file_returns_epub_bytes_and_rejects_unknown_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_epub(tmp.path(), "read.epub", &opf("Readable", Some("9780134685991"), None, false), false);
+
+        let cfg = LocalFilesConfig {
+            library_paths: vec![tmp.path().to_path_buf()],
+        };
+        let books = scan(tmp.path()).await;
+        let bytes = read_book_file(&cfg, &books[0].id).expect("epub bytes");
+        // Real EPUB bytes: a zip starts with the local-file-header magic "PK\x03\x04".
+        assert_eq!(&bytes[..2], b"PK");
+        assert!(bytes.len() > 100);
+
+        // An id that matches no scanned file yields None — no path-escape possible,
+        // since the id is only ever compared against hashes of paths we discovered.
+        assert!(read_book_file(&cfg, "0000000000000000").is_none());
     }
 
     #[test]

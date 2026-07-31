@@ -343,6 +343,7 @@ fn merge_progress(books: &mut [Book], progress: &[AbsMediaProgress]) {
             book.progress = Some(Progress {
                 fraction: p.progress,
                 position_seconds: Some(p.current_time),
+                locator: None,
                 finished: p.is_finished,
             });
         }

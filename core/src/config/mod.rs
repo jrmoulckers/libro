@@ -12,6 +12,9 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod reading;
+pub use reading::ReadingStore;
+
 /// A single configured provider instance.
 ///
 /// `provider_type` selects the connector (e.g. `"audiobookshelf"`) and

@@ -587,6 +587,7 @@ fn map_user_book_to_book(row: &UserBookRow) -> Option<Book> {
         Progress {
             fraction: if finished { 1.0 } else { 0.0 },
             position_seconds: None,
+            locator: None,
             finished,
         }
     });
