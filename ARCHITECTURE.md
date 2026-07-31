@@ -183,7 +183,25 @@ The Rust side is a two-crate Cargo workspace:
    downloads).
 3. **Plugin / connector system** — harden the `Provider` abstraction, dynamic
    registration, per-connector config UI.
-4. **Audiobook playback** — in-app player with progress sync.
+4. **Audiobook playback** — in-app player with progress sync. *(Started: a
+   source-agnostic in-app audio player (`src/AudioPlayer.tsx`) plays the user's
+   own DRM-free audiobooks via a webview HTML5 `<audio>` element — play/pause,
+   scrub, skip ±30s, 0.5×–3× speed, chapter list + jump-to-chapter, time/percent,
+   and keyboard control. It takes a stream URL from the Rust
+   `get_audiobook_stream` command (which opens an Audiobookshelf `/api/items/{id}/play`
+   session and resolves an absolute, token-in-query stream URL + chapters — an
+   HTML media element can't send an `Authorization` header) or, for a
+   backend-free browser demo, a bundled synthetic public-domain sample at
+   `public/sample-audiobook.wav`. Listening position (seconds + percent) is
+   persisted per-book — throttled, plus on pause/chapter change — via
+   `save_listening_progress` / `get_listening_progress`, backed by an on-device
+   `ListeningStore` (`core/src/config/listening.rs`), kept parallel to the reading
+   store so one item can hold independent reading and listening positions. No DRM
+   handling. Pending: live ABS streaming needs a running server; multi-track
+   (multi-file) gapless playback uses only the first track for now. **Native TODOs**
+   (separate platform work): background playback, lockscreen / now-playing
+   controls, Android Auto / Apple CarPlay, Chromecast, sleep timer, equalizer, and
+   outward listening-progress sync to Audiobookshelf's progress API.)*
 5. **Reading** — EPUB reading experience. *(Started: an in-app EPUB reader
    (`src/EpubReader.tsx`, built on `react-reader`/epub.js) renders the user's own
    DRM-free local EPUBs. It takes its content either as bytes from the Rust
