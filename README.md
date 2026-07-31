@@ -7,7 +7,9 @@ Libro aggregates your books and audiobooks across many providers into one normal
 > **Status:** early skeleton. The Audiobookshelf (self-hosted REST), Hardcover
 > (official public GraphQL), and LazyLibrarian (self-hosted REST) connectors are
 > real clients — live end-to-end verification is pending a running server / a
-> user-supplied API key. Libby ships as a deep-link-only placeholder. See
+> user-supplied API key. Libby ships as a deep-link-only placeholder. Metadata
+> enrichment via **Open Library** and **Google Books** (official public APIs) is
+> real and live-verified. See
 > [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > for the design, roadmap, and legal boundaries.
 
@@ -31,6 +33,7 @@ Libro aggregates your books and audiobooks across many providers into one normal
 │  └─ src/
 │     ├─ models/            # normalized domain model (Book, MediaType, Progress)
 │     ├─ providers/         # Provider trait + connectors (Audiobookshelf, Hardcover, LazyLibrarian, Libby)
+│     ├─ metadata/          # MetadataProvider trait + enrichment (Open Library, Google Books)
 │     └─ config/            # local, encrypted-at-rest config (boundary only)
 └─ src-tauri/               # `libro`: the Tauri shell (depends on libro-core)
    ├─ src/

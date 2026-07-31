@@ -51,6 +51,52 @@ single broken connector can't sink the whole catalog. A later phase will use the
 `identifiers` map to **de-duplicate** the same title arriving from multiple
 providers.
 
+### Metadata enrichment — a separate abstraction
+
+Not every external catalog is a *library*. Open Library and Google Books are
+**bibliographic reference APIs**: they describe books (covers, descriptions,
+identifiers, page counts) but they do not list *the user's owned copies* and take
+no part in the `list_all_books` fan-out. Forcing them through `Provider` /
+`list_library()` would be a category error.
+
+So metadata lives in its own module (`core/src/metadata/`), a sibling of
+`core/src/providers/`, with its own trait:
+
+```
+trait MetadataProvider {
+    async fn by_isbn(&self, isbn) -> Result<Option<BookMetadata>>;
+    async fn search(&self, query, limit) -> Result<Vec<BookMetadata>>;
+    async fn by_identifier(&self, kind, value) -> Result<Option<BookMetadata>>;
+}
+```
+
+- `BookMetadata` is a richer, read-only descriptor (title, subtitle, authors,
+  description, cover, series, `identifiers` map, publish date, page count,
+  publisher, language, `source`). A *miss* is `Ok(None)` / empty `Vec`, **not** an
+  error; only network/transport/API failures are `MetadataError`.
+- `enrich(book: &mut Book, meta: &BookMetadata)` fills **only missing** fields on
+  a normalized `Book` (authors if empty; cover/description/series if absent;
+  identifiers via `or_insert`) and never overwrites existing values. This is the
+  seam catalog connectors (ABS / LazyLibrarian) reuse to backfill sparse records.
+- `MetadataRegistry` consults enabled providers in priority order
+  (Open Library first, then Google Books), returning the first hit; per-provider
+  errors are logged and treated as misses so one slow source can't block a lookup.
+
+Implemented providers (both **official public APIs**, no scraping):
+
+- **Open Library** (no auth): search `GET /search.json`, ISBN via the Books API
+  `GET /api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data`, covers via
+  `https://covers.openlibrary.org/b/id/{cover_i}-L.jpg`. Sends a descriptive
+  `User-Agent` per their etiquette. *(TODO: `jscmd=data` returns no description;
+  a follow-up can hit the Works endpoint for that.)*
+- **Google Books** (optional `api_key` raises limits):
+  `GET /books/v1/volumes?q=isbn:{isbn}` / `?q={query}`, mapping `volumeInfo`.
+  Cover URLs are upgraded `http`→`https`.
+
+Exposed to the frontend via the `search_metadata` and `lookup_metadata_by_isbn`
+Tauri commands. Configuration is a single optional Google Books `api_key` under
+`AppConfig.metadata`; Open Library needs none.
+
 ### Configuration & sync
 `core/src/config` defines `AppConfig` (a list of `ProviderConfig` entries:
 type + opaque per-provider settings blob) and the save/load **boundary**.
@@ -178,7 +224,10 @@ Realistic connector targets, by tier:
   shelves (`PROGRESS_SYNC`; not a catalog/holds source). **Real connector**
   (`me`, `user_books`, `search`, `insert_user_book`, `update_user_book`,
   `insert_user_book_read`); live verification pending a user-supplied API key.
-- **Open Library** — public API for metadata/covers (planned).
+- **Open Library** — official public API for bibliographic metadata + covers
+  (no auth). **Real** `MetadataProvider` (see *Metadata enrichment*); live-verified.
+- **Google Books** — official public API for metadata (optional key). **Real**
+  `MetadataProvider`; live calls rate-limited without a key in some environments.
 - **Send-to-Kindle** — official email-to-`@kindle.com` path (`SEND_TO_KINDLE`).
 
 *Walled gardens (deep-link-out / manual-import only — see Legal boundaries):*
