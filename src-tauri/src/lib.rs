@@ -14,6 +14,7 @@ pub mod commands;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(libro_core::sync::ReadingSyncState::new())
         .invoke_handler(tauri::generate_handler![
             commands::list_all_books,
             commands::list_books_by_provider,

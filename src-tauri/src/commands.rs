@@ -12,6 +12,7 @@ use libro_core::providers::localfiles::{
 };
 use libro_core::providers::opds::{OpdsConfig, OpdsProvider};
 use libro_core::providers::Provider;
+use libro_core::sync::{sync_reading_progress, ReadingSyncState, SyncOutcome};
 
 /// Instantiate the set of [`Provider`]s described by an [`AppConfig`].
 ///
@@ -222,17 +223,64 @@ pub async fn get_book_file(book_id: String) -> Result<Vec<u8>, String> {
     Err(format!("book file not found for id {book_id}"))
 }
 
-/// Persist the reading position for a book so it can be resumed later.
+/// Persist the reading position for a book so it can be resumed later, and — if
+/// the user has opted in — mirror it to their Hardcover account.
 ///
 /// The reader calls this on location change with the current EPUB CFI/locator and
-/// percent. Progress is stored on-device in the reading-progress store (see
-/// [`ReadingStore`]). TODO(sync): also push to reading-tracker connectors
-/// (Hardcover / Audiobookshelf).
+/// percent. The local store (see [`ReadingStore`]) is the **source of truth** and
+/// is written first; it always succeeds independently of any tracker.
+///
+/// When `book` is supplied and Hardcover sync is enabled
+/// (`hardcover.sync_reading_progress`, default off), progress is *best-effort*
+/// pushed to Hardcover (start → currently-reading, finish → read) via
+/// [`sync_reading_progress`]. Any tracker/network error is logged and swallowed —
+/// it never fails this command or the reader. See [`libro_core::sync`].
 #[tauri::command]
-pub async fn save_reading_progress(book_id: String, progress: Progress) -> Result<(), String> {
+pub async fn save_reading_progress(
+    book_id: String,
+    progress: Progress,
+    book: Option<Book>,
+    sync_state: tauri::State<'_, ReadingSyncState>,
+) -> Result<(), String> {
+    // 1. Source of truth: persist locally. This must always succeed on its own.
     ReadingStore::default_store()
-        .save(&book_id, progress)
-        .map_err(|e| e.to_string())
+        .save(&book_id, progress.clone())
+        .map_err(|e| e.to_string())?;
+
+    // 2. Best-effort outward sync. Failures here are swallowed by design.
+    if let Some(book) = book {
+        best_effort_hardcover_sync(&sync_state, &book, &progress).await;
+    }
+    Ok(())
+}
+
+/// Push reading progress to Hardcover if the user configured it and opted in.
+/// Never returns an error — the local save already succeeded and is authoritative.
+async fn best_effort_hardcover_sync(state: &ReadingSyncState, book: &Book, progress: &Progress) {
+    let Ok(app_config) = config::load_config() else {
+        return;
+    };
+    let Some(pc) = app_config
+        .providers
+        .iter()
+        .find(|p| p.enabled && p.provider_type == HardcoverProvider::ID)
+    else {
+        return; // Hardcover not configured → nothing to mirror to.
+    };
+
+    let cfg: HardcoverConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+    let has_key = !cfg.api_key.trim().is_empty();
+    let enabled = cfg.sync_reading_progress;
+    let tracker = if has_key {
+        Some(HardcoverProvider::new(cfg))
+    } else {
+        None
+    };
+
+    let outcome = sync_reading_progress(enabled, tracker.as_ref(), state, book, progress).await;
+    if let SyncOutcome::Failed(e) = &outcome {
+        eprintln!("hardcover reading-progress sync failed (ignored): {e}");
+    }
 }
 
 /// Fetch the stored reading position for a book, if any, so the reader can resume
