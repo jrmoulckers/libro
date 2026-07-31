@@ -52,6 +52,10 @@ pub struct Book {
     pub series: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cover_url: Option<String>,
+    /// Short synopsis/description, when known. Often filled by the metadata
+    /// enrichment layer (see [`crate::metadata`]) rather than the source provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Identifier scheme -> value, e.g. `{"isbn": "…", "asin": "…"}`.
     ///
     /// A `BTreeMap` keeps serialization stable/deterministic.
@@ -79,6 +83,7 @@ impl Book {
             authors: Vec::new(),
             series: None,
             cover_url: None,
+            description: None,
             identifiers: BTreeMap::new(),
             media_type,
             source_provider_id: source_provider_id.into(),

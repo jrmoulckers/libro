@@ -38,6 +38,19 @@ fn default_true() -> bool {
     true
 }
 
+/// Configuration for the metadata-enrichment layer (see [`crate::metadata`]).
+///
+/// Metadata providers are *not* library `Provider`s — they enrich normalized
+/// books rather than list a user's owned catalog — so their settings live here
+/// rather than in [`ProviderConfig`]. Open Library needs no auth; Google Books
+/// works anonymously but an optional API key raises rate limits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MetadataConfig {
+    /// Optional Google Books API key (raises the anonymous rate limit).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_books_api_key: Option<String>,
+}
+
 /// Top-level application configuration persisted on the device.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -47,6 +60,9 @@ pub struct AppConfig {
     /// All configured providers.
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
+    /// Metadata-enrichment settings.
+    #[serde(default)]
+    pub metadata: MetadataConfig,
 }
 
 impl AppConfig {
@@ -80,6 +96,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     Ok(AppConfig {
         version: AppConfig::CURRENT_VERSION,
         providers: Vec::new(),
+        ..Default::default()
     })
 }
 
