@@ -97,6 +97,26 @@ Exposed to the frontend via the `search_metadata` and `lookup_metadata_by_isbn`
 Tauri commands. Configuration is a single optional Google Books `api_key` under
 `AppConfig.metadata`; Open Library needs none.
 
+**Catalog enrichment pass.** After the `list_all_books` fan-out merges the
+per-provider `Vec<Book>`, it runs through `metadata::enrich_catalog`, which
+backfills each book's missing cover/description/series/identifiers from the
+registry. It is deliberately defensive:
+
+- **Failure isolation** — a miss or API error never drops or mutates a book; it
+  is returned un-enriched.
+- **Bounded concurrency** — lookups run via `futures` `buffer_unordered` (cap 5),
+  never an unbounded burst at the public APIs.
+- **Per-run dedupe cache** — books are reduced to a unique set of lookup keys
+  (ISBN first, else a `title author` search) so an identifier/query is only
+  fetched once per run; results are applied back in original order.
+- **Cheap skip** — books already complete, or with no usable identifier *and* no
+  usable title+author, are skipped without a call.
+- Toggle with `metadata.enrich_catalog` (default `true`).
+
+Because Open Library's `jscmd=data` payload carries no description, the
+`OpenLibraryProvider` follows the edition doc (`/books/{olid}.json`) and, if
+needed, the linked work (`/works/{id}.json`) to fill `description` best-effort.
+
 ### Configuration & sync
 `core/src/config` defines `AppConfig` (a list of `ProviderConfig` entries:
 type + opaque per-provider settings blob) and the save/load **boundary**.
