@@ -160,6 +160,7 @@ The Rust side is a two-crate Cargo workspace:
                         │     ├─ AudiobookshelfProvider (real REST)      │
                         │     ├─ HardcoverProvider (real GraphQL)        │
                         │     ├─ LazyLibrarianProvider (real REST)      │
+                        │     ├─ LocalFilesProvider (EPUB on disk)       │
                         │     └─ LibbyProvider (deep-link-only)          │
                         │          │ list_library()                     │
                         │          ▼                                    │
@@ -238,6 +239,15 @@ Realistic connector targets, by tier:
   indexers — it only drives the user's instance.)* **Real connector**
   (`getVersion`, `getAllBooks`, `findBook`, `addBook`, `queueBook`, `searchBook`);
   live verification pending a running instance.
+- **Local Files** — the user's own DRM-free EPUB files on disk (`CATALOG`). Scans
+  configured folders, parses each EPUB's OPF (via `zip` + `roxmltree`) into a
+  normalized `Book` (title, authors, language, publisher, description, ISBN,
+  Calibre series, cover). Embedded covers are served to the frontend through the
+  `get_local_cover` command behind a `localcover://{book_id}` reference; books
+  with no cover/description are left sparse so the metadata-enrichment pass fills
+  them. **No DRM handling** — DRM-protected files are read for open metadata only
+  or skipped, never decrypted. Fully local; live-verified end-to-end via the
+  enrichment synergy test.
 
 *Official public APIs (user-supplied key):*
 - **Hardcover** — official public GraphQL API for reading status, ratings, and

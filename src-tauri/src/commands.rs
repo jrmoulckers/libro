@@ -7,6 +7,7 @@ use libro_core::providers::audiobookshelf::{AudiobookshelfConfig, Audiobookshelf
 use libro_core::providers::hardcover::{HardcoverConfig, HardcoverProvider};
 use libro_core::providers::lazylibrarian::{LazyLibrarianConfig, LazyLibrarianProvider};
 use libro_core::providers::libby::{LibbyConfig, LibbyProvider};
+use libro_core::providers::localfiles::{extract_cover, LocalFilesConfig, LocalFilesProvider};
 use libro_core::providers::Provider;
 
 /// Instantiate the set of [`Provider`]s described by an [`AppConfig`].
@@ -38,6 +39,10 @@ fn build_providers(config: &AppConfig) -> Vec<Box<dyn Provider>> {
             LibbyProvider::ID => {
                 let cfg: LibbyConfig = serde_json::from_value(settings).unwrap_or_default();
                 providers.push(Box::new(LibbyProvider::new(cfg)));
+            }
+            LocalFilesProvider::ID => {
+                let cfg: LocalFilesConfig = serde_json::from_value(settings).unwrap_or_default();
+                providers.push(Box::new(LocalFilesProvider::new(cfg)));
             }
             other => {
                 // Unknown connector type; ignore for now. A later phase may
@@ -161,5 +166,28 @@ pub async fn lookup_metadata_by_isbn(isbn: String) -> Result<Option<BookMetadata
     let app_config = config::load_config().map_err(|e| e.to_string())?;
     let registry = MetadataRegistry::from_config(&app_config);
     registry.by_isbn(&isbn).await.map_err(|e| e.to_string())
+}
+
+/// Return the raw cover-image bytes for a locally-scanned EPUB.
+///
+/// The frontend resolves `localcover://{book_id}` references (set by the Local
+/// Files connector) through this command. It searches every configured Local
+/// Files provider for the matching book id and returns the first embedded cover
+/// found, or `None` if the book has no cover / can't be located. Bytes are
+/// returned as a JSON number array for the frontend to wrap in a `Blob`.
+#[tauri::command]
+pub async fn get_local_cover(book_id: String) -> Result<Option<Vec<u8>>, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    for pc in app_config
+        .providers
+        .iter()
+        .filter(|p| p.enabled && p.provider_type == LocalFilesProvider::ID)
+    {
+        let cfg: LocalFilesConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+        if let Some(bytes) = extract_cover(&cfg, &book_id) {
+            return Ok(Some(bytes));
+        }
+    }
+    Ok(None)
 }
 
