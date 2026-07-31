@@ -1,6 +1,6 @@
 /**
  * Shared TypeScript types that mirror the normalized Rust domain model
- * (see `src-tauri/src/models`). Keep these in sync with the Rust side; a
+ * (see `core/src/models`). Keep these in sync with the Rust side; a
  * future phase may codegen them (e.g. via `ts-rs` or `specta`).
  */
 
@@ -26,4 +26,19 @@ export interface Book {
   media_type: MediaType;
   source_provider_id: string;
   progress?: Progress | null;
+}
+
+/**
+ * Per-provider aggregation result (mirrors the Rust `ProviderBooks`).
+ * Lets the UI show a per-provider error state instead of failing the whole
+ * catalog when one connector is misconfigured or offline.
+ */
+export interface ProviderBooks {
+  provider_id: string;
+  display_name: string;
+  /** Raw capability bits (see the Rust `ProviderCapabilities`). */
+  capabilities: number;
+  books: Book[];
+  /** `null` on success; a human-readable message on failure. */
+  error?: string | null;
 }

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Book } from "./types";
+import type { Book, ProviderBooks } from "./types";
 import "./App.css";
 
 function App() {
-  const [books, setBooks] = useState<Book[]>([]);
+  const [providers, setProviders] = useState<ProviderBooks[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,9 +13,10 @@ function App() {
     setError(null);
     try {
       // Fans out over every configured provider in the Rust core and returns
-      // the merged, normalized catalog.
-      const result = await invoke<Book[]>("list_all_books");
-      setBooks(result);
+      // each provider's result (books + optional per-provider error) so the UI
+      // can degrade gracefully when one connector is offline.
+      const result = await invoke<ProviderBooks[]>("list_books_by_provider");
+      setProviders(result);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -26,6 +27,12 @@ function App() {
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary]);
+
+  const books = useMemo<Book[]>(
+    () => providers.flatMap((p) => p.books),
+    [providers],
+  );
+  const failed = useMemo(() => providers.filter((p) => p.error), [providers]);
 
   return (
     <main className="app">
@@ -38,6 +45,16 @@ function App() {
       </header>
 
       {error && <p className="app__error">Failed to load: {error}</p>}
+
+      {failed.length > 0 && (
+        <section className="app__provider-errors">
+          {failed.map((p) => (
+            <p key={p.provider_id} className="app__error">
+              <strong>{p.display_name}</strong>: {p.error}
+            </p>
+          ))}
+        </section>
+      )}
 
       {!loading && !error && books.length === 0 && (
         <p className="app__empty">
