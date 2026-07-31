@@ -37,6 +37,70 @@ Adding a connector:
 2. Implement `Provider`, declaring the right capabilities.
 3. Add one arm to the registry in `commands.rs::build_providers`.
 
+### The plugin SDK — connectors without forking core
+
+Phase 3 adds a **declarative plugin SDK** (`core/src/plugins/`) so a user can add
+a new library source *without* recompiling Libro or shipping native code. A
+plugin is a single JSON **manifest** dropped into the on-device plugins directory
+(`<data_dir>/Libro/plugins/`). At startup the loader discovers, parses, and
+validates every manifest; a valid one becomes a `PluginProvider` registered in
+`build_providers` alongside the native connectors, and is listed via the
+`list_plugins` command.
+
+**Mechanism choice — declarative manifest, not WASM (for v1).** Three options
+were weighed against Libro's constraints (must run on iOS/Android, must be
+sandboxed, must build under this repo's `x86_64-pc-windows-gnu` toolchain):
+- **WASM (Extism/wasmtime)** — verified it *does* `cargo check` under
+  windows-gnu, but rejected for v1: (1) iOS forbids JIT, and the default
+  Extism/wasmtime backend is a Cranelift JIT — a non-starter on a required mobile
+  target; (2) it pulls ~300 transitive crates, bloating the already
+  export-limited GNU cdylib and the audit surface; (3) a manifest is *inert data*
+  (no arbitrary code) so the host mediates every network call — a **tighter**
+  sandbox than sandboxing arbitrary Wasm.
+- **Subprocess / JSON-RPC** — rejected: mobile sandboxes forbid spawning
+  arbitrary child processes.
+- **Declarative manifest engine** — chosen: a pure-Rust interpreter over a JSON
+  manifest describing a REST/JSON catalog + a field→`Book` mapping. No heavy
+  deps, mobile-friendly, and inherently sandboxable.
+
+WASM (for plugins that need real logic beyond declarative mapping) is the
+documented next step — it would slot in as an alternative engine behind the same
+`Provider` boundary.
+
+**Manifest schema** (`PluginManifest`): `id`, `name`, `version`, `author`,
+`plugin_api_version` (must equal `PLUGIN_API_VERSION`, currently `1`), requested
+`capabilities`, `permissions.allowed_domains`, a `config_schema` (the user-filled
+fields: `base_url`, `api_key`, …, each typed text/secret/url), and a `catalog`
+spec: a templated `request` (`{key}` tokens interpolated from config) plus a
+`fields` map of dotted JSON paths (e.g. `series.name`) onto the normalized `Book`.
+
+**Validation** rejects malformed or over-broad manifests: wrong api version,
+empty id/name, id with whitespace, missing `catalog` capability, empty
+`allowed_domains`, any domain that is a wildcard or carries a scheme/path/port,
+an empty request URL, or missing id/title field maps. One bad manifest is
+skipped (logged), never fatal.
+
+**Sandbox / security boundary.** A plugin gets **no** ambient network or
+filesystem. The engine interpolates the config into the request, then
+**enforces the domain allowlist on the resolved URL before any request is sent**
+— a host not covered by `allowed_domains` (matched exactly or as a subdomain)
+returns a typed error, never a panic. Plugins honor the **same legal rules as
+native connectors** (see *Legal boundaries*): user-owned services and
+official/public APIs only, sandboxed to declared domains, **no** bundled
+scrapers/indexers/sources and **no** DRM circumvention. The plugin system must
+not become a backdoor for shipping illicit sources.
+
+**Authoring a plugin.** Write a manifest (see `plugins/example-rest-catalog.json`
+for a complete, offline-tested example), declare only the domain(s) it needs,
+map the response fields onto `Book`, and drop it in the plugins directory. No
+build step. The example maps a generic REST catalog
+(`GET {base_url}/api/books` → `results[]`) into `Book`s and is exercised
+end-to-end from fixture JSON in the test suite (no network).
+
+**TODOs:** a WASM runtime path; plugin signing/verification; a discovery
+registry/marketplace; hot-reload; richer per-permission prompts; `POST`/paged
+requests.
+
 ### Normalized catalog & aggregation
 Connectors map their native API responses into a single provider-agnostic domain
 model (`core/src/models`): `Book` (id, title, authors, series, cover,
@@ -162,7 +226,8 @@ The Rust side is a two-crate Cargo workspace:
                         │     ├─ LazyLibrarianProvider (real REST)      │
                         │     ├─ LocalFilesProvider (EPUB on disk)       │
                         │     ├─ OpdsProvider (real OPDS 1.2 Atom)       │
-                        │     └─ LibbyProvider (deep-link-only)          │
+                        │     ├─ LibbyProvider (deep-link-only)          │
+                        │     └─ PluginProvider (declarative manifests)  │
                         │          │ list_library()                     │
                         │          ▼                                    │
                         │    models::Book (normalized)                  │
@@ -182,7 +247,20 @@ The Rust side is a two-crate Cargo workspace:
 2. **Request / acquisition** — request or acquire titles not yet owned (holds,
    downloads).
 3. **Plugin / connector system** — harden the `Provider` abstraction, dynamic
-   registration, per-connector config UI.
+   registration, per-connector config UI. *(Shipped v1: a **declarative plugin
+   SDK** (`core/src/plugins/`) lets a user add a new connector by dropping a JSON
+   manifest into their on-device plugins directory — no recompiling Libro, no
+   native code. Each manifest declares an id/name/version, a
+   `plugin_api_version`, requested `ProviderCapabilities`, a user-filled config
+   schema, sandboxed `allowed_domains`, and a `catalog` spec (a templated REST
+   request + a field→`Book` mapping). The `PluginProvider` engine interpolates
+   the user's config into the request, enforces the domain allowlist before any
+   network call, fetches the JSON, and maps items onto normalized `Book`s. Plugins
+   register into `build_providers` alongside native connectors and are exposed via
+   the `list_plugins` command. A working example ships at
+   `plugins/example-rest-catalog.json`. See "The plugin SDK" below. TODOs: a WASM
+   runtime for plugins needing real logic, plugin signing/verification, a discovery
+   registry/marketplace, hot-reload, and richer permission prompts.)*
 4. **Audiobook playback** — in-app player with progress sync. *(Started: a
    source-agnostic in-app audio player (`src/AudioPlayer.tsx`) plays the user's
    own DRM-free audiobooks via a webview HTML5 `<audio>` element — play/pause,
