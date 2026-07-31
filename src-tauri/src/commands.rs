@@ -14,6 +14,7 @@ use libro_core::providers::localfiles::{
 };
 use libro_core::providers::opds::{OpdsConfig, OpdsProvider};
 use libro_core::providers::Provider;
+use libro_core::plugins::{load_plugins, PluginProvider};
 use libro_core::sync::{sync_reading_progress, ReadingSyncState, SyncOutcome};
 
 /// Instantiate the set of [`Provider`]s described by an [`AppConfig`].
@@ -24,6 +25,12 @@ use libro_core::sync::{sync_reading_progress, ReadingSyncState, SyncOutcome};
 /// empty list (the frontend then shows the empty/onboarding state).
 fn build_providers(config: &AppConfig) -> Vec<Box<dyn Provider>> {
     let mut providers: Vec<Box<dyn Provider>> = Vec::new();
+
+    // Discover installed plugins once. A plugin extends the connector registry
+    // without recompiling core: a configured `provider_type` that matches a
+    // loaded plugin id is instantiated as a declarative [`PluginProvider`],
+    // capability-scoped and sandboxed to its manifest's allowed domains.
+    let plugins = load_plugins(&config::data_dir().join("plugins"));
 
     for pc in config.providers.iter().filter(|p| p.enabled) {
         let settings = pc.settings.clone();
@@ -55,9 +62,17 @@ fn build_providers(config: &AppConfig) -> Vec<Box<dyn Provider>> {
                 providers.push(Box::new(OpdsProvider::new(cfg)));
             }
             other => {
-                // Unknown connector type; ignore for now. A later phase may
-                // surface this to the user as a config warning.
-                eprintln!("libro: unknown provider_type '{other}', skipping");
+                // Not a native connector — is it an installed plugin?
+                if let Some(loaded) = plugins.get(other) {
+                    providers.push(Box::new(PluginProvider::new(
+                        loaded.manifest.clone(),
+                        settings,
+                    )));
+                } else {
+                    // Unknown connector type; ignore for now. A later phase may
+                    // surface this to the user as a config warning.
+                    eprintln!("libro: unknown provider_type '{other}', skipping");
+                }
             }
         }
     }
@@ -352,3 +367,40 @@ pub async fn get_listening_progress(book_id: String) -> Result<Option<Progress>,
         .map_err(|e| e.to_string())
 }
 
+
+/// A minimal, frontend-facing view of an installed plugin (for a "Plugins"
+/// settings surface). Derived from the validated manifest — never exposes the
+/// user's secret config values.
+#[derive(Debug, serde::Serialize)]
+pub struct PluginInfo {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub author: Option<String>,
+    pub plugin_api_version: u32,
+    /// Raw capability bits (see [`libro_core::providers::ProviderCapabilities`]).
+    pub capabilities: u32,
+    /// Domains this plugin is sandboxed to (its only permitted network hosts).
+    pub allowed_domains: Vec<String>,
+}
+
+/// List the installed plugins discovered in the on-device plugins directory.
+///
+/// Read-only: this reflects what the loader validated, so the UI can show which
+/// connectors are available and what each is permitted to reach.
+#[tauri::command]
+pub async fn list_plugins() -> Result<Vec<PluginInfo>, String> {
+    let registry = load_plugins(&config::data_dir().join("plugins"));
+    Ok(registry
+        .iter()
+        .map(|p| PluginInfo {
+            id: p.manifest.id.clone(),
+            name: p.manifest.name.clone(),
+            version: p.manifest.version.clone(),
+            author: p.manifest.author.clone(),
+            plugin_api_version: p.manifest.plugin_api_version,
+            capabilities: p.manifest.capability_bits().bits(),
+            allowed_domains: p.manifest.permissions.allowed_domains.clone(),
+        })
+        .collect())
+}
