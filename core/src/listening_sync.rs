@@ -113,6 +113,22 @@ impl ListeningSyncState {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Record an *externally-applied* position (e.g. one just pulled **down** by
+    /// the inbound reconciliation, [`crate::progress_sync`]) as the last-synced
+    /// state for `item_id`, without any API call. This stops the next in-app save
+    /// at that same position from triggering a spurious outward push — the two
+    /// directions share this throttle state, so a pulled-down value is not
+    /// immediately echoed back up.
+    pub fn note_synced_position(&self, item_id: &str, position_seconds: f64, finished: bool) {
+        self.inner.lock().unwrap().last.insert(
+            item_id.to_string(),
+            SyncedAudio {
+                position: position_seconds,
+                finished,
+            },
+        );
+    }
 }
 
 /// Whether a local audio [`Progress`] counts as finished.

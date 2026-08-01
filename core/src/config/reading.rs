@@ -79,6 +79,17 @@ impl ReadingStore {
     }
 }
 
+/// Inbound reconciliation write surface (see [`crate::progress_sync`]). Read
+/// errors are treated as "no local value"; write errors surface as a `String`.
+impl crate::progress_sync::ProgressStoreLike for ReadingStore {
+    fn get_progress(&self, key: &str) -> Option<Progress> {
+        self.get(key).ok().flatten()
+    }
+    fn put_progress(&self, key: &str, value: Progress) -> Result<(), String> {
+        self.save(key, value).map_err(|e| e.to_string())
+    }
+}
+
 /// Platform data path for the reading-progress file, using only std env vars so
 /// no extra dependency is pulled in.
 fn default_path() -> PathBuf {

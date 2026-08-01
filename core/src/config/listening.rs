@@ -81,6 +81,17 @@ impl ListeningStore {
     }
 }
 
+/// Inbound reconciliation write surface (see [`crate::progress_sync`]). Read
+/// errors are treated as "no local value"; write errors surface as a `String`.
+impl crate::progress_sync::ProgressStoreLike for ListeningStore {
+    fn get_progress(&self, key: &str) -> Option<Progress> {
+        self.get(key).ok().flatten()
+    }
+    fn put_progress(&self, key: &str, value: Progress) -> Result<(), String> {
+        self.save(key, value).map_err(|e| e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
