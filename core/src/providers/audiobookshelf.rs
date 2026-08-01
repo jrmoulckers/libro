@@ -77,6 +77,11 @@ pub struct AudiobookshelfConfig {
     /// See [`crate::listening_sync`].
     #[serde(default)]
     pub sync_listening_progress: bool,
+    /// Opt-in: pull the server's listening progress **down** on library load and
+    /// reconcile it against the local store, so a book listened on another device
+    /// resumes here. Default `false`. See [`crate::progress_sync`].
+    #[serde(default)]
+    pub pull_progress: bool,
 }
 
 /// The Audiobookshelf connector.
@@ -185,6 +190,77 @@ impl AudiobookshelfProvider {
                 "unexpected status {other} from {url}"
             ))),
         }
+    }
+
+    /// Read the user's current listening progress for one library item from the
+    /// server, for the inbound reconciliation pass ([`crate::progress_sync`]).
+    ///
+    /// Fetches `GET /api/me` (whose payload carries the user's `mediaProgress`
+    /// list) and returns the entry matching `item_id`, mapped by the pure,
+    /// unit-tested [`map_abs_progress_record`] helper. `Ok(None)` when the server
+    /// has no progress for the item.
+    ///
+    /// TODO(live): needs a running ABS server to verify end to end; only the pure
+    /// mapping is exercised by tests here.
+    pub async fn fetch_media_progress(
+        &self,
+        item_id: &str,
+    ) -> ProviderResult<Option<crate::progress_sync::RemoteProgress>> {
+        if self.base().is_empty() {
+            return Err(ProviderError::Config("base_url is empty".into()));
+        }
+        let url = format!("{}/api/me", self.base());
+        let resp = self
+            .client
+            .get(&url)
+            .bearer_auth(&self.config.api_token)
+            .send()
+            .await
+            .map_err(|e| ProviderError::Network(e.to_string()))?;
+
+        match resp.status().as_u16() {
+            200 => {
+                let me: AbsMe = resp
+                    .json()
+                    .await
+                    .map_err(|e| ProviderError::Other(format!("invalid /api/me response: {e}")))?;
+                Ok(me
+                    .media_progress
+                    .iter()
+                    .find(|p| p.episode_id.is_none() && p.library_item_id == item_id)
+                    .map(map_abs_progress_record))
+            }
+            401 | 403 => Err(ProviderError::NotAuthenticated),
+            other => Err(ProviderError::Other(format!(
+                "unexpected status {other} from {url}"
+            ))),
+        }
+    }
+}
+
+/// ABS as a progress *source* for inbound reconciliation (see
+/// [`crate::progress_sync`]). Only audiobook items sourced from ABS are pulled;
+/// the audiobook `Book.id` is the ABS `libraryItemId`.
+#[async_trait]
+impl crate::progress_sync::ProgressSource for AudiobookshelfProvider {
+    async fn fetch_remote_progress(
+        &self,
+        book: &crate::models::Book,
+    ) -> ProviderResult<Option<crate::progress_sync::RemoteProgress>> {
+        self.fetch_media_progress(&book.id).await
+    }
+}
+
+/// Map an ABS `mediaProgress` record into a normalized
+/// [`RemoteProgress`](crate::progress_sync::RemoteProgress). Pure and
+/// unit-tested; ABS reports `lastUpdate` in **milliseconds**, normalized here to
+/// epoch **seconds** for the reconciliation policy.
+fn map_abs_progress_record(p: &AbsMediaProgress) -> crate::progress_sync::RemoteProgress {
+    crate::progress_sync::RemoteProgress {
+        fraction: p.progress,
+        position_seconds: Some(p.current_time),
+        finished: p.is_finished,
+        updated_at: p.last_update.map(|ms| ms / 1000),
     }
 }
 
@@ -449,6 +525,10 @@ struct AbsMediaProgress {
     current_time: f64,
     #[serde(default)]
     is_finished: bool,
+    /// Server last-update time in **milliseconds** since the epoch. Drives the
+    /// newest-wins branch of the inbound reconciliation ([`crate::progress_sync`]).
+    #[serde(default)]
+    last_update: Option<i64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -894,5 +974,37 @@ mod tests {
         assert_eq!(body["isFinished"], serde_json::json!(false));
         assert!(body.get("duration").is_none());
         assert!(body.get("progress").is_none());
+    }
+
+    #[test]
+    fn abs_progress_record_normalizes_millis_to_seconds() {
+        let rec = AbsMediaProgress {
+            library_item_id: "li_1".into(),
+            episode_id: None,
+            progress: 0.42,
+            current_time: 1512.0,
+            is_finished: false,
+            last_update: Some(1_700_000_000_000), // ms
+        };
+        let mapped = map_abs_progress_record(&rec);
+        assert!((mapped.fraction - 0.42).abs() < 1e-6);
+        assert_eq!(mapped.position_seconds, Some(1512.0));
+        assert!(!mapped.finished);
+        assert_eq!(mapped.updated_at, Some(1_700_000_000)); // seconds
+    }
+
+    #[test]
+    fn abs_progress_record_without_last_update_has_no_timestamp() {
+        let rec = AbsMediaProgress {
+            library_item_id: "li_1".into(),
+            episode_id: None,
+            progress: 1.0,
+            current_time: 3600.0,
+            is_finished: true,
+            last_update: None,
+        };
+        let mapped = map_abs_progress_record(&rec);
+        assert!(mapped.finished);
+        assert_eq!(mapped.updated_at, None);
     }
 }
