@@ -95,6 +95,12 @@ pub struct HardcoverConfig {
     /// an explicit choice, never a side effect of opening the reader.
     #[serde(default)]
     pub sync_reading_progress: bool,
+    /// Opt-in: pull the user's Hardcover read status **down** on library load and
+    /// reconcile it against the local reading store (e.g. a book marked *read* on
+    /// another device becomes finished here). Default `false`. Hardcover exposes a
+    /// coarse status, not a fine page fraction — see [`crate::progress_sync`].
+    #[serde(default)]
+    pub pull_progress: bool,
 }
 
 /// The Hardcover connector.
@@ -276,6 +282,85 @@ impl HardcoverProvider {
             .await?;
         parse_user_book_mutation(&data, "insert_user_book_read")
     }
+
+    /// Read the user's Hardcover shelf status for a book, for the inbound
+    /// reconciliation pass ([`crate::progress_sync`]).
+    ///
+    /// Resolves the local [`Book`] to a Hardcover book id (ISBN/ASIN, else
+    /// title+author), then queries the user's `user_book` row for that book and
+    /// maps its `status_id` through the pure [`map_status_to_remote_progress`]
+    /// helper. Returns `Ok(None)` when the book isn't resolvable or isn't on any
+    /// shelf, or when the shelf status carries no reading progress (want-to-read).
+    ///
+    /// Hardcover exposes a coarse **status**, not a fine page fraction, and no
+    /// per-row update timestamp in this query, so the returned record has a coarse
+    /// fraction and `updated_at: None` (reconciliation then uses
+    /// furthest-position / finished-sticky rather than newest-wins).
+    ///
+    /// TODO(live): needs a user API key to verify end to end; only the pure
+    /// status→record mapping is exercised by tests here.
+    pub async fn fetch_reading_progress(
+        &self,
+        book: &Book,
+    ) -> ProviderResult<Option<crate::progress_sync::RemoteProgress>> {
+        let user_id = self.user_id.ok_or(ProviderError::NotAuthenticated)?;
+        let Some(book_id) = self.resolve_book_id(book).await? else {
+            return Ok(None);
+        };
+        let data: UserBooksData = self
+            .post(
+                USER_BOOK_STATUS_QUERY,
+                serde_json::json!({ "userId": user_id, "bookId": book_id }),
+            )
+            .await?;
+        let status = data
+            .user_books
+            .first()
+            .and_then(|row| row.status_id)
+            .and_then(ReadingStatus::from_status_id);
+        Ok(status.and_then(map_status_to_remote_progress))
+    }
+}
+
+/// Hardcover as a progress *source* for inbound reconciliation (see
+/// [`crate::progress_sync`]). Resolves any local ebook to the user's Hardcover
+/// shelf status and maps it to a coarse [`RemoteProgress`](crate::progress_sync::RemoteProgress).
+#[async_trait]
+impl crate::progress_sync::ProgressSource for HardcoverProvider {
+    async fn fetch_remote_progress(
+        &self,
+        book: &Book,
+    ) -> ProviderResult<Option<crate::progress_sync::RemoteProgress>> {
+        self.fetch_reading_progress(book).await
+    }
+}
+
+/// Map a Hardcover [`ReadingStatus`] to a coarse
+/// [`RemoteProgress`](crate::progress_sync::RemoteProgress) for reconciliation.
+///
+/// * `Read` → finished (`fraction 1.0`).
+/// * `CurrentlyReading` → in-progress marker (`fraction 0.0`, not finished) — the
+///   API gives no page fraction, so a real local position out-reads this.
+/// * `WantToRead` / `Dnf` → `None`: no reading position to reconcile.
+pub fn map_status_to_remote_progress(
+    status: ReadingStatus,
+) -> Option<crate::progress_sync::RemoteProgress> {
+    use crate::progress_sync::RemoteProgress;
+    match status {
+        ReadingStatus::Read => Some(RemoteProgress {
+            fraction: 1.0,
+            position_seconds: None,
+            finished: true,
+            updated_at: None,
+        }),
+        ReadingStatus::CurrentlyReading => Some(RemoteProgress {
+            fraction: 0.0,
+            position_seconds: None,
+            finished: false,
+            updated_at: None,
+        }),
+        ReadingStatus::WantToRead | ReadingStatus::Dnf => None,
+    }
 }
 
 #[async_trait]
@@ -375,6 +460,15 @@ query UserBooks($userId: Int!) {
       contributions { author { name } }
       image { url }
     }
+  }
+}
+"#;
+
+const USER_BOOK_STATUS_QUERY: &str = r#"
+query UserBookStatus($userId: Int!, $bookId: Int!) {
+  user_books(where: { user_id: { _eq: $userId }, book_id: { _eq: $bookId } }) {
+    id
+    status_id
   }
 }
 "#;
@@ -805,6 +899,28 @@ mod tests {
             assert_eq!(ReadingStatus::from_status_id(s.status_id()), Some(s));
         }
         assert_eq!(ReadingStatus::from_status_id(4), None);
+    }
+
+    #[test]
+    fn status_to_remote_progress_maps_read_to_finished() {
+        let r = map_status_to_remote_progress(ReadingStatus::Read).expect("read → record");
+        assert!(r.finished);
+        assert!((r.fraction - 1.0).abs() < 1e-6);
+        assert_eq!(r.updated_at, None, "Hardcover exposes no fine timestamp here");
+    }
+
+    #[test]
+    fn status_to_remote_progress_maps_currently_reading_to_in_progress() {
+        let r = map_status_to_remote_progress(ReadingStatus::CurrentlyReading)
+            .expect("currently-reading → record");
+        assert!(!r.finished);
+        assert!((r.fraction - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn status_to_remote_progress_ignores_want_to_read_and_dnf() {
+        assert!(map_status_to_remote_progress(ReadingStatus::WantToRead).is_none());
+        assert!(map_status_to_remote_progress(ReadingStatus::Dnf).is_none());
     }
 
     #[test]
