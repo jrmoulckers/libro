@@ -28,6 +28,7 @@ pub fn run() {
             commands::get_audiobook_stream,
             commands::save_listening_progress,
             commands::get_listening_progress,
+            commands::reconcile_progress,
             commands::list_plugins
         ])
         .run(tauri::generate_context!())

@@ -19,6 +19,14 @@ use libro_core::sync::{sync_reading_progress, ReadingSyncState, SyncOutcome};
 use libro_core::listening_sync::{
     sync_listening_progress, ListeningSyncOutcome, ListeningSyncState,
 };
+use libro_core::progress_sync::{
+    lane_for, reconcile_catalog, Lane, ProgressSource, ProgressStoreLike, ReconcileReport, SyncLane,
+};
+
+/// Max concurrent remote progress fetches in [`reconcile_progress`]. Bounded so a
+/// large library never bursts the ABS/Hardcover APIs (mirrors the metadata
+/// enrichment pass's `buffer_unordered` cap).
+const RECONCILE_CONCURRENCY: usize = 6;
 
 /// Instantiate the set of [`Provider`]s described by an [`AppConfig`].
 ///
@@ -421,6 +429,109 @@ pub async fn get_listening_progress(book_id: String) -> Result<Option<Progress>,
     ListeningStore::default_store()
         .get(&book_id)
         .map_err(|e| e.to_string())
+}
+
+/// Pull remote reading/listening progress **down** and reconcile it against the
+/// local stores, so a book advanced on another device resumes at the right place
+/// here. This is the inbound counterpart to the outward `save_*_progress` syncs.
+///
+/// Design (mirrors the outward syncs' posture):
+/// - **Opt-in:** a lane only runs when its provider is configured *and* its
+///   `pull_progress` toggle is on (default off). Pulling remote state is never a
+///   silent side effect of loading the library.
+/// - **Lanes never cross:** ABS-sourced audiobooks reconcile against
+///   Audiobookshelf (seconds/[`ListeningStore`]); other ebooks reconcile against
+///   Hardcover (CFI/[`ReadingStore`]). A Hardcover-sourced book is skipped.
+/// - **Bounded + failure-isolated:** remote fetches run with bounded concurrency
+///   then winners are applied sequentially (the file stores share a temp path).
+///   Every network/store error is swallowed into the returned report; this never
+///   fails and the local store stays the source of truth.
+/// - **No feedback loop:** after a pull-down we seed the listening throttle state
+///   ([`ListeningSyncState::note_synced_position`]) so the reconciled position is
+///   not immediately echoed back up to ABS on the next save.
+///
+/// TODO(live): the actual remote reads need a running ABS/Hardcover account; the
+/// mapping + reconcile policy are unit-tested in `libro_core` (no network).
+#[tauri::command]
+pub async fn reconcile_progress(
+    books: Vec<Book>,
+    listening_state: tauri::State<'_, ListeningSyncState>,
+) -> Result<ReconcileReport, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+
+    // --- Build the ABS (audio) source, if configured + opted-in. -------------
+    let mut abs_provider: Option<AudiobookshelfProvider> = None;
+    let mut abs_enabled = false;
+    if let Some(pc) = app_config
+        .providers
+        .iter()
+        .find(|p| p.enabled && p.provider_type == AudiobookshelfProvider::ID)
+    {
+        let cfg: AudiobookshelfConfig =
+            serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+        let configured = !cfg.base_url.trim().is_empty() && !cfg.api_token.trim().is_empty();
+        if configured {
+            abs_enabled = cfg.pull_progress;
+            let mut p = AudiobookshelfProvider::new(cfg);
+            let _ = p.authenticate(&pc.settings).await; // best-effort
+            abs_provider = Some(p);
+        }
+    }
+
+    // --- Build the Hardcover (reading) source, if configured + opted-in. -----
+    let mut hc_provider: Option<HardcoverProvider> = None;
+    let mut hc_enabled = false;
+    if let Some(pc) = app_config
+        .providers
+        .iter()
+        .find(|p| p.enabled && p.provider_type == HardcoverProvider::ID)
+    {
+        let cfg: HardcoverConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+        if !cfg.api_key.trim().is_empty() {
+            hc_enabled = cfg.pull_progress;
+            let mut p = HardcoverProvider::new(cfg);
+            let _ = p.authenticate(&pc.settings).await; // sets user_id
+            hc_provider = Some(p);
+        }
+    }
+
+    let listening_store = ListeningStore::default_store();
+    let reading_store = ReadingStore::default_store();
+
+    let audio_lane = abs_provider.as_ref().map(|p| SyncLane {
+        enabled: abs_enabled,
+        source: p as &dyn ProgressSource,
+        store: &listening_store as &dyn ProgressStoreLike,
+    });
+    let reading_lane = hc_provider.as_ref().map(|p| SyncLane {
+        enabled: hc_enabled,
+        source: p as &dyn ProgressSource,
+        store: &reading_store as &dyn ProgressStoreLike,
+    });
+
+    let report = reconcile_catalog(
+        &books,
+        audio_lane.as_ref(),
+        reading_lane.as_ref(),
+        RECONCILE_CONCURRENCY,
+    )
+    .await;
+
+    // Seed the outward listening throttle for every ABS audiobook at its current
+    // stored position, so a reconciled pull-down isn't bounced straight back to
+    // ABS on the next save (feedback-loop avoidance). Idempotent for untouched
+    // books — a subsequent save at the same position simply sees no delta.
+    if audio_lane.is_some() && abs_enabled {
+        for b in books.iter().filter(|b| lane_for(b) == Some(Lane::Audio)) {
+            if let Ok(Some(p)) = listening_store.get(&b.id) {
+                if let Some(pos) = p.position_seconds {
+                    listening_state.note_synced_position(&b.id, pos, p.finished);
+                }
+            }
+        }
+    }
+
+    Ok(report)
 }
 
 
