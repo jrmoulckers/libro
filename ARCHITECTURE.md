@@ -194,11 +194,14 @@ Target design (not yet implemented — the module is a typed stub):
 - No real cryptography is implemented yet; `load_config`/`save_config` are the
   seams where it will live.
 
-### Outward progress sync-back
+### Progress sync (two-way)
 Libro's on-device stores (`ReadingStore`, `ListeningStore`) are always the
-**source of truth**. On top of them sit two *optional, opt-in* engines that
-mirror local progress back **out** to a user-owned/official service, sharing one
-design so they stay consistent:
+**source of truth**. Around them sit *optional, opt-in* sync engines in two
+directions — **outward** (push local progress up) and **inbound** (pull remote
+progress down + reconcile) — sharing one design so they stay consistent.
+
+#### Outward (push)
+Two engines mirror local progress back **out** to a user-owned/official service:
 
 - **Reading → Hardcover** (`core/src/sync.rs`) — when reading progress is saved,
   best-effort set the Hardcover shelf status (0→>0 ⇒ *currently-reading*,
@@ -228,10 +231,50 @@ Both engines share the same guarantees:
   a meaningful delta (listening: a position change ≥ 15 s, plus pause / chapter
   change / finish), never on every tick/page turn.
 
-TODOs: two-way sync (pull ABS/Hardcover progress *down* on library load to
-reconcile cross-device positions), conflict resolution (server-vs-local
-newer-wins), and session-based ABS progress via the `/api/session` close endpoint
-if richer than the `me/progress` PATCH.
+#### Inbound (pull-down + reconcile)
+The counterpart, `core/src/progress_sync.rs`, pulls each remote's current
+progress **down** on library load and reconciles it against the local store, so a
+book advanced on another device resumes at the right place here.
+
+- **Inbound read, pure-mapped** — each provider exposes a `ProgressSource`
+  (`fetch_remote_progress(&Book) -> Option<RemoteProgress>`), with the JSON→record
+  mapping split from the HTTP call and unit-tested: `map_abs_progress_record` (ABS
+  `me.mediaProgress`: `currentTime`/`duration`/`isFinished`/`lastUpdate`, ms→s) and
+  `map_status_to_remote_progress` (Hardcover shelf status → coarse fraction:
+  *Read* ⇒ finished 1.0, *CurrentlyReading* ⇒ in-progress). Hardcover exposes no
+  fine-grained fraction or per-row timestamp here, so its `RemoteProgress.updated_at`
+  is `None`.
+- **Reconcile policy** — the pure `reconcile(local, remote) -> Reconciliation`
+  (`NoData` / `AlreadyInSync` / `LocalWins` / `RemoteWins(Progress)`) decides the
+  winner, and **never errors**:
+  1. **`finished` is sticky** — once finished anywhere, it stays finished.
+  2. **Newest-wins by `updated_at`** (last-write-wins) when *both* sides carry a
+     timestamp and they differ by more than a small recency tie window.
+  3. **Furthest-position-wins** (max fraction) when timestamps are missing or
+     unreliable — the current fallback for both lanes, since the local `Progress`
+     model carries no timestamp yet (newest-wins is implemented + tested via
+     `reconcile_with` for a future timestamped store).
+  4. **Tie/threshold no-thrash** — deltas within `PROGRESS_TIE_EPSILON` ⇒
+     `AlreadyInSync`, no write.
+- **Lanes never cross** — ABS-sourced audiobooks reconcile against Audiobookshelf
+  (seconds / `ListeningStore`); other ebooks reconcile against Hardcover (CFI /
+  `ReadingStore`). A Hardcover-sourced book is skipped (`lane_for`).
+- **Apply on load, opt-in + bounded + isolated** — the `reconcile_progress`
+  command (gated per lane by `pull_progress`, `#[serde(default)]` false) fetches
+  remotes with **bounded concurrency** (`buffer_unordered`, cap 6) then applies
+  winners **sequentially** (the file stores share a temp path, so serialized
+  writes avoid a race). Only `RemoteWins` writes the local store; every error is
+  swallowed into a `ReconcileReport` tally and the library load never fails.
+- **No feedback loop** — after an audio pull-down the command seeds the outward
+  listening throttle (`ListeningSyncState::note_synced_position`), so a reconciled
+  position isn't immediately echoed back up to ABS on the next save.
+
+TODOs: real-time/webhook sync (instead of pull-on-load); a manual per-book
+conflict-resolution UI (let the user choose when auto last-write-wins isn't
+wanted); richer Hardcover fraction + a per-row `updated_at` if the API exposes
+page-level progress (which would activate the newest-wins branch for reading); and
+session-based ABS progress via the `/api/session` close endpoint if richer than
+the `me/progress` PATCH.
 
 ## Component overview
 
@@ -319,7 +362,7 @@ The Rust side is a two-crate Cargo workspace:
    (separate platform work): background playback, lockscreen / now-playing
    controls, Android Auto / Apple CarPlay, Chromecast, sleep timer, equalizer.
    Outward listening-progress **sync-back to Audiobookshelf** is now wired
-   (opt-in `PATCH /api/me/progress/{id}`; see *Outward progress sync-back*); live
+   (opt-in `PATCH /api/me/progress/{id}`; see *Progress sync (two-way)*); live
    verification is pending a running ABS server.)*
 5. **Reading** — EPUB reading experience. *(Started: an in-app EPUB reader
    (`src/EpubReader.tsx`, built on `react-reader`/epub.js) renders the user's own
@@ -329,8 +372,8 @@ The Rust side is a two-crate Cargo workspace:
    position (EPUB CFI + percent) is persisted per-book via
    `save_reading_progress` / `get_reading_progress`, backed by an on-device
    `ReadingStore` (`core/src/config/reading.rs`). No DRM handling. Reading
-   progress **syncs back to Hardcover** (opt-in; see *Outward progress
-   sync-back*). TODOs: highlights/annotations, full-text search, and dark mode.)*
+   progress **syncs back to Hardcover** (opt-in; see *Progress sync
+   (two-way)*). TODOs: highlights/annotations, full-text search, and dark mode.)*
 
 ## Legal boundaries
 
