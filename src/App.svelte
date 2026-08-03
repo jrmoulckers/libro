@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import {
+    bookKey,
     countByMediaType,
     groupByMediaType,
     MEDIA_TYPES,
@@ -8,9 +9,12 @@
     type Book,
     type MediaType,
   } from './lib/models';
-  import { loadLibrary } from './lib/library';
+  import { appRegistry, defaultLocalStore, loadLibrary } from './lib/library';
+  import { importEpubFiles, type ImportableFile } from './lib/local/import';
+  import { isLocalCoverUrl, localCoverObjectUrl } from './lib/local/store';
 
   type LoadState = 'loading' | 'loaded' | 'error';
+  type ImportRow = { name: string; ok: boolean; detail: string };
 
   const MEDIA_LABELS: Record<MediaType, string> = {
     ebook: 'E-books',
@@ -18,8 +22,17 @@
     podcast: 'Podcasts',
   };
 
+  // One on-device store, shared by the local provider (reads) and imports (writes).
+  const store = defaultLocalStore();
+
   let loadState = $state<LoadState>('loading');
   let books = $state<Book[]>([]);
+  let importing = $state(false);
+  let importRows = $state<ImportRow[]>([]);
+  let coverSrc = $state<Record<string, string>>({});
+
+  let fileInput: HTMLInputElement;
+  let objectUrls: string[] = [];
 
   // Group the sorted catalog, dropping media types with no items.
   const sections = $derived(
@@ -30,14 +43,107 @@
     return book.authors.length > 0 ? book.authors.join(', ') : 'Unknown author';
   }
 
+  /**
+   * Resolve cover URLs for the current catalog. `localcover:` covers become
+   * temporary object URLs from the store; connector `http(s)` covers are used
+   * verbatim. Previously-created object URLs are revoked to avoid leaks.
+   */
+  async function refreshCovers(list: readonly Book[]): Promise<void> {
+    const previous = objectUrls;
+    const next: Record<string, string> = {};
+    const created: string[] = [];
+
+    for (const book of list) {
+      if (!book.coverUrl) continue;
+      if (isLocalCoverUrl(book.coverUrl)) {
+        const url = await localCoverObjectUrl(store, book.coverUrl);
+        if (url) {
+          next[bookKey(book)] = url;
+          created.push(url);
+        }
+      } else {
+        next[bookKey(book)] = book.coverUrl;
+      }
+    }
+
+    coverSrc = next;
+    objectUrls = created;
+    for (const url of previous) URL.revokeObjectURL(url);
+  }
+
+  async function reload(): Promise<void> {
+    const result = await loadLibrary(appRegistry(store));
+    books = result.books;
+    await refreshCovers(books);
+  }
+
+  /** Import a picked set of files, then refresh the library and status list. */
+  async function runImport(files: ImportableFile[]): Promise<void> {
+    if (files.length === 0) return;
+    importing = true;
+    try {
+      const { imported, errors } = await importEpubFiles(files, store);
+      await reload();
+      importRows = [
+        ...imported.map((book) => ({
+          name: book.identifiers?.['local:source'] ?? book.title,
+          ok: true,
+          detail: 'Imported',
+        })),
+        ...errors.map((skip) => ({ name: skip.name, ok: false, detail: skip.reason })),
+      ];
+    } finally {
+      importing = false;
+    }
+  }
+
+  /**
+   * Open the file picker. Uses the File System Access API (`showOpenFilePicker`)
+   * when available as a progressive enhancement, and always falls back to the
+   * native `<input type="file">` — the baseline that works everywhere.
+   */
+  async function pickFiles(): Promise<void> {
+    const picker = (
+      window as unknown as {
+        showOpenFilePicker?: (options?: unknown) => Promise<Array<{ getFile(): Promise<File> }>>;
+      }
+    ).showOpenFilePicker;
+
+    if (picker) {
+      try {
+        const handles = await picker({
+          multiple: true,
+          types: [{ description: 'EPUB books', accept: { 'application/epub+zip': ['.epub'] } }],
+        });
+        await runImport(await Promise.all(handles.map((handle) => handle.getFile())));
+        return;
+      } catch (error) {
+        // User dismissed the picker — do nothing; otherwise fall back to the input.
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
+    fileInput.click();
+  }
+
+  async function onInputChange(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    await runImport(files);
+    input.value = ''; // allow re-picking the same file
+  }
+
   onMount(async () => {
     try {
-      const result = await loadLibrary();
-      books = result.books;
+      await reload();
       loadState = 'loaded';
     } catch {
       loadState = 'error';
     }
+  });
+
+  onDestroy(() => {
+    for (const url of objectUrls) URL.revokeObjectURL(url);
   });
 </script>
 
@@ -49,13 +155,42 @@
     </p>
   </header>
 
+  <section class="import" aria-labelledby="import-heading">
+    <h2 id="import-heading">Your books</h2>
+    <p class="import-hint">Import your own DRM-free EPUB files. They stay on this device.</p>
+    <button type="button" onclick={pickFiles} disabled={importing}>
+      {importing ? 'Importing…' : 'Import EPUB(s)'}
+    </button>
+    <input
+      bind:this={fileInput}
+      class="visually-hidden"
+      type="file"
+      accept=".epub,application/epub+zip"
+      multiple
+      tabindex="-1"
+      aria-hidden="true"
+      onchange={onInputChange}
+    />
+
+    {#if importRows.length > 0}
+      <ul class="import-status" aria-label="Import results" aria-live="polite">
+        {#each importRows as row (row.name + row.detail)}
+          <li class:ok={row.ok} class:skip={!row.ok}>
+            <span class="import-name">{row.name}</span>
+            <span class="import-detail">{row.detail}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+
   <section class="library" aria-busy={loadState === 'loading'} aria-live="polite">
     {#if loadState === 'loading'}
       <p class="status" role="status">Loading your library…</p>
     {:else if loadState === 'error'}
       <p class="status" role="alert">Your library could not be loaded. Try reloading.</p>
     {:else if books.length === 0}
-      <p class="status">Your library is empty. Importing is not wired up yet.</p>
+      <p class="status">Your library is empty. Import an EPUB to get started.</p>
     {:else}
       <ul class="counts" aria-label="Library summary">
         {#each MEDIA_TYPES as type (type)}
@@ -67,8 +202,13 @@
         <section class="shelf" aria-labelledby={`shelf-${type}`}>
           <h2 id={`shelf-${type}`}>{MEDIA_LABELS[type]}</h2>
           <ul class="items">
-            {#each items as book (`${book.sourceProviderId}:${book.id}`)}
+            {#each items as book (bookKey(book))}
               <li class="item">
+                <div class="cover" aria-hidden="true">
+                  {#if coverSrc[bookKey(book)]}
+                    <img src={coverSrc[bookKey(book)]} alt="" loading="lazy" />
+                  {/if}
+                </div>
                 <span class="title">{book.title}</span>
                 <span class="author">{authorLine(book)}</span>
                 {#if book.series}
@@ -92,6 +232,29 @@
 
   .tagline {
     max-width: 42rem;
+  }
+
+  .import-hint {
+    max-width: 42rem;
+  }
+
+  .import-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-block-start: 1rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .import-status li {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+  }
+
+  .import-name {
+    font-weight: 600;
   }
 
   /* Reserve vertical space so swapping loading/empty/loaded states doesn't shift
@@ -130,7 +293,31 @@
     gap: 0.25rem;
   }
 
+  /* Fixed aspect ratio reserves layout space before the cover loads (no CLS). */
+  .cover {
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+  }
+
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
   .title {
     font-weight: 600;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>
