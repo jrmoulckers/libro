@@ -39,26 +39,50 @@ pub struct AudioChapter {
     pub title: String,
 }
 
-/// A normalized, directly-playable audiobook stream + its chapter list.
+/// A normalized, directly-playable audiobook **manifest**: the full ordered list
+/// of audio tracks laid out on one **book-absolute timeline**, plus chapters and
+/// total duration.
 ///
 /// This is what [`crate::providers::audiobookshelf::AudiobookshelfProvider::resolve_playback`]
 /// produces and the Tauri `get_audiobook_stream` command returns to the player.
-/// The player only needs a URL an `<audio>` element can load, so the auth token
-/// is embedded in `stream_url`'s query string (an HTML media element cannot send
-/// an `Authorization` header — see the note in [`map_playback_session`]).
+///
+/// An ABS audiobook is typically **one track per source file**. Rather than
+/// exposing only the first file, the manifest carries every track with a
+/// cumulative `start_offset_seconds`, so the player can present a single
+/// continuous timeline (seek/skip/chapter-jump across track boundaries) and
+/// auto-advance from one track to the next. The auth token is embedded in each
+/// track's `url` query string (an HTML `<audio>` element cannot send an
+/// `Authorization` header — see [`map_playback_session`]).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AudioPlayback {
+pub struct PlaybackManifest {
+    /// Ordered audio tracks with book-absolute start offsets.
+    pub tracks: Vec<PlaybackTrack>,
+    /// Chapter markers for the jump-to-chapter UI (book-absolute times; may be
+    /// empty). A chapter may span a track boundary.
+    #[serde(default)]
+    pub chapters: Vec<AudioChapter>,
+    /// Total book duration in seconds = the sum of the track durations.
+    pub total_duration: f64,
+}
+
+/// A single audio track (one source file) positioned on the book-absolute
+/// timeline. The player maps a whole-book position to `(track, offset-within)`
+/// via `start_offset_seconds`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlaybackTrack {
+    /// 0-based position of this track in the book.
+    pub index: usize,
     /// Absolute, directly-playable stream URL (auth token in the query string).
-    pub stream_url: String,
-    /// Total duration in seconds, if known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub duration: Option<f64>,
+    pub url: String,
+    /// This track's own duration in seconds.
+    pub duration_seconds: f64,
+    /// Cumulative start offset in seconds = sum of all prior track durations.
+    /// The book-absolute position while this track plays is
+    /// `start_offset_seconds + audio.currentTime`.
+    pub start_offset_seconds: f64,
     /// MIME type hint for the stream (e.g. `"audio/mpeg"`), if known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
-    /// Chapter markers for the jump-to-chapter UI (may be empty).
-    #[serde(default)]
-    pub chapters: Vec<AudioChapter>,
 }
 
 /// Connection settings for an Audiobookshelf instance.
@@ -108,16 +132,18 @@ impl AudiobookshelfProvider {
     }
 
     /// Open a playback session for one library item and resolve it into a
-    /// normalized, directly-playable [`AudioPlayback`] (stream URL + chapters).
+    /// normalized, directly-playable [`PlaybackManifest`] (all tracks on a
+    /// book-absolute timeline + chapters).
     ///
     /// Uses `POST /api/items/{id}/play`, which returns the item's audio tracks
-    /// and chapter markers. The heavy lifting (URL resolution, chapter mapping)
-    /// is delegated to the pure, unit-tested [`map_playback_session`] helper.
+    /// and chapter markers. The heavy lifting (URL resolution, timeline assembly,
+    /// chapter mapping) is delegated to the pure, unit-tested
+    /// [`map_playback_session`] helper.
     ///
     /// TODO(live): this path needs verification against a running ABS server —
     /// there is none in the build/CI environment, so only the pure mapping is
     /// exercised by tests. See `ARCHITECTURE.md` → audiobook playback.
-    pub async fn resolve_playback(&self, item_id: &str) -> ProviderResult<AudioPlayback> {
+    pub async fn resolve_playback(&self, item_id: &str) -> ProviderResult<PlaybackManifest> {
         if self.base().is_empty() {
             return Err(ProviderError::Config("base_url is empty".into()));
         }
@@ -630,9 +656,6 @@ struct AbsPlaybackSession {
     audio_tracks: Vec<AbsAudioTrack>,
     #[serde(default)]
     chapters: Vec<AbsChapter>,
-    /// Total duration of the item in seconds, if the session reports it.
-    #[serde(default)]
-    duration: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -660,31 +683,43 @@ struct AbsChapter {
     title: Option<String>,
 }
 
-/// Resolve an ABS play session into a normalized [`AudioPlayback`].
+/// Resolve an ABS play session into a normalized [`PlaybackManifest`].
 ///
 /// Pure and unit-tested (no network). Responsibilities:
-///   * pick a playable audio track and resolve its (possibly server-relative)
-///     `contentUrl` to an **absolute** URL against `base_url`;
-///   * embed the auth `token` in the URL's query string, because an HTML
-///     `<audio>` element cannot send an `Authorization: Bearer` header — ABS
-///     accepts `?token=` for this reason;
-///   * carry the chapter markers and duration through.
+///   * resolve **every** track's (possibly server-relative) `contentUrl` to an
+///     **absolute** URL against `base_url`, embedding the auth `token` in the
+///     query string (an HTML `<audio>` element cannot send an
+///     `Authorization: Bearer` header — ABS accepts `?token=` for this reason);
+///   * lay the tracks out on a **book-absolute timeline** via the pure
+///     [`assemble_timeline`] helper (cumulative `start_offset_seconds` +
+///     `total_duration`);
+///   * carry the chapter markers through (already book-absolute in ABS).
 ///
-/// v1 uses the **first** audio track. Multi-file audiobooks (ABS returns one
-/// track per source file) therefore expose only their first file for now;
-/// gapless multi-track playback (a playlist/`MediaSource` queue, or the server's
-/// merged/HLS stream) is a TODO — see `ARCHITECTURE.md`.
+/// Returns **all** tracks (ABS emits one per source file), so the player can
+/// present one continuous book and auto-advance across track boundaries. An
+/// empty track list is an error, not a panic.
 fn map_playback_session(
     session: &AbsPlaybackSession,
     base_url: &str,
     token: &str,
-) -> ProviderResult<AudioPlayback> {
-    let track = session
-        .audio_tracks
-        .first()
-        .ok_or_else(|| ProviderError::Api("play session has no audio tracks".into()))?;
+) -> ProviderResult<PlaybackManifest> {
+    if session.audio_tracks.is_empty() {
+        return Err(ProviderError::Api("play session has no audio tracks".into()));
+    }
 
-    let stream_url = resolve_stream_url(base_url, &track.content_url, token);
+    let resolved: Vec<(String, f64, Option<String>)> = session
+        .audio_tracks
+        .iter()
+        .map(|t| {
+            (
+                resolve_stream_url(base_url, &t.content_url, token),
+                t.duration.unwrap_or(0.0),
+                t.mime_type.clone().filter(|m| !m.is_empty()),
+            )
+        })
+        .collect();
+
+    let (tracks, total_duration) = assemble_timeline(resolved);
 
     let chapters = session
         .chapters
@@ -701,17 +736,40 @@ fn map_playback_session(
         })
         .collect();
 
-    let duration = session
-        .duration
-        .or(track.duration)
-        .filter(|d| *d > 0.0);
-
-    Ok(AudioPlayback {
-        stream_url,
-        duration,
-        mime_type: track.mime_type.clone().filter(|m| !m.is_empty()),
+    Ok(PlaybackManifest {
+        tracks,
         chapters,
+        total_duration,
     })
+}
+
+/// Lay an ordered list of `(url, duration_seconds, mime_type)` tracks onto a
+/// book-absolute timeline.
+///
+/// Pure and unit-tested. Each track's `start_offset_seconds` is the cumulative
+/// sum of all **prior** track durations, and the returned total is the sum of
+/// every track's duration. A negative/`NaN`-ish duration is clamped to 0 so a
+/// bad value can't rewind the timeline. This is the single source of truth for
+/// the whole-book position the player exposes.
+fn assemble_timeline(tracks: Vec<(String, f64, Option<String>)>) -> (Vec<PlaybackTrack>, f64) {
+    let mut offset = 0.0_f64;
+    let mut out = Vec::with_capacity(tracks.len());
+    for (index, (url, duration, mime_type)) in tracks.into_iter().enumerate() {
+        let dur = if duration.is_finite() && duration > 0.0 {
+            duration
+        } else {
+            0.0
+        };
+        out.push(PlaybackTrack {
+            index,
+            url,
+            duration_seconds: dur,
+            start_offset_seconds: offset,
+            mime_type,
+        });
+        offset += dur;
+    }
+    (out, offset)
 }
 
 /// Resolve a (possibly server-relative) content URL to an absolute stream URL
@@ -877,45 +935,123 @@ mod tests {
     }
 
     // Representative `POST /api/items/{id}/play` session payload, shaped after
-    // the public ABS API docs.
+    // the public ABS API docs. Multi-file: three tracks (one per source file),
+    // with chapters that cross track boundaries.
     fn play_session_fixture() -> &'static str {
         r#"{
           "id": "play_session_abc",
-          "duration": 3600.0,
           "audioTracks": [
             {
-              "index": 1,
-              "startOffset": 0,
-              "duration": 3600.0,
-              "title": "track1.mp3",
+              "index": 0,
+              "duration": 1200.0,
+              "title": "part1.mp3",
               "contentUrl": "/api/items/li_abc/file/aud1",
+              "mimeType": "audio/mpeg"
+            },
+            {
+              "index": 1,
+              "duration": 1500.0,
+              "title": "part2.mp3",
+              "contentUrl": "/api/items/li_abc/file/aud2",
+              "mimeType": "audio/mpeg"
+            },
+            {
+              "index": 2,
+              "duration": 900.0,
+              "title": "part3.mp3",
+              "contentUrl": "/api/items/li_abc/file/aud3",
               "mimeType": "audio/mpeg"
             }
           ],
           "chapters": [
-            { "id": 0, "start": 0.0, "end": 1200.0, "title": "Chapter One" },
-            { "id": 1, "start": 1200.0, "end": 2400.0, "title": "" },
-            { "id": 2, "start": 2400.0, "end": 3600.0, "title": "The End" }
+            { "id": 0, "start": 0.0, "end": 1000.0, "title": "Chapter One" },
+            { "id": 1, "start": 1000.0, "end": 2000.0, "title": "" },
+            { "id": 2, "start": 2000.0, "end": 3600.0, "title": "The End" }
           ]
         }"#
     }
 
     #[test]
-    fn maps_play_session_to_absolute_stream_url_with_token_and_chapters() {
+    fn maps_play_session_to_multi_track_manifest_with_unified_timeline() {
         let session: AbsPlaybackSession = serde_json::from_str(play_session_fixture()).unwrap();
         let pb = map_playback_session(&session, "https://abs.example.com/", "TESTTOKEN").unwrap();
 
+        // All three tracks are returned (not just the first).
+        assert_eq!(pb.tracks.len(), 3);
+
+        // Each track's URL is absolute with the auth token in the query string.
         assert_eq!(
-            pb.stream_url,
+            pb.tracks[0].url,
             "https://abs.example.com/api/items/li_abc/file/aud1?token=TESTTOKEN"
         );
-        assert_eq!(pb.mime_type.as_deref(), Some("audio/mpeg"));
-        assert_eq!(pb.duration, Some(3600.0));
+        assert_eq!(
+            pb.tracks[2].url,
+            "https://abs.example.com/api/items/li_abc/file/aud3?token=TESTTOKEN"
+        );
+
+        // Cumulative book-absolute offsets: 0, 1200, 2700.
+        assert_eq!(pb.tracks[0].index, 0);
+        assert!((pb.tracks[0].start_offset_seconds - 0.0).abs() < f64::EPSILON);
+        assert!((pb.tracks[1].start_offset_seconds - 1200.0).abs() < f64::EPSILON);
+        assert!((pb.tracks[2].start_offset_seconds - 2700.0).abs() < f64::EPSILON);
+
+        // total_duration = sum of track durations.
+        assert!((pb.total_duration - 3600.0).abs() < f64::EPSILON);
+
+        // Chapters are preserved book-absolute (chapter 1 spans the 1200s boundary).
         assert_eq!(pb.chapters.len(), 3);
         assert_eq!(pb.chapters[0].title, "Chapter One");
-        assert!((pb.chapters[0].end - 1200.0).abs() < f64::EPSILON);
-        // An empty chapter title falls back to a generated "Chapter N" label.
-        assert_eq!(pb.chapters[1].title, "Chapter 2");
+        assert_eq!(pb.chapters[1].title, "Chapter 2"); // empty title → generated
+        assert!((pb.chapters[1].start - 1000.0).abs() < f64::EPSILON);
+        assert!((pb.chapters[1].end - 2000.0).abs() < f64::EPSILON);
+        assert_eq!(pb.tracks[0].mime_type.as_deref(), Some("audio/mpeg"));
+    }
+
+    #[test]
+    fn assemble_timeline_computes_cumulative_offsets_and_total() {
+        // Empty → no tracks, zero total.
+        let (empty, total) = assemble_timeline(vec![]);
+        assert!(empty.is_empty());
+        assert_eq!(total, 0.0);
+
+        // Single track.
+        let (one, total) = assemble_timeline(vec![("u0".into(), 42.0, None)]);
+        assert_eq!(one.len(), 1);
+        assert_eq!(one[0].start_offset_seconds, 0.0);
+        assert_eq!(total, 42.0);
+
+        // Many tracks accumulate.
+        let (many, total) = assemble_timeline(vec![
+            ("u0".into(), 10.0, Some("audio/mpeg".into())),
+            ("u1".into(), 20.0, None),
+            ("u2".into(), 5.0, None),
+        ]);
+        assert_eq!(many[0].start_offset_seconds, 0.0);
+        assert_eq!(many[1].start_offset_seconds, 10.0);
+        assert_eq!(many[2].start_offset_seconds, 30.0);
+        assert_eq!(many[1].index, 1);
+        assert_eq!(total, 35.0);
+    }
+
+    #[test]
+    fn assemble_timeline_clamps_bad_durations_so_offsets_never_rewind() {
+        // A zero/negative/non-finite duration contributes 0 and does not move the
+        // next track's offset backwards.
+        let (tracks, total) = assemble_timeline(vec![
+            ("u0".into(), 10.0, None),
+            ("u1".into(), 0.0, None),
+            ("u2".into(), -5.0, None),
+            ("u3".into(), f64::NAN, None),
+            ("u4".into(), 7.0, None),
+        ]);
+        assert_eq!(tracks[0].start_offset_seconds, 0.0);
+        assert_eq!(tracks[1].start_offset_seconds, 10.0);
+        assert_eq!(tracks[2].start_offset_seconds, 10.0);
+        assert_eq!(tracks[3].start_offset_seconds, 10.0);
+        assert_eq!(tracks[4].start_offset_seconds, 10.0);
+        assert_eq!(tracks[2].duration_seconds, 0.0);
+        assert_eq!(tracks[3].duration_seconds, 0.0);
+        assert_eq!(total, 17.0);
     }
 
     #[test]
