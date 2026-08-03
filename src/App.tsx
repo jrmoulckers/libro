@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AudioChapter, Book, BookMetadata, PlaybackManifest, PlaybackTrack, PluginInfo, ProviderBooks } from "./types";
+import type { AudioChapter, Book, BookMetadata, KindleConfig, PlaybackManifest, PlaybackTrack, PluginInfo, ProviderBooks, SendOutcome } from "./types";
 import { EpubReader, type EpubSource } from "./EpubReader";
 import { AudioPlayer } from "./AudioPlayer";
 import { isTauri } from "./tauri";
@@ -54,6 +54,32 @@ const SAMPLE_CHAPTERS: AudioChapter[] = [
   { id: 2, start: 5, end: SAMPLE_TOTAL, title: "Finale" },
 ];
 
+/** Empty Send-to-Kindle form (587 = the common STARTTLS submission port). */
+const EMPTY_KINDLE_CONFIG: KindleConfig = {
+  smtp_host: "",
+  smtp_port: 587,
+  smtp_username: "",
+  smtp_password: "",
+  from_address: "",
+  to_address: "",
+};
+
+/** Turn a typed `SendOutcome` into a user-facing status line. */
+function describeSendOutcome(outcome: SendOutcome, title: string): string {
+  switch (outcome.status) {
+    case "sent":
+      return `Sent “${title}” to your Kindle. It may take a minute to appear.`;
+    case "not_configured":
+      return "Send-to-Kindle isn't configured yet — add your SMTP details first.";
+    case "too_large":
+      return `“${title}” is too large (${(outcome.size / 1048576).toFixed(1)} MB, limit ${(outcome.limit / 1048576).toFixed(0)} MB).`;
+    case "not_an_epub":
+      return `“${title}” isn't a DRM-free EPUB, so it can't be sent.`;
+    case "send_failed":
+      return `Couldn't send “${title}”: ${outcome.reason}`;
+  }
+}
+
 function App() {
   const [providers, setProviders] = useState<ProviderBooks[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,6 +100,14 @@ function App() {
 
   // Phase 3: installed connector plugins (declarative manifests).
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
+
+  // Send-to-Kindle: whether it's configured, the settings form, and send status.
+  const [kindleConfigured, setKindleConfigured] = useState(false);
+  const [showKindleSettings, setShowKindleSettings] = useState(false);
+  const [kindleForm, setKindleForm] = useState<KindleConfig>(EMPTY_KINDLE_CONFIG);
+  const [kindleSaving, setKindleSaving] = useState(false);
+  const [kindleMsg, setKindleMsg] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const loadLibrary = useCallback(async () => {
     setLoading(true);
@@ -116,6 +150,57 @@ function App() {
     invoke<PluginInfo[]>("list_plugins")
       .then(setPlugins)
       .catch((e) => console.warn("list_plugins failed", e));
+  }, []);
+
+  // Load Send-to-Kindle status + settings (Tauri only). The backend returns the
+  // config with the SMTP password blanked, so the secret never reaches the UI.
+  const refreshKindle = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      const configured = await invoke<boolean>("kindle_configured");
+      setKindleConfigured(configured);
+      const cfg = await invoke<KindleConfig>("get_kindle_config");
+      setKindleForm({ ...EMPTY_KINDLE_CONFIG, ...cfg, smtp_password: "" });
+    } catch (e) {
+      console.warn("kindle status failed", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshKindle();
+  }, [refreshKindle]);
+
+  const saveKindleConfig = useCallback(async () => {
+    setKindleSaving(true);
+    setKindleMsg(null);
+    try {
+      // A blank password means "keep the stored one" on the backend.
+      await invoke("save_kindle_config", { configIn: kindleForm });
+      setKindleMsg("Send-to-Kindle settings saved.");
+      await refreshKindle();
+    } catch (e) {
+      setKindleMsg(`Couldn't save settings: ${String(e)}`);
+    } finally {
+      setKindleSaving(false);
+    }
+  }, [kindleForm, refreshKindle]);
+
+  // Email a local DRM-free EPUB to the user's @kindle.com address. This is a
+  // user-initiated action, so the backend returns a typed outcome we surface.
+  const sendToKindle = useCallback(async (book: Book) => {
+    setSendingId(book.id);
+    setKindleMsg(null);
+    try {
+      const outcome = await invoke<SendOutcome>("send_to_kindle", {
+        bookId: book.id,
+        title: book.title,
+      });
+      setKindleMsg(describeSendOutcome(outcome, book.title));
+    } catch (e) {
+      setKindleMsg(`Couldn't send “${book.title}”: ${String(e)}`);
+    } finally {
+      setSendingId(null);
+    }
   }, []);
 
   // Open a locally-scanned EPUB: fetch its bytes from the Rust core and hand the
@@ -191,6 +276,14 @@ function App() {
     book.source_provider_id === "audiobookshelf" &&
     isTauri();
 
+  // Send-to-Kindle is offered only for the user's own local DRM-free EPUBs, and
+  // only once the SMTP/Kindle settings are configured.
+  const canSendToKindle = (book: Book) =>
+    book.media_type === "Ebook" &&
+    book.source_provider_id === "localfiles" &&
+    isTauri() &&
+    kindleConfigured;
+
   const books = useMemo<Book[]>(
     () => providers.flatMap((p) => p.books),
     [providers],
@@ -235,8 +328,94 @@ function App() {
           </button>
           <button onClick={openSample}>Open sample book</button>
           <button onClick={openSampleAudiobook}>Open sample audiobook</button>
+          {isTauri() && (
+            <button onClick={() => setShowKindleSettings((s) => !s)}>
+              {showKindleSettings ? "Hide Kindle settings" : "Send-to-Kindle settings"}
+            </button>
+          )}
         </div>
       </header>
+
+      {kindleMsg && <p className="app__notice">{kindleMsg}</p>}
+
+      {isTauri() && showKindleSettings && (
+        <section className="app__kindle">
+          <h2>Send-to-Kindle</h2>
+          <p className="app__tagline">
+            Email your own DRM-free EPUBs to your <code>@kindle.com</code> address
+            over your own SMTP account, using Amazon's official personal-documents
+            flow. Your <code>from</code> address must be an{" "}
+            <em>Approved Personal Document Email</em> in your Amazon account.
+          </p>
+          <form
+            className="app__kindle-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveKindleConfig();
+            }}
+          >
+            <label>
+              SMTP host
+              <input
+                type="text"
+                value={kindleForm.smtp_host}
+                placeholder="smtp.gmail.com"
+                onChange={(e) => setKindleForm({ ...kindleForm, smtp_host: e.target.value })}
+              />
+            </label>
+            <label>
+              SMTP port
+              <input
+                type="number"
+                value={kindleForm.smtp_port}
+                onChange={(e) =>
+                  setKindleForm({ ...kindleForm, smtp_port: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              SMTP username
+              <input
+                type="text"
+                value={kindleForm.smtp_username}
+                autoComplete="username"
+                onChange={(e) => setKindleForm({ ...kindleForm, smtp_username: e.target.value })}
+              />
+            </label>
+            <label>
+              SMTP password
+              <input
+                type="password"
+                value={kindleForm.smtp_password}
+                autoComplete="new-password"
+                placeholder="•••••••• (unchanged)"
+                onChange={(e) => setKindleForm({ ...kindleForm, smtp_password: e.target.value })}
+              />
+            </label>
+            <label>
+              From (approved sender)
+              <input
+                type="email"
+                value={kindleForm.from_address}
+                placeholder="you@example.com"
+                onChange={(e) => setKindleForm({ ...kindleForm, from_address: e.target.value })}
+              />
+            </label>
+            <label>
+              To (@kindle.com)
+              <input
+                type="email"
+                value={kindleForm.to_address}
+                placeholder="you@kindle.com"
+                onChange={(e) => setKindleForm({ ...kindleForm, to_address: e.target.value })}
+              />
+            </label>
+            <button type="submit" disabled={kindleSaving}>
+              {kindleSaving ? "Saving…" : "Save settings"}
+            </button>
+          </form>
+        </section>
+      )}
 
       {error && <p className="app__error">Failed to load: {error}</p>}
 
@@ -350,6 +529,15 @@ function App() {
                   disabled={openingId === book.id}
                 >
                   {openingId === book.id ? "Loading…" : "Listen"}
+                </button>
+              )}
+              {canSendToKindle(book) && (
+                <button
+                  className="card__send-kindle"
+                  onClick={() => void sendToKindle(book)}
+                  disabled={sendingId === book.id}
+                >
+                  {sendingId === book.id ? "Sending…" : "Send to Kindle"}
                 </button>
               )}
             </div>

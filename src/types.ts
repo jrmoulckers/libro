@@ -122,3 +122,28 @@ export interface PluginInfo {
   /** Domains this plugin is sandboxed to (its only permitted network hosts). */
   allowed_domains: string[];
 }
+
+/**
+ * Send-to-Kindle SMTP settings (mirrors the Rust `kindle::KindleConfig`).
+ * `smtp_password` is a secret: the backend blanks it when returning the config
+ * and treats an empty value on save as "keep the stored password".
+ */
+export interface KindleConfig {
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_password: string;
+  from_address: string;
+  to_address: string;
+}
+
+/**
+ * The typed result of a `send_to_kindle` call (mirrors the Rust `SendOutcome`,
+ * serialized with a `status` tag).
+ */
+export type SendOutcome =
+  | { status: "sent" }
+  | { status: "not_configured" }
+  | { status: "too_large"; size: number; limit: number }
+  | { status: "not_an_epub" }
+  | { status: "send_failed"; reason: string };

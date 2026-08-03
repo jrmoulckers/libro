@@ -160,6 +160,67 @@ body {
   cursor: default;
 }
 
+.card__send-kindle {
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.card__send-kindle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.app__notice {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.app__kindle {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+}
+
+.app__kindle h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.app__kindle-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.app__kindle-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.app__kindle-form input {
+  padding: 0.4rem 0.6rem;
+}
+
+.app__kindle-form button {
+  align-self: end;
+}
+
 .app__metadata {
   margin: 1.5rem 0;
   padding: 1rem;
