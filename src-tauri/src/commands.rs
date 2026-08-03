@@ -1,6 +1,10 @@
 //! Tauri command surface exposed to the frontend.
 
 use libro_core::config::{self, AppConfig, ListeningStore, ProviderConfig, ReadingStore};
+use libro_core::kindle::{
+    is_configured as kindle_is_configured, send_epub_to_kindle, KindleConfig, SendOutcome,
+    SmtpKindleSender,
+};
 use libro_core::metadata::{enrich_catalog, BookMetadata, EnrichOptions, MetadataRegistry};
 use libro_core::models::{Book, Progress};
 use libro_core::providers::audiobookshelf::{
@@ -571,4 +575,122 @@ pub async fn list_plugins() -> Result<Vec<PluginInfo>, String> {
             allowed_domains: p.manifest.permissions.allowed_domains.clone(),
         })
         .collect())
+}
+
+
+// ---------------------------------------------------------------------------
+// Send-to-Kindle (Amazon official personal-documents email flow)
+// ---------------------------------------------------------------------------
+
+/// Turn a book title into a safe `*.epub` attachment filename. Amazon uses the
+/// attachment filename as the document title in the user's Kindle library.
+fn kindle_filename_for(title: &str) -> String {
+    let cleaned: String = title
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let trimmed = cleaned.trim();
+    let stem = if trimmed.is_empty() { "book" } else { trimmed };
+    format!("{stem}.epub")
+}
+
+/// Whether Send-to-Kindle is configured, so the frontend can show/hide the
+/// "Send to Kindle" affordance without ever handling the SMTP secret.
+#[tauri::command]
+pub async fn kindle_configured() -> Result<bool, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    Ok(kindle_is_configured(&app_config.kindle))
+}
+
+/// Return the current Send-to-Kindle settings **with the SMTP password blanked**
+/// so the secret is never echoed back to the UI.
+#[tauri::command]
+pub async fn get_kindle_config() -> Result<KindleConfig, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    let mut cfg = app_config.kindle;
+    cfg.smtp_password = String::new();
+    Ok(cfg)
+}
+
+/// Persist Send-to-Kindle settings into the (encrypted) app config.
+///
+/// A blank `smtp_password` means "keep the existing one" — the UI masks the
+/// field and sends an empty string when the user didn't retype it, so we never
+/// clobber a stored secret with a blank.
+///
+/// TODO(security): real persistence rides the same config-crypto boundary as the
+/// rest of [`AppConfig`] (see `libro_core::config::save_config`).
+#[tauri::command]
+pub async fn save_kindle_config(config_in: KindleConfig) -> Result<(), String> {
+    let mut app_config = config::load_config().map_err(|e| e.to_string())?;
+    let mut incoming = config_in;
+    if incoming.smtp_password.is_empty() {
+        incoming.smtp_password = app_config.kindle.smtp_password.clone();
+    }
+    app_config.kindle = incoming;
+    config::save_config(&app_config).map_err(|e| e.to_string())
+}
+
+/// Email the user's own local DRM-free EPUB to their `@kindle.com` address via
+/// Amazon's official personal-documents flow.
+///
+/// Resolves the EPUB bytes through the same library-scoped Local Files path as
+/// [`get_book_file`] (the id is matched against hashes of discovered paths, never
+/// used to build a path), enforces the ~50 MB attachment cap, builds the MIME
+/// message with the pure [`libro_core::kindle::build_kindle_message`] helper, and
+/// sends it over the user's own SMTP account.
+///
+/// Unlike the background progress syncs, this is a **user action**, so it returns
+/// a typed [`SendOutcome`] the UI surfaces as success or a clear failure — it
+/// does not silently swallow errors.
+///
+/// TODO(live): sending needs the user's real SMTP account + an Amazon-approved
+/// sender address; the message building, validators, size guard, and orchestration
+/// are unit-tested with a fake sender (no network) in `libro_core::kindle`.
+#[tauri::command]
+pub async fn send_to_kindle(book_id: String, title: String) -> Result<SendOutcome, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    let cfg = &app_config.kindle;
+
+    if !kindle_is_configured(cfg) {
+        return Ok(SendOutcome::NotConfigured);
+    }
+
+    // Resolve the local EPUB bytes (library-scoped; unknown id → not found).
+    let mut bytes: Option<Vec<u8>> = None;
+    for pc in app_config
+        .providers
+        .iter()
+        .filter(|p| p.enabled && p.provider_type == LocalFilesProvider::ID)
+    {
+        let lf: LocalFilesConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+        if let Some(b) = read_book_file(&lf, &book_id) {
+            bytes = Some(b);
+            break;
+        }
+    }
+    let Some(bytes) = bytes else {
+        return Ok(SendOutcome::SendFailed {
+            reason: format!("no local EPUB found for id {book_id}"),
+        });
+    };
+
+    let sender = match SmtpKindleSender::from_config(cfg) {
+        Ok(s) => s,
+        Err(reason) => return Ok(SendOutcome::SendFailed { reason }),
+    };
+
+    let filename = kindle_filename_for(&title);
+    let subject = if title.trim().is_empty() {
+        "Libro document".to_string()
+    } else {
+        title
+    };
+    Ok(send_epub_to_kindle(cfg, &subject, &filename, &bytes, &sender).await)
 }

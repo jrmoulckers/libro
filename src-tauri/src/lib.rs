@@ -29,7 +29,11 @@ pub fn run() {
             commands::save_listening_progress,
             commands::get_listening_progress,
             commands::reconcile_progress,
-            commands::list_plugins
+            commands::list_plugins,
+            commands::kindle_configured,
+            commands::get_kindle_config,
+            commands::save_kindle_config,
+            commands::send_to_kindle
         ])
         .run(tauri::generate_context!())
         .expect("error while running Libro");
