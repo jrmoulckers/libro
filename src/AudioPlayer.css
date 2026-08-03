@@ -154,3 +154,40 @@
   font-size: 0.85rem;
   margin: 0 0 0.25rem;
 }
+
+.player__sleep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+
+.player__sleep-label {
+  opacity: 0.7;
+}
+
+.player__sleep-options,
+.player__sleep-armed {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.player__sleep button {
+  background: #21252b;
+  border: 1px solid #3a3f47;
+  color: inherit;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.player__sleep-remaining {
+  color: var(--accent, #d8a657);
+  font-variant-numeric: tabular-nums;
+}

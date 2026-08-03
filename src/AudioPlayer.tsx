@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import type { AudioChapter, Book, PlaybackTrack, Progress } from "./types";
-import { locateAbsolute, toAbsolute, totalDuration } from "./audioTimeline";
+import { endOfChapterAbsolute, fadeMultiplier, locateAbsolute, sleepRemainingSeconds, toAbsolute, totalDuration } from "./audioTimeline";
 import { tryInvoke } from "./tauri";
 import "./AudioPlayer.css";
 
@@ -48,6 +48,20 @@ export interface AudioPlayerProps {
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 /** Persist at most this often during playback (plus on pause / chapter change). */
 const SAVE_INTERVAL_MS = 5000;
+/** Sleep-timer countdown presets, in minutes. */
+const SLEEP_PRESETS = [15, 30, 45, 60];
+/** Linear volume fade over the final seconds of a timed sleep countdown. */
+const SLEEP_FADE_SECONDS = 5;
+
+/**
+ * An armed in-app sleep timer. `duration` counts down to a wall-clock `expiresAt`
+ * (with a volume fade near the end); `chapter` pauses when playback reaches the
+ * book-absolute `targetAbsolute` (the end of the chapter that was playing when it
+ * was armed).
+ */
+type SleepTimer =
+  | { kind: "duration"; expiresAt: number }
+  | { kind: "chapter"; targetAbsolute: number };
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -74,10 +88,17 @@ function formatTime(seconds: number): string {
  *
  * Keyboard: space toggles play/pause, ←/→ skip, Esc closes.
  *
+ * A **sleep timer** (in-app) can pause playback after 15/30/45/60 minutes — with
+ * a short volume fade in the final seconds — or at the **end of the current
+ * chapter**; it can be cancelled or extended (+5 min), and is cleared on a manual
+ * pause/close so it can't fire later. Position is never reset: the throttled save
+ * + resume handle it.
+ *
  * Deliberately NOT here (native/advanced work — tracked as TODOs): true
  * sample-accurate WebAudio gapless (this uses preloaded `<audio>` auto-advance),
  * variable-speed pitch correction, background playback, lockscreen / now-playing
- * controls, Android Auto / CarPlay, Chromecast, sleep timer, and an equalizer.
+ * controls, Android Auto / CarPlay, Chromecast, OS-level/background sleep, and an
+ * equalizer.
  */
 export function AudioPlayer({
   tracks,
@@ -95,6 +116,15 @@ export function AudioPlayer({
   const [within, setWithin] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [restored, setRestored] = useState(bookId ? false : true);
+
+  // In-app sleep timer (null = disarmed). `sleepRemaining` drives the countdown
+  // readout; `sleepRef` mirrors the armed timer so stable handlers can read it.
+  const [sleep, setSleep] = useState<SleepTimer | null>(null);
+  const [sleepRemaining, setSleepRemaining] = useState(0);
+  const sleepRef = useRef<SleepTimer | null>(null);
+  useEffect(() => {
+    sleepRef.current = sleep;
+  }, [sleep]);
 
   const lastSaveRef = useRef(0);
   // Within-track offset to apply once the (newly-switched) track's metadata is
@@ -196,8 +226,16 @@ export function AudioPlayer({
   const togglePlay = useCallback(() => {
     const el = audioRef.current;
     if (!el) return;
-    if (el.paused) void el.play();
-    else el.pause();
+    if (el.paused) {
+      void el.play();
+    } else {
+      el.pause();
+      // A manual pause disarms the sleep timer so it can't fire later.
+      if (sleepRef.current) {
+        setSleep(null);
+        el.volume = 1;
+      }
+    }
   }, []);
 
   const changeSpeed = useCallback((rate: number) => {
@@ -206,6 +244,73 @@ export function AudioPlayer({
     speedRef.current = rate;
     setSpeed(rate);
   }, []);
+
+  // --- Sleep timer --------------------------------------------------------
+
+  const restoreVolume = useCallback(() => {
+    const el = audioRef.current;
+    if (el) el.volume = 1;
+  }, []);
+
+  const armDurationSleep = useCallback((minutes: number) => {
+    setSleep({ kind: "duration", expiresAt: Date.now() + minutes * 60_000 });
+    setSleepRemaining(minutes * 60);
+  }, []);
+
+  const armChapterSleep = useCallback(() => {
+    const target = endOfChapterAbsolute(chapters, toAbsolute(tracks, trackIndex, within));
+    if (target == null) return; // no chapter to end on
+    setSleep({ kind: "chapter", targetAbsolute: target });
+  }, [chapters, tracks, trackIndex, within]);
+
+  const cancelSleep = useCallback(() => {
+    setSleep(null);
+    restoreVolume();
+  }, [restoreVolume]);
+
+  // "+5 min" still-awake extend (duration timers only). Also un-fades.
+  const extendSleep = useCallback(
+    (minutes: number) => {
+      setSleep((s) =>
+        s && s.kind === "duration"
+          ? { kind: "duration", expiresAt: s.expiresAt + minutes * 60_000 }
+          : s,
+      );
+      restoreVolume();
+    },
+    [restoreVolume],
+  );
+
+  // Duration countdown: tick the remaining time, fade the volume near the end,
+  // and pause (without resetting position) on expiry.
+  useEffect(() => {
+    if (!sleep || sleep.kind !== "duration") return;
+    const tick = () => {
+      const remaining = sleepRemainingSeconds(sleep.expiresAt, Date.now());
+      setSleepRemaining(remaining);
+      const el = audioRef.current;
+      if (el) el.volume = fadeMultiplier(remaining, SLEEP_FADE_SECONDS);
+      if (remaining <= 0) {
+        if (el) {
+          el.pause();
+          el.volume = 1;
+        }
+        setSleep(null);
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 500);
+    return () => window.clearInterval(id);
+  }, [sleep]);
+
+  // End-of-chapter timer: pause once the unified position reaches the target.
+  useEffect(() => {
+    if (!sleep || sleep.kind !== "chapter") return;
+    if (absolute >= sleep.targetAbsolute) {
+      audioRef.current?.pause();
+      setSleep(null);
+    }
+  }, [sleep, absolute]);
 
   // Throttled progress save: at most every SAVE_INTERVAL_MS during playback.
   const handleTimeUpdate = useCallback(() => {
@@ -390,6 +495,34 @@ export function AudioPlayer({
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="player__sleep">
+          <span className="player__sleep-label">Sleep timer</span>
+          {sleep === null ? (
+            <div className="player__sleep-options">
+              {SLEEP_PRESETS.map((m) => (
+                <button key={m} onClick={() => armDurationSleep(m)}>
+                  {m}m
+                </button>
+              ))}
+              {chapters.length > 0 && (
+                <button onClick={armChapterSleep}>End of chapter</button>
+              )}
+            </div>
+          ) : (
+            <div className="player__sleep-armed">
+              <span className="player__sleep-remaining">
+                {sleep.kind === "duration"
+                  ? `Pausing in ${formatTime(sleepRemaining)}`
+                  : "Pausing at end of chapter"}
+              </span>
+              {sleep.kind === "duration" && (
+                <button onClick={() => extendSleep(5)}>+5 min</button>
+              )}
+              <button onClick={cancelSleep}>Cancel</button>
+            </div>
+          )}
         </div>
 
         {chapters.length > 0 && (
