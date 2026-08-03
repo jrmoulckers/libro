@@ -17,6 +17,7 @@ import { aggregateLibrary, ProviderRegistry } from './providers/registry';
 import type { ProviderRunError } from './providers/registry';
 import { createLocalProvider } from './local/import';
 import { IdbLocalStore, InMemoryLocalStore, type LocalStore } from './local/store';
+import { IdbReadingStore, InMemoryReadingStore, type ReadingStore } from './reader/reading-store';
 
 /**
  * The providers the app pulls from. The mock provider is the only *default*
@@ -89,6 +90,15 @@ export function defaultIndex(): LibraryIndex {
 /** The best on-device store for imported local EPUBs in the current environment. */
 export function defaultLocalStore(): LocalStore {
   return idbAvailable() ? new IdbLocalStore() : new InMemoryLocalStore();
+}
+
+/**
+ * The best on-device store for per-book reading positions in the current
+ * environment. Lives in its own `libro-reading` database (see
+ * {@link IdbReadingStore}); P8 progress-sync reconciles it with a remote tracker.
+ */
+export function defaultReadingStore(): ReadingStore {
+  return idbAvailable() ? new IdbReadingStore() : new InMemoryReadingStore();
 }
 
 /**

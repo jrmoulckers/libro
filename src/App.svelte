@@ -9,11 +9,13 @@
     type Book,
     type MediaType,
   } from './lib/models';
-  import { appRegistry, defaultLocalStore, loadLibrary } from './lib/library';
-  import { importEpubFiles, type ImportableFile } from './lib/local/import';
+  import { appRegistry, defaultLocalStore, defaultReadingStore, loadLibrary } from './lib/library';
+  import { importEpubFiles, LOCAL_PROVIDER_ID, type ImportableFile } from './lib/local/import';
   import { isLocalCoverUrl, localCoverObjectUrl } from './lib/local/store';
+  import { positionToProgress } from './lib/reader/locator';
 
   type LoadState = 'loading' | 'loaded' | 'error';
+  type ReaderComponent = typeof import('./lib/reader/Reader.svelte').default;
   type ImportRow = { name: string; ok: boolean; detail: string };
 
   const MEDIA_LABELS: Record<MediaType, string> = {
@@ -24,12 +26,18 @@
 
   // One on-device store, shared by the local provider (reads) and imports (writes).
   const store = defaultLocalStore();
+  // Per-book reading positions, written by the reader and read back for progress.
+  const readingStore = defaultReadingStore();
 
   let loadState = $state<LoadState>('loading');
   let books = $state<Book[]>([]);
   let importing = $state(false);
   let importRows = $state<ImportRow[]>([]);
   let coverSrc = $state<Record<string, string>>({});
+
+  // The reader is code-split: its module (and fflate) load only on first open.
+  let ReaderComp = $state<ReaderComponent | null>(null);
+  let activeBook = $state<Book | null>(null);
 
   let fileInput: HTMLInputElement;
   let objectUrls: string[] = [];
@@ -41,6 +49,27 @@
 
   function authorLine(book: Book): string {
     return book.authors.length > 0 ? book.authors.join(', ') : 'Unknown author';
+  }
+
+  /** Whether this book's bytes are retrievable so it can be opened in the reader. */
+  function canRead(book: Book): boolean {
+    return book.mediaType === 'ebook' && book.sourceProviderId === LOCAL_PROVIDER_ID;
+  }
+
+  /** A short, human label for a book's reading progress, or '' if unread. */
+  function progressLabel(book: Book): string {
+    if (!book.progress) return '';
+    if (book.progress.finished) return 'Finished';
+    return `${Math.round(book.progress.fraction * 100)}% read`;
+  }
+
+  /** Fold persisted reading positions into each book's `progress` field. */
+  async function withProgress(list: readonly Book[]): Promise<Book[]> {
+    const positions = await readingStore.all();
+    return list.map((book) => {
+      const position = positions.get(book.id);
+      return position ? { ...book, progress: positionToProgress(position) } : book;
+    });
   }
 
   /**
@@ -73,8 +102,26 @@
 
   async function reload(): Promise<void> {
     const result = await loadLibrary(appRegistry(store));
-    books = result.books;
+    books = await withProgress(result.books);
     await refreshCovers(books);
+  }
+
+  /**
+   * Open a book in the reader. The reader component (and its `fflate` dependency)
+   * is dynamically imported the first time, keeping it out of the main entry chunk.
+   */
+  async function openReader(book: Book): Promise<void> {
+    if (!ReaderComp) {
+      const module = await import('./lib/reader/Reader.svelte');
+      ReaderComp = module.default;
+    }
+    activeBook = book;
+  }
+
+  /** Close the reader and refresh the library so updated progress shows. */
+  async function closeReader(): Promise<void> {
+    activeBook = null;
+    await reload();
   }
 
   /** Import a picked set of files, then refresh the library and status list. */
@@ -214,6 +261,14 @@
                 {#if book.series}
                   <span class="series">{book.series}</span>
                 {/if}
+                {#if progressLabel(book)}
+                  <span class="progress">{progressLabel(book)}</span>
+                {/if}
+                {#if canRead(book)}
+                  <button type="button" class="read" onclick={() => openReader(book)}>
+                    Read
+                  </button>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -222,6 +277,10 @@
     {/if}
   </section>
 </main>
+
+{#if ReaderComp && activeBook}
+  <ReaderComp book={activeBook} {store} {readingStore} onClose={closeReader} />
+{/if}
 
 <style>
   main {
