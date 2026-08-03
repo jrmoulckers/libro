@@ -327,7 +327,10 @@ The Rust side is a two-crate Cargo workspace:
    catalog. *(Audiobookshelf is a real REST connector; live end-to-end verification
    against a running server is pending.)*
 2. **Request / acquisition** — request or acquire titles not yet owned (holds,
-   downloads).
+   downloads). *(Started: **Send-to-Kindle** delivers the user's own DRM-free
+   EPUBs to their `@kindle.com` address via Amazon's official personal-documents
+   email flow — `core/src/kindle.rs`, the `send_to_kindle` command; see
+   "Send-to-Kindle" below.)*
 3. **Plugin / connector system** — harden the `Provider` abstraction, dynamic
    registration, per-connector config UI. *(Shipped v1: a **declarative plugin
    SDK** (`core/src/plugins/`) lets a user add a new connector by dropping a JSON
@@ -420,14 +423,61 @@ How specific walled gardens are handled:
 - **Kindle library / Audible** — Amazon exposes no API to read a user's library.
   Deep-link-out or manual import only; never scraped.
 - **Send-to-Kindle** — *is* supported, because it uses the official documented
-  path: emailing a supported file to the user's `@kindle.com` address
-  (`SEND_TO_KINDLE`).
+  path: emailing the user's own DRM-free EPUB to their `@kindle.com` address
+  (`SEND_TO_KINDLE`). **Implemented** — see *Send-to-Kindle* below.
 - **Goodreads** — its API was retired to new developers, so it is **not** a
   connector. **Hardcover** (official public GraphQL API) is the reading-tracking
   path instead.
 - **StoryGraph** — has no official public API. Libro will only ever ingest the
   user's **own exported CSV** (a manual import of data the user already owns) —
   never live scraping.
+
+## Send-to-Kindle
+
+Libro delivers the user's **own DRM-free EPUBs** to their Kindle using Amazon's
+**official personal-documents email flow** — the legitimate, ToS-compliant path.
+There is no Amazon API, no reverse-engineering, and no DRM handling: the user
+emails a file they already own to their `@kindle.com` address, and Amazon does
+the rest. EPUB is now natively supported by Send to Kindle, so no MOBI/AZW
+conversion and no `convert` subject keyword are needed.
+
+*Legal posture (same boundaries as every connector):* only the user's own
+DRM-free EPUBs (bytes come from the Local Files connector, library-scoped); the
+user's own SMTP credentials; a `from` address the user has registered as an
+**Approved Personal Document Email** in their Amazon account; and a `to` that
+must be an `@kindle.com` address. No scraping, no bundled sources, no
+circumvention.
+
+*Design (`core/src/kindle.rs`, mirrors the rest of core):*
+- **`KindleConfig`** `{ smtp_host, smtp_port, smtp_username, smtp_password(secret),
+  from_address, to_address }`, stored in the encrypted `AppConfig`. Pure
+  validators reject a non-`@kindle.com` destination, missing fields, and a zero
+  port; `is_configured` gates the UI/command.
+- **Pure MIME builder** (`build_kindle_message`) constructs the `multipart/mixed`
+  message with the EPUB as an `application/epub+zip` attachment — kept **separate**
+  from the SMTP transport (exactly like the `map_*` helpers) so its structure is
+  unit-tested without a network.
+- **Transport seam** (`KindleSender` trait) with a real `SmtpKindleSender` built
+  on **lettre + rustls** (no native-tls/OpenSSL, so it builds under the
+  `x86_64-pc-windows-gnu` toolchain, consistent with `reqwest`). Port 465 uses
+  implicit TLS; any other port (e.g. 587) uses STARTTLS. Tests inject a fake
+  sender — **no SMTP in the suite**.
+- **Size guard:** Amazon's ~50 MB personal-document cap is enforced locally
+  (`MAX_ATTACHMENT_BYTES`) with a typed error, before any transport.
+- **Typed outcome:** unlike the background progress syncs (which swallow errors),
+  Send-to-Kindle is a **user action**, so `send_to_kindle(book_id, title)` returns
+  a `SendOutcome` (`Sent` / `NotConfigured` / `TooLarge` / `NotAnEpub` /
+  `SendFailed`) the UI surfaces as clear success or failure. The command resolves
+  the EPUB through the same library-scoped Local Files path as `get_book_file`
+  (the id is matched against path hashes, never used to build a path) and offers
+  the action only for local DRM-free EPUBs once Kindle is configured.
+
+*TODO(live):* sending needs the user's real SMTP account + an Amazon-approved
+sender; the message building, validators, size guard, and orchestration are
+unit-tested with a fake sender (no network). **Deferred (not built):** the
+official Send to Kindle desktop/app API, MOBI/AZW conversion (unnecessary now
+that EPUB is native), in-app approved-sender guidance, and sending non-local
+(OPDS-downloaded) books once a download-to-disk store exists.
 
 ## Provider landscape — what's possible
 
@@ -474,6 +524,7 @@ Realistic connector targets, by tier:
 - **Google Books** — official public API for metadata (optional key). **Real**
   `MetadataProvider`; live calls rate-limited without a key in some environments.
 - **Send-to-Kindle** — official email-to-`@kindle.com` path (`SEND_TO_KINDLE`).
+  **Implemented** (`core/src/kindle.rs`); see *Send-to-Kindle* below.
 
 *Walled gardens (deep-link-out / manual-import only — see Legal boundaries):*
 - **Libby / OverDrive** — `DEEP_LINK_ONLY` link into the official app. **Placeholder.**
