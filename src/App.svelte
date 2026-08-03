@@ -9,13 +9,21 @@
     type Book,
     type MediaType,
   } from './lib/models';
-  import { appRegistry, defaultLocalStore, defaultReadingStore, loadLibrary } from './lib/library';
+  import {
+    appRegistry,
+    defaultListeningStore,
+    defaultLocalStore,
+    defaultPlaybackSource,
+    defaultReadingStore,
+    loadLibrary,
+  } from './lib/library';
   import { importEpubFiles, LOCAL_PROVIDER_ID, type ImportableFile } from './lib/local/import';
   import { isLocalCoverUrl, localCoverObjectUrl } from './lib/local/store';
   import { positionToProgress } from './lib/reader/locator';
 
   type LoadState = 'loading' | 'loaded' | 'error';
   type ReaderComponent = typeof import('./lib/reader/Reader.svelte').default;
+  type PlayerComponent = typeof import('./lib/player/Player.svelte').default;
   type ImportRow = { name: string; ok: boolean; detail: string };
 
   const MEDIA_LABELS: Record<MediaType, string> = {
@@ -28,6 +36,9 @@
   const store = defaultLocalStore();
   // Per-book reading positions, written by the reader and read back for progress.
   const readingStore = defaultReadingStore();
+  // Per-book listening positions + the source that resolves playable audio.
+  const listeningStore = defaultListeningStore();
+  const playbackSource = defaultPlaybackSource();
 
   let loadState = $state<LoadState>('loading');
   let books = $state<Book[]>([]);
@@ -38,6 +49,9 @@
   // The reader is code-split: its module (and fflate) load only on first open.
   let ReaderComp = $state<ReaderComponent | null>(null);
   let activeBook = $state<Book | null>(null);
+  // The player is likewise code-split: loaded only when an audiobook is opened.
+  let PlayerComp = $state<PlayerComponent | null>(null);
+  let listeningBook = $state<Book | null>(null);
 
   let fileInput: HTMLInputElement;
   let objectUrls: string[] = [];
@@ -56,19 +70,37 @@
     return book.mediaType === 'ebook' && book.sourceProviderId === LOCAL_PROVIDER_ID;
   }
 
-  /** A short, human label for a book's reading progress, or '' if unread. */
+  /** Whether this book can be played in the audio player (any audiobook). */
+  function canListen(book: Book): boolean {
+    return book.mediaType === 'audiobook';
+  }
+
+  /** A short, human label for a book's read/listen progress, or '' if untouched. */
   function progressLabel(book: Book): string {
     if (!book.progress) return '';
     if (book.progress.finished) return 'Finished';
-    return `${Math.round(book.progress.fraction * 100)}% read`;
+    const pct = Math.round(book.progress.fraction * 100);
+    return `${pct}% ${book.mediaType === 'audiobook' ? 'listened' : 'read'}`;
   }
 
-  /** Fold persisted reading positions into each book's `progress` field. */
+  /** Fold persisted reading + listening positions into each book's `progress`. */
   async function withProgress(list: readonly Book[]): Promise<Book[]> {
-    const positions = await readingStore.all();
+    const [reading, listening] = await Promise.all([readingStore.all(), listeningStore.all()]);
     return list.map((book) => {
-      const position = positions.get(book.id);
-      return position ? { ...book, progress: positionToProgress(position) } : book;
+      const reader = reading.get(book.id);
+      if (reader) return { ...book, progress: positionToProgress(reader) };
+      const listener = listening.get(book.id);
+      if (listener) {
+        return {
+          ...book,
+          progress: {
+            fraction: listener.fraction,
+            positionSeconds: listener.positionSeconds,
+            finished: listener.finished,
+          },
+        };
+      }
+      return book;
     });
   }
 
@@ -121,6 +153,24 @@
   /** Close the reader and refresh the library so updated progress shows. */
   async function closeReader(): Promise<void> {
     activeBook = null;
+    await reload();
+  }
+
+  /**
+   * Open an audiobook in the player. The player component is dynamically imported
+   * the first time, keeping it out of the main entry chunk (like the reader).
+   */
+  async function openPlayer(book: Book): Promise<void> {
+    if (!PlayerComp) {
+      const module = await import('./lib/player/Player.svelte');
+      PlayerComp = module.default;
+    }
+    listeningBook = book;
+  }
+
+  /** Close the player and refresh the library so updated progress shows. */
+  async function closePlayer(): Promise<void> {
+    listeningBook = null;
     await reload();
   }
 
@@ -269,6 +319,11 @@
                     Read
                   </button>
                 {/if}
+                {#if canListen(book)}
+                  <button type="button" class="read" onclick={() => openPlayer(book)}>
+                    Listen
+                  </button>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -280,6 +335,10 @@
 
 {#if ReaderComp && activeBook}
   <ReaderComp book={activeBook} {store} {readingStore} onClose={closeReader} />
+{/if}
+
+{#if PlayerComp && listeningBook}
+  <PlayerComp book={listeningBook} source={playbackSource} {listeningStore} onClose={closePlayer} />
 {/if}
 
 <style>

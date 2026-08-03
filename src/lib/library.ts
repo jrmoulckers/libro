@@ -18,6 +18,13 @@ import type { ProviderRunError } from './providers/registry';
 import { createLocalProvider } from './local/import';
 import { IdbLocalStore, InMemoryLocalStore, type LocalStore } from './local/store';
 import { IdbReadingStore, InMemoryReadingStore, type ReadingStore } from './reader/reading-store';
+import {
+  IdbListeningStore,
+  InMemoryListeningStore,
+  type ListeningStore,
+} from './player/listening-store';
+import { createSamplePlaybackSource } from './player/sample-source';
+import type { PlaybackSource } from './player/source';
 
 /**
  * The providers the app pulls from. The mock provider is the only *default*
@@ -99,6 +106,30 @@ export function defaultLocalStore(): LocalStore {
  */
 export function defaultReadingStore(): ReadingStore {
   return idbAvailable() ? new IdbReadingStore() : new InMemoryReadingStore();
+}
+
+/**
+ * The best on-device store for per-book **listening** positions (book-absolute
+ * seconds over the multi-track audio timeline). Its own `libro-listening`
+ * database (see {@link IdbListeningStore}); P8 progress-sync reconciles it with a
+ * remote tracker (Audiobookshelf `PATCH /api/me/progress/{id}`).
+ */
+export function defaultListeningStore(): ListeningStore {
+  return idbAvailable() ? new IdbListeningStore() : new InMemoryListeningStore();
+}
+
+/**
+ * The playback source the running app uses to *play* audiobooks. Kept mock-only
+ * alongside {@link defaultRegistry}: the bundled sample source synthesizes a
+ * multi-track demo audiobook (no network, no committed assets) so the player is
+ * exercisable. A real Audiobookshelf audiobook would instead be resolved by
+ * `createAbsPlaybackSource(absConfig)` (see `player/abs-source.ts`), selected by
+ * matching `book.sourceProviderId` to the configured ABS provider id — the audio
+ * analog of {@link registryWithAbs}. That opt-in wiring lands with the settings
+ * UI; no secrets are baked in here.
+ */
+export function defaultPlaybackSource(): PlaybackSource {
+  return createSamplePlaybackSource();
 }
 
 /**
