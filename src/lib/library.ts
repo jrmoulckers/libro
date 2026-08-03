@@ -25,6 +25,7 @@ import {
 } from './player/listening-store';
 import { createSamplePlaybackSource } from './player/sample-source';
 import type { PlaybackSource } from './player/source';
+import type { EnrichResult } from './metadata/enrich';
 
 /**
  * The providers the app pulls from. The mock provider is the only *default*
@@ -174,4 +175,37 @@ export async function loadLibrary(
   }
 
   return { books, errors };
+}
+
+/**
+ * Fill gaps (cover, description, authors, series, subjects) on an already-loaded
+ * catalog from the **CORS-open** public metadata APIs, then re-persist the
+ * enriched catalog to the index.
+ *
+ * This is deliberately a **separate, post-render** step from {@link loadLibrary}:
+ * the app renders the aggregated library first and calls this in the background
+ * so enrichment never delays first paint. Unlike the user-server connectors
+ * (OPDS/ABS), Open Library and Google Books send permissive CORS headers, so
+ * these fetches genuinely work in the browser with no app-owned proxy — this is
+ * the one place Libro does real live network enrichment. Results are cached by
+ * ISBN (see {@link ./metadata/cache}) so repeat launches are free and offline.
+ *
+ * Failure-isolated end to end: a failing lookup surfaces in `errors` and never
+ * throws; a persistence failure is swallowed (the enriched catalog is still shown
+ * this session).
+ */
+export async function enrichLibrary(
+  books: readonly Book[],
+  index: LibraryIndex = defaultIndex(),
+): Promise<EnrichResult> {
+  // Lazy-load the metadata layer so its parsers/fetchers/cache stay OUT of the main
+  // entry chunk — enrichment runs post-paint, so its code can arrive on demand too.
+  const { enrichBooks, liveEnrichDeps } = await import('./metadata/enrich');
+  const result = await enrichBooks(books, liveEnrichDeps());
+  try {
+    await index.put(result.books);
+  } catch {
+    // Non-fatal: enrichment still applies in-memory this session.
+  }
+  return result;
 }

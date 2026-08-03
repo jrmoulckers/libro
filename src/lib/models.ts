@@ -66,6 +66,12 @@ export interface Book {
    * enrichment pass rather than the source provider.
    */
   description?: string;
+  /**
+   * Subject/genre tags, when known. Like {@link Book.description}, usually filled
+   * by the metadata enrichment pass (Open Library `subjects` / Google Books
+   * `categories`) rather than the source connector.
+   */
+  subjects?: string[];
   /** Identifier scheme -> value, e.g. `{ isbn: "…", asin: "…" }`. */
   identifiers?: Record<string, string>;
   /** Optional progress; omitted when unknown or not yet synced. */
