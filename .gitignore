@@ -1,0 +1,36 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Dependencies & build output
+node_modules
+dist
+dist-ssr
+coverage
+*.local
+
+# Tooling caches
+.turbo
+.vite
+.svelte-kit
+
+# Environment — real values never get committed; .env.example is tracked
+.env
+.env.*
+!.env.example
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# NOTE: vendor/@jrm/tokens is intentionally NOT ignored — the studio sync engine
+# vendors it from jrmoulckers/studio via a chore(sync) PR and it must stay tracked.
