@@ -47,57 +47,90 @@ validates every manifest; a valid one becomes a `PluginProvider` registered in
 `build_providers` alongside the native connectors, and is listed via the
 `list_plugins` command.
 
-**Mechanism choice — declarative manifest, not WASM (for v1).** Three options
-were weighed against Libro's constraints (must run on iOS/Android, must be
-sandboxed, must build under this repo's `x86_64-pc-windows-gnu` toolchain):
-- **WASM (Extism/wasmtime)** — verified it *does* `cargo check` under
-  windows-gnu, but rejected for v1: (1) iOS forbids JIT, and the default
-  Extism/wasmtime backend is a Cranelift JIT — a non-starter on a required mobile
-  target; (2) it pulls ~300 transitive crates, bloating the already
-  export-limited GNU cdylib and the audit surface; (3) a manifest is *inert data*
-  (no arbitrary code) so the host mediates every network call — a **tighter**
-  sandbox than sandboxing arbitrary Wasm.
+**Mechanism choice — two kinds behind one boundary: declarative (v1) + WASM
+(v2).** Three options were weighed against Libro's constraints (must run on
+iOS/Android, must be sandboxed, must build under this repo's
+`x86_64-pc-windows-gnu` toolchain). A manifest declares **exactly one kind**
+(`catalog` for declarative, or `wasm` for a module) via `PluginManifest::kind()`;
+both instantiate a `Provider` and are capability-scoped identically:
+- **Declarative manifest engine (v1)** — a pure-Rust interpreter over a JSON
+  manifest describing a REST/JSON catalog + a field→`Book` mapping. No heavy
+  deps, mobile-friendly, inherently sandboxable (a manifest is *inert data* — no
+  arbitrary code), and covers the common case with zero code.
+- **WASM module (v2)** — for connectors whose logic exceeds declarative
+  field-mapping (pagination shapes, response stitching, computed fields), a
+  sandboxed `.wasm` module implements the catalog contract in real code. It runs
+  on **`wasmi`, a pure-Rust Wasm *interpreter* (no JIT)** — the deciding property,
+  since **iOS forbids JIT**, so a Cranelift-JIT runtime (wasmtime/Extism's
+  default, the reason the earlier design deferred WASM) is a non-starter. `wasmi`
+  is light, pure Rust, and *verified* to `cargo check` under windows-gnu.
 - **Subprocess / JSON-RPC** — rejected: mobile sandboxes forbid spawning
   arbitrary child processes.
-- **Declarative manifest engine** — chosen: a pure-Rust interpreter over a JSON
-  manifest describing a REST/JSON catalog + a field→`Book` mapping. No heavy
-  deps, mobile-friendly, and inherently sandboxable.
 
-WASM (for plugins that need real logic beyond declarative mapping) is the
-documented next step — it would slot in as an alternative engine behind the same
-`Provider` boundary.
+**WASM runtime (`core/src/plugins/wasm.rs`).** The module is *untrusted code*, so
+the sandbox is enforced by the **host**, not the guest:
+- **No ambient capabilities.** The guest gets no direct network/filesystem/clock/
+  env — it can only call the host functions imported into it.
+- **Host-mediated HTTP with the same allowlist.** The guest calls
+  `host_http_get(url)`; the host runs the **exact same** `check_domain_allowed`
+  subdomain check the declarative engine uses, fetches host-side (blocking
+  reqwest/rustls) only if allowed, and stashes the body for `host_http_body` to
+  copy back. A denied domain is **unreachable** from inside the module (surfaced
+  as a typed error, never a panic). A `host_log` import aids debugging.
+- **Resource limits.** Execution is **fuel-metered** (`wasmi` fuel) so a runaway/
+  infinite-loop plugin terminates with a typed `WasmError::Fuel` instead of
+  hanging; guest linear **memory is capped** (`StoreLimits`); and response +
+  output sizes are bounded.
+- **Versioned ABI v1.** Strings/JSON cross as `(ptr, len)` into guest memory via
+  a guest `alloc` export; a packed `i64` `(ptr<<32)|len` carries results. Guest
+  exports: `memory`, `plugin_abi_version()` (host checks == `WASM_ABI_VERSION`),
+  `alloc(len)`, `list_catalog(cfg_ptr, cfg_len)` (receives config JSON, returns a
+  JSON `Book` array). Host imports (`env`): `host_http_get`, `host_http_body`,
+  `host_log`. The host maps the returned JSON onto normalized `Book`s (skipping
+  id/title-less records, never fatal). An end-to-end example ships as a tiny Rust
+  guest crate (`plugins/examples/wasm-catalog/`) plus its **prebuilt, committed**
+  `plugins/example-wasm-catalog.wasm` (so tests need no wasm toolchain); rebuild
+  it with `rustup target add wasm32-unknown-unknown` then
+  `cargo build --release --target wasm32-unknown-unknown --manifest-path
+  plugins/examples/wasm-catalog/Cargo.toml`.
 
 **Manifest schema** (`PluginManifest`): `id`, `name`, `version`, `author`,
 `plugin_api_version` (must equal `PLUGIN_API_VERSION`, currently `1`), requested
 `capabilities`, `permissions.allowed_domains`, a `config_schema` (the user-filled
-fields: `base_url`, `api_key`, …, each typed text/secret/url), and a `catalog`
-spec: a templated `request` (`{key}` tokens interpolated from config) plus a
-`fields` map of dotted JSON paths (e.g. `series.name`) onto the normalized `Book`.
+fields: `base_url`, `api_key`, …, each typed text/secret/url), and **exactly one
+of**: a `catalog` spec (declarative — a templated `request` with `{key}` tokens
+plus a `fields` map of dotted JSON paths like `series.name` onto `Book`), or a
+`wasm` spec (`path` to the `.wasm` beside the manifest, optional `abi_version`,
+default `media_type`).
 
 **Validation** rejects malformed or over-broad manifests: wrong api version,
 empty id/name, id with whitespace, missing `catalog` capability, empty
 `allowed_domains`, any domain that is a wildcard or carries a scheme/path/port,
-an empty request URL, or missing id/title field maps. One bad manifest is
+declaring **both or neither** kind, and — per kind — an empty request URL /
+missing id/title field maps (declarative) or an empty module path / mismatched
+`abi_version` / missing-or-oversized `.wasm` file (wasm). One bad manifest is
 skipped (logged), never fatal.
 
 **Sandbox / security boundary.** A plugin gets **no** ambient network or
-filesystem. The engine interpolates the config into the request, then
-**enforces the domain allowlist on the resolved URL before any request is sent**
-— a host not covered by `allowed_domains` (matched exactly or as a subdomain)
-returns a typed error, never a panic. Plugins honor the **same legal rules as
-native connectors** (see *Legal boundaries*): user-owned services and
-official/public APIs only, sandboxed to declared domains, **no** bundled
-scrapers/indexers/sources and **no** DRM circumvention. The plugin system must
-not become a backdoor for shipping illicit sources.
+filesystem. The declarative engine interpolates the config into the request, then
+**enforces the domain allowlist on the resolved URL before any request is sent**;
+the WASM host runs the **same** allowlist check on every `host_http_get` — a host
+not covered by `allowed_domains` (matched exactly or as a subdomain) returns a
+typed error, never a panic. Plugins honor the **same legal rules as native
+connectors** (see *Legal boundaries*): user-owned services and official/public
+APIs only, sandboxed to declared domains, **no** bundled scrapers/indexers/sources
+and **no** DRM circumvention. The plugin system must not become a backdoor for
+shipping illicit sources.
 
-**Authoring a plugin.** Write a manifest (see `plugins/example-rest-catalog.json`
-for a complete, offline-tested example), declare only the domain(s) it needs,
-map the response fields onto `Book`, and drop it in the plugins directory. No
-build step. The example maps a generic REST catalog
-(`GET {base_url}/api/books` → `results[]`) into `Book`s and is exercised
-end-to-end from fixture JSON in the test suite (no network).
+**Authoring a plugin.** For the common REST/JSON case, write a declarative
+manifest (see `plugins/example-rest-catalog.json`) — no build step. For logic
+beyond field-mapping, write a WASM guest (see `plugins/examples/wasm-catalog/` and
+`plugins/example-wasm-catalog.json`). Either way declare only the domain(s) it
+needs and map the response onto `Book`. Both examples are exercised end-to-end
+from fixtures in the test suite (no network).
 
-**TODOs:** a WASM runtime path; plugin signing/verification; a discovery
+**TODOs:** a richer host ABI (pagination/`POST`/download); a WASM SDK crate for
+plugin authors; plugin signing/verification; non-Rust guest languages; a discovery
 registry/marketplace; hot-reload; richer per-permission prompts; `POST`/paged
 requests.
 
@@ -338,7 +371,8 @@ The Rust side is a two-crate Cargo workspace:
                         │     ├─ LocalFilesProvider (EPUB on disk)       │
                         │     ├─ OpdsProvider (real OPDS 1.2 Atom)       │
                         │     ├─ LibbyProvider (deep-link-only)          │
-                        │     └─ PluginProvider (declarative manifests)  │
+                        │     ├─ PluginProvider (declarative manifests)  │
+                        │     └─ WasmPluginProvider (wasmi sandbox)      │
                         │          │ list_library()                     │
                         │          ▼                                    │
                         │    models::Book (normalized)                  │
@@ -361,20 +395,25 @@ The Rust side is a two-crate Cargo workspace:
    email flow — `core/src/kindle.rs`, the `send_to_kindle` command; see
    "Send-to-Kindle" below.)*
 3. **Plugin / connector system** — harden the `Provider` abstraction, dynamic
-   registration, per-connector config UI. *(Shipped v1: a **declarative plugin
-   SDK** (`core/src/plugins/`) lets a user add a new connector by dropping a JSON
-   manifest into their on-device plugins directory — no recompiling Libro, no
-   native code. Each manifest declares an id/name/version, a
-   `plugin_api_version`, requested `ProviderCapabilities`, a user-filled config
-   schema, sandboxed `allowed_domains`, and a `catalog` spec (a templated REST
-   request + a field→`Book` mapping). The `PluginProvider` engine interpolates
-   the user's config into the request, enforces the domain allowlist before any
-   network call, fetches the JSON, and maps items onto normalized `Book`s. Plugins
-   register into `build_providers` alongside native connectors and are exposed via
-   the `list_plugins` command. A working example ships at
-   `plugins/example-rest-catalog.json`. See "The plugin SDK" below. TODOs: a WASM
-   runtime for plugins needing real logic, plugin signing/verification, a discovery
-   registry/marketplace, hot-reload, and richer permission prompts.)*
+   registration, per-connector config UI. *(Shipped: a **plugin SDK**
+   (`core/src/plugins/`) lets a user add a new connector — no recompiling Libro.
+   A manifest declares an id/name/version, a `plugin_api_version`, requested
+   `ProviderCapabilities`, a user-filled config schema, sandboxed
+   `allowed_domains`, and **exactly one kind**. **v1 declarative:** a `catalog`
+   spec (a templated REST request + a field→`Book` mapping); the `PluginProvider`
+   engine interpolates config, enforces the domain allowlist before any network
+   call, fetches JSON, and maps items onto `Book`s. **v2 WASM:** a `wasm` spec
+   pointing at a sandboxed `.wasm` module that implements the catalog contract in
+   code, run on `wasmi` (a pure-Rust, **no-JIT** interpreter — iOS-safe) with a
+   host-mediated HTTP import gated by the *same* allowlist, fuel + memory limits,
+   and a versioned `(ptr,len)` ABI (`WasmPluginProvider`, `run_catalog`,
+   `host_http_get`). Both kinds register into `build_providers` alongside native
+   connectors and are exposed via `list_plugins`. Examples ship at
+   `plugins/example-rest-catalog.json` (declarative) and
+   `plugins/example-wasm-catalog.json` + prebuilt `.wasm` (source in
+   `plugins/examples/wasm-catalog/`). See "The plugin SDK" below. TODOs: a richer
+   host ABI (pagination/POST/download), a WASM SDK crate, plugin
+   signing/verification, non-Rust guests, a discovery registry, and hot-reload.)*
 4. **Audiobook playback** — in-app player with progress sync. *(Started: a
    source-agnostic in-app audio player (`src/AudioPlayer.tsx`) plays the user's
    own DRM-free audiobooks via a webview HTML5 `<audio>` element — play/pause,
