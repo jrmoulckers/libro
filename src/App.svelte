@@ -15,6 +15,7 @@
     defaultLocalStore,
     defaultPlaybackSource,
     defaultReadingStore,
+    enrichLibrary,
     loadLibrary,
   } from './lib/library';
   import { importEpubFiles, LOCAL_PROVIDER_ID, type ImportableFile } from './lib/local/import';
@@ -45,6 +46,11 @@
   let importing = $state(false);
   let importRows = $state<ImportRow[]>([]);
   let coverSrc = $state<Record<string, string>>({});
+  // Metadata enrichment is opt-in and default-on: the sources (Open Library /
+  // Google Books) are CORS-open, keyless, cached by ISBN, and only ever *fill*
+  // gaps — so it's safe to run by default. The user can still turn it off here.
+  let enrichEnabled = $state(true);
+  let enriching = $state(false);
 
   // The reader is code-split: its module (and fflate) load only on first open.
   let ReaderComp = $state<ReaderComponent | null>(null);
@@ -136,6 +142,30 @@
     const result = await loadLibrary(appRegistry(store));
     books = await withProgress(result.books);
     await refreshCovers(books);
+  }
+
+  /**
+   * Fill metadata gaps from the public APIs *after* first paint, then update the
+   * cards in place. Best-effort: never blocks rendering and never throws (a failed
+   * lookup is isolated inside `enrichLibrary`). No-op when disabled or empty.
+   */
+  async function enrichInBackground(): Promise<void> {
+    if (!enrichEnabled || enriching || books.length === 0) return;
+    enriching = true;
+    try {
+      const { books: enriched } = await enrichLibrary(books);
+      books = await withProgress(enriched);
+      await refreshCovers(books);
+    } catch {
+      // Enrichment is a nice-to-have; leave the un-enriched library as-is.
+    } finally {
+      enriching = false;
+    }
+  }
+
+  /** When the user turns enrichment on, run a pass immediately. */
+  function onEnrichToggle(): void {
+    if (enrichEnabled) void enrichInBackground();
   }
 
   /**
@@ -234,6 +264,8 @@
     try {
       await reload();
       loadState = 'loaded';
+      // Enrich AFTER first paint so it never delays the initial render.
+      void enrichInBackground();
     } catch {
       loadState = 'error';
     }
@@ -268,6 +300,16 @@
       aria-hidden="true"
       onchange={onInputChange}
     />
+
+    <p class="enrich-control">
+      <label>
+        <input type="checkbox" bind:checked={enrichEnabled} onchange={onEnrichToggle} />
+        Enrich metadata from public catalogs
+      </label>
+      {#if enriching}
+        <span class="enrich-status" role="status">Enriching…</span>
+      {/if}
+    </p>
 
     {#if importRows.length > 0}
       <ul class="import-status" aria-label="Import results" aria-live="polite">
@@ -373,6 +415,19 @@
 
   .import-name {
     font-weight: 600;
+  }
+
+  .enrich-control {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-block-start: 0.75rem;
+  }
+
+  .enrich-control label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   /* Reserve vertical space so swapping loading/empty/loaded states doesn't shift
