@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["core", "src-tauri"]
+# The example WASM guest is built for the `wasm32-unknown-unknown` target, not
+# the host, so it is excluded from the host workspace build/check. Build it
+# manually (see plugins/examples/wasm-catalog/README.md); its prebuilt `.wasm`
+# fixture is committed so tests need no wasm toolchain.
+exclude = ["plugins/examples/wasm-catalog"]
 
 # Two crates make up the Rust side of Libro:
 # * `core`      — `libro-core`: pure-client domain logic (no Tauri/GUI).

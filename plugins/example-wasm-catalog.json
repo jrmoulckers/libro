@@ -1,0 +1,20 @@
+{
+  "id": "example-wasm-catalog",
+  "name": "Example WASM Catalog",
+  "version": "1.0.0",
+  "author": "Libro contributors",
+  "plugin_api_version": 1,
+  "capabilities": ["catalog"],
+  "permissions": {
+    "allowed_domains": ["api.wasm-books.test"]
+  },
+  "config_schema": [
+    { "key": "base_url", "label": "Server URL", "type": "url", "required": true },
+    { "key": "api_key", "label": "API key", "type": "secret", "required": false }
+  ],
+  "wasm": {
+    "path": "example-wasm-catalog.wasm",
+    "abi_version": 1,
+    "media_type": "Ebook"
+  }
+}
