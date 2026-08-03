@@ -17,7 +17,12 @@
     defaultReadingStore,
     enrichLibrary,
     loadLibrary,
+    resolveLibraryConflict,
+    syncLibrary,
   } from './lib/library';
+  import type { AbsConfig } from './lib/providers/audiobookshelf';
+  import type { ConflictResolution } from './lib/sync/reconcile';
+  import type { ProgressConflict, ConflictChoice } from './lib/sync/conflict';
   import { importEpubFiles, LOCAL_PROVIDER_ID, type ImportableFile } from './lib/local/import';
   import { isLocalCoverUrl, localCoverObjectUrl } from './lib/local/store';
   import { positionToProgress } from './lib/reader/locator';
@@ -51,6 +56,17 @@
   // gaps — so it's safe to run by default. The user can still turn it off here.
   let enrichEnabled = $state(true);
   let enriching = $state(false);
+
+  // Progress sync (P8): reconcile device-local reading/listening positions with a
+  // remote tracker (Audiobookshelf). `auto` auto-resolves every case; `manual`
+  // surfaces genuine, unorderable conflicts in a banner for the user to settle.
+  // No ABS server is configured in this mock-only build, so the sweep is a no-op
+  // here — `absConfigs` is the composition point where on-device settings would
+  // supply real connectors (base URL + API token), never baked-in secrets.
+  const absConfigs: AbsConfig[] = [];
+  let conflictResolution = $state<ConflictResolution>('auto');
+  let syncing = $state(false);
+  let conflicts = $state<ProgressConflict[]>([]);
 
   // The reader is code-split: its module (and fflate) load only on first open.
   let ReaderComp = $state<ReaderComponent | null>(null);
@@ -87,6 +103,11 @@
     if (book.progress.finished) return 'Finished';
     const pct = Math.round(book.progress.fraction * 100);
     return `${pct}% ${book.mediaType === 'audiobook' ? 'listened' : 'read'}`;
+  }
+
+  /** A short label for one side of a progress conflict (finished, or percent). */
+  function conflictSideLabel(side: { fraction: number; finished: boolean }): string {
+    return side.finished ? 'is finished' : `at ${Math.round(side.fraction * 100)}%`;
   }
 
   /** Fold persisted reading + listening positions into each book's `progress`. */
@@ -166,6 +187,50 @@
   /** When the user turns enrichment on, run a pass immediately. */
   function onEnrichToggle(): void {
     if (enrichEnabled) void enrichInBackground();
+  }
+
+  /**
+   * Reconcile local progress with the configured remote tracker(s) *after* first
+   * paint, then refresh the cards. Best-effort: never blocks rendering and never
+   * throws (per-book failures are isolated inside `syncLibrary`). A no-op when no
+   * ABS connector is configured (the mock-only demo). Under `manual` policy,
+   * genuine conflicts land in the banner instead of auto-applying.
+   */
+  async function syncInBackground(): Promise<void> {
+    if (syncing || books.length === 0 || absConfigs.length === 0) return;
+    syncing = true;
+    try {
+      const report = await syncLibrary(books, { abs: absConfigs, policy: conflictResolution });
+      conflicts = report.conflicts;
+      // Reconciled winners were written to the lane stores; reflect them on cards.
+      books = await withProgress(books);
+      await refreshCovers(books);
+    } catch {
+      // Sync is best-effort; leave the local view untouched on failure.
+    } finally {
+      syncing = false;
+    }
+  }
+
+  /** Re-run the sweep when the conflict policy changes (e.g. auto → manual). */
+  function onPolicyChange(): void {
+    conflicts = [];
+    void syncInBackground();
+  }
+
+  /** Apply the user's choice for one pending conflict and drop it from the banner. */
+  async function onConflictChoice(
+    conflict: ProgressConflict,
+    choice: ConflictChoice,
+  ): Promise<void> {
+    try {
+      await resolveLibraryConflict(conflict, choice, { readingStore, listeningStore });
+      conflicts = conflicts.filter((c) => c.bookId !== conflict.bookId);
+      books = await withProgress(books);
+      await refreshCovers(books);
+    } catch {
+      // Leave the conflict in place so the user can retry.
+    }
   }
 
   /**
@@ -266,6 +331,8 @@
       loadState = 'loaded';
       // Enrich AFTER first paint so it never delays the initial render.
       void enrichInBackground();
+      // Reconcile progress with any configured remote tracker, also post-paint.
+      void syncInBackground();
     } catch {
       loadState = 'error';
     }
@@ -310,6 +377,50 @@
         <span class="enrich-status" role="status">Enriching…</span>
       {/if}
     </p>
+
+    <p class="sync-control">
+      <label for="conflict-policy">Progress conflicts</label>
+      <select
+        id="conflict-policy"
+        bind:value={conflictResolution}
+        onchange={onPolicyChange}
+        disabled={syncing}
+      >
+        <option value="auto">Resolve automatically</option>
+        <option value="manual">Let me choose</option>
+      </select>
+      {#if syncing}
+        <span class="enrich-status" role="status">Syncing…</span>
+      {/if}
+    </p>
+
+    {#if conflicts.length > 0}
+      <section class="conflicts" aria-labelledby="conflicts-heading">
+        <h3 id="conflicts-heading">Sync conflicts ({conflicts.length})</h3>
+        <ul>
+          {#each conflicts as conflict (conflict.bookId)}
+            <li>
+              <p class="conflict-title">{conflict.title}</p>
+              <p class="conflict-detail">
+                This device {conflictSideLabel(conflict.local)} · {conflict.remoteSource}
+                {conflictSideLabel(conflict.remote)}
+              </p>
+              <div class="conflict-actions">
+                <button type="button" onclick={() => onConflictChoice(conflict, 'keep_local')}>
+                  Keep this device
+                </button>
+                <button type="button" onclick={() => onConflictChoice(conflict, 'use_remote')}>
+                  Use {conflict.remoteSource}
+                </button>
+                <button type="button" onclick={() => onConflictChoice(conflict, 'keep_furthest')}>
+                  Keep furthest
+                </button>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
 
     {#if importRows.length > 0}
       <ul class="import-status" aria-label="Import results" aria-live="polite">
@@ -427,6 +538,48 @@
   .enrich-control label {
     display: flex;
     align-items: center;
+    gap: 0.5rem;
+  }
+
+  .sync-control {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-block-start: 0.75rem;
+  }
+
+  .conflicts {
+    margin-block-start: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+  }
+
+  .conflicts h3 {
+    margin: 0 0 0.75rem;
+  }
+
+  .conflicts ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .conflict-title {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .conflict-detail {
+    margin: 0.25rem 0 0.5rem;
+  }
+
+  .conflict-actions {
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
 

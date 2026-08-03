@@ -26,6 +26,9 @@ import {
 import { createSamplePlaybackSource } from './player/sample-source';
 import type { PlaybackSource } from './player/source';
 import type { EnrichResult } from './metadata/enrich';
+import type { ReconcileReport, SyncMemory as SyncMemoryType } from './sync/sync';
+import type { ConflictResolution } from './sync/reconcile';
+import type { ProgressConflict, ConflictChoice } from './sync/conflict';
 
 /**
  * The providers the app pulls from. The mock provider is the only *default*
@@ -208,4 +211,105 @@ export async function enrichLibrary(
     // Non-fatal: enrichment still applies in-memory this session.
   }
   return result;
+}
+
+/**
+ * Options for the inbound/outbound progress-sync sweep. `abs` is the on-device
+ * Audiobookshelf connector config (from settings); with none configured the sweep
+ * is a pure no-op (the mock-only demo has no remote to reconcile against).
+ */
+export interface SyncLibraryOptions {
+  abs?: readonly AbsConfig[];
+  policy?: ConflictResolution;
+  readingStore?: ReadingStore;
+  listeningStore?: ListeningStore;
+}
+
+/**
+ * Anti-oscillation memory shared across sync sweeps *and* manual resolutions for
+ * this session, so a just-pulled value is never immediately pushed back up (see
+ * {@link import('./sync/sync').shouldPush}). Created lazily with the sync chunk.
+ */
+let syncMemory: SyncMemoryType | undefined;
+
+function emptyReport(): ReconcileReport {
+  return {
+    pulledDown: 0,
+    pushed: 0,
+    keptLocal: 0,
+    inSync: 0,
+    noRemote: 0,
+    conflicts: [],
+    errors: [],
+  };
+}
+
+/**
+ * Reconcile device-local reading/listening progress with the configured remote
+ * tracker(s), two-way. Lazily imports the whole `sync/` layer so it stays OUT of
+ * the main entry chunk — like enrichment, this runs after first paint and never
+ * blocks render. Runs one sweep per configured ABS server (each recognizes only
+ * its own items, matched by `abs:item_id`). Best-effort: never throws.
+ */
+export async function syncLibrary(
+  books: readonly Book[],
+  options: SyncLibraryOptions = {},
+): Promise<ReconcileReport> {
+  const configs = options.abs ?? [];
+  if (configs.length === 0) return emptyReport();
+
+  const [{ syncProgress, SyncMemory }, lanes, { createAbsProgressSource }] = await Promise.all([
+    import('./sync/sync'),
+    import('./sync/lanes'),
+    import('./sync/abs-source'),
+  ]);
+  syncMemory ??= new SyncMemory();
+
+  const stores = {
+    reading: lanes.readingProgressStore(options.readingStore ?? defaultReadingStore()),
+    listening: lanes.listeningProgressStore(options.listeningStore ?? defaultListeningStore()),
+  };
+
+  const merged = emptyReport();
+  for (const config of configs) {
+    const report = await syncProgress(books, {
+      source: createAbsProgressSource(config),
+      stores,
+      policy: options.policy,
+      memory: syncMemory,
+      isSyncable: (book) =>
+        book.sourceProviderId === config.id && Boolean(book.identifiers?.['abs:item_id']),
+    });
+    merged.pulledDown += report.pulledDown;
+    merged.pushed += report.pushed;
+    merged.keptLocal += report.keptLocal;
+    merged.inSync += report.inSync;
+    merged.noRemote += report.noRemote;
+    merged.conflicts.push(...report.conflicts);
+    merged.errors.push(...report.errors);
+  }
+  return merged;
+}
+
+/**
+ * Apply a user's choice for one pending conflict, writing the winner into the
+ * correct lane store and seeding the shared anti-oscillation memory. Lazily
+ * imports the sync chunk, mirroring {@link syncLibrary}.
+ */
+export async function resolveLibraryConflict(
+  conflict: ProgressConflict,
+  choice: ConflictChoice,
+  options: Pick<SyncLibraryOptions, 'readingStore' | 'listeningStore'> = {},
+): Promise<void> {
+  const [{ SyncMemory }, lanes, { resolveProgressConflict }] = await Promise.all([
+    import('./sync/sync'),
+    import('./sync/lanes'),
+    import('./sync/conflict'),
+  ]);
+  syncMemory ??= new SyncMemory();
+  const stores = {
+    reading: lanes.readingProgressStore(options.readingStore ?? defaultReadingStore()),
+    listening: lanes.listeningProgressStore(options.listeningStore ?? defaultListeningStore()),
+  };
+  await resolveProgressConflict(conflict, choice, { stores, memory: syncMemory });
 }
