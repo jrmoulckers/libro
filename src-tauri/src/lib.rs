@@ -36,7 +36,9 @@ pub fn run() {
             commands::kindle_configured,
             commands::get_kindle_config,
             commands::save_kindle_config,
-            commands::send_to_kindle
+            commands::send_to_kindle,
+            commands::download_book,
+            commands::list_downloads
         ])
         .run(tauri::generate_context!())
         .expect("error while running Libro");

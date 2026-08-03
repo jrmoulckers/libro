@@ -37,7 +37,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::ConfigError;
 use crate::models::{Book, MediaType};
-use crate::providers::localfiles::{book_id_for_path, is_epub_bytes};
+use crate::providers::localfiles::{book_id_for_path, is_epub_bytes, LocalFilesConfig, LocalFilesProvider};
+use crate::providers::{Provider, ProviderCapabilities, ProviderResult};
 
 /// Identifier key under which OPDS stores an item's acquisition URL.
 pub const ACQUISITION_URL_KEY: &str = "opds:acquisition_url";
@@ -135,6 +136,34 @@ impl BookFetcher for ReqwestFetcher {
     }
 }
 
+/// A [`BookFetcher`] that downloads through an
+/// [`OpdsProvider`](crate::providers::opds::OpdsProvider), so an authenticated
+/// OPDS feed's credentials are applied to the acquisition fetch. This is the
+/// concrete reuse of the connector DOWNLOAD path (`download_url`) called for in
+/// the design — the download store stays connector-agnostic behind
+/// [`BookFetcher`], while the Tauri layer selects this fetcher for OPDS books.
+pub struct OpdsFetcher {
+    provider: crate::providers::opds::OpdsProvider,
+}
+
+impl OpdsFetcher {
+    pub fn new(config: crate::providers::opds::OpdsConfig) -> Self {
+        Self {
+            provider: crate::providers::opds::OpdsProvider::new(config),
+        }
+    }
+}
+
+#[async_trait]
+impl BookFetcher for OpdsFetcher {
+    async fn fetch(&self, url: &str) -> Result<Vec<u8>, String> {
+        self.provider
+            .download_url(url)
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
 /// A file-backed store over the managed downloads directory + its JSON manifest.
 pub struct DownloadStore {
     dir: PathBuf,
@@ -225,6 +254,66 @@ impl DownloadStore {
         entries.push(entry.clone());
         self.save_manifest(&entries)?;
         Ok(entry)
+    }
+}
+
+/// A CATALOG provider that surfaces the managed downloads directory into the
+/// library by delegating to a [`LocalFilesProvider`] pointed at that directory.
+///
+/// Because the delegate is a Local Files provider, every downloaded book carries
+/// `source_provider_id = "localfiles"` and the same FNV-1a path-hash id as any
+/// scanned EPUB — so the in-app reader, covers and Send-to-Kindle work on
+/// downloads with no special-casing. This wrapper only changes how the source is
+/// *labelled* in the catalog (`"downloads"` / "Downloads"), keeping downloaded
+/// books visually distinct from a user's own scanned folders.
+pub struct DownloadsProvider {
+    inner: LocalFilesProvider,
+}
+
+impl Default for DownloadsProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DownloadsProvider {
+    pub const ID: &'static str = "downloads";
+
+    /// A provider over the default [`downloads_dir`].
+    pub fn new() -> Self {
+        Self::with_dir(downloads_dir())
+    }
+
+    /// A provider over an explicit directory (used by tests).
+    pub fn with_dir(dir: PathBuf) -> Self {
+        Self {
+            inner: LocalFilesProvider::new(LocalFilesConfig {
+                library_paths: vec![dir],
+            }),
+        }
+    }
+}
+
+#[async_trait]
+impl Provider for DownloadsProvider {
+    fn id(&self) -> &str {
+        Self::ID
+    }
+
+    fn display_name(&self) -> &str {
+        "Downloads"
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        ProviderCapabilities::CATALOG
+    }
+
+    async fn authenticate(&mut self, _config: &serde_json::Value) -> ProviderResult<()> {
+        Ok(())
+    }
+
+    async fn list_library(&self) -> ProviderResult<Vec<Book>> {
+        self.inner.list_library().await
     }
 }
 
@@ -530,5 +619,26 @@ mod tests {
         // Same title, different URL → different file name (no collision).
         let b = safe_filename("Bad/Name:Book?", "https://ex.org/b.epub");
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn persisted_download_is_discoverable_via_downloads_provider() {
+        let (_g, store) = temp_store();
+        let book = opds_book(Some("https://ex.org/a.epub"));
+        let fetcher = FakeFetcher::ok(epub_bytes());
+
+        let outcome = block_on(download_book_to_store(&store, &book, &fetcher));
+        let DownloadOutcome::Downloaded { book_id, .. } = outcome else {
+            panic!("expected Downloaded");
+        };
+
+        // The DownloadsProvider scan surfaces the persisted file as a Book whose
+        // id is exactly what the reader/kindle commands would request.
+        let provider = DownloadsProvider::with_dir(store.dir().to_path_buf());
+        let books = block_on(provider.list_library()).unwrap();
+        assert_eq!(books.len(), 1);
+        assert_eq!(books[0].id, book_id);
+        // Delegated to LocalFiles, so it resolves through the same reader path.
+        assert_eq!(books[0].source_provider_id, LocalFilesProvider::ID);
     }
 }

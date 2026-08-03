@@ -1,6 +1,10 @@
 //! Tauri command surface exposed to the frontend.
 
 use libro_core::config::{self, AppConfig, ListeningStore, ProviderConfig, ReadingStore};
+use libro_core::downloads::{
+    download_book_to_store, downloads_dir, DownloadEntry, DownloadOutcome, DownloadStore,
+    DownloadsProvider, OpdsFetcher, ReqwestFetcher,
+};
 use libro_core::kindle::{
     is_configured as kindle_is_configured, send_epub_to_kindle, KindleConfig, SendOutcome,
     SmtpKindleSender,
@@ -144,6 +148,13 @@ fn build_providers(config: &AppConfig) -> Vec<Box<dyn Provider>> {
         }
     }
 
+    // Always surface the managed downloads directory as its own CATALOG source,
+    // so downloaded books appear in `list_all_books` even when no Local Files
+    // provider is configured. It delegates to LocalFiles internally, so each
+    // downloaded book keeps the path-hash id the reader/cover/kindle commands
+    // resolve against.
+    providers.push(Box::new(DownloadsProvider::new()));
+
     providers
 }
 
@@ -260,6 +271,24 @@ pub async fn lookup_metadata_by_isbn(isbn: String) -> Result<Option<BookMetadata
     registry.by_isbn(&isbn).await.map_err(|e| e.to_string())
 }
 
+/// Every Local Files config to search when resolving a locally-scoped `book_id`:
+/// each configured Local Files provider **plus** the managed downloads
+/// directory. Including the downloads dir here is what lets a downloaded book's
+/// path-hash id resolve through the exact same reader / cover / Send-to-Kindle
+/// path as any scanned EPUB — no special-casing of downloads anywhere else.
+fn localfiles_search_configs(app_config: &AppConfig) -> Vec<LocalFilesConfig> {
+    let mut cfgs: Vec<LocalFilesConfig> = app_config
+        .providers
+        .iter()
+        .filter(|p| p.enabled && p.provider_type == LocalFilesProvider::ID)
+        .map(|pc| serde_json::from_value(pc.settings.clone()).unwrap_or_default())
+        .collect();
+    cfgs.push(LocalFilesConfig {
+        library_paths: vec![downloads_dir()],
+    });
+    cfgs
+}
+
 /// Return the raw cover-image bytes for a locally-scanned EPUB.
 ///
 /// The frontend resolves `localcover://{book_id}` references (set by the Local
@@ -270,12 +299,7 @@ pub async fn lookup_metadata_by_isbn(isbn: String) -> Result<Option<BookMetadata
 #[tauri::command]
 pub async fn get_local_cover(book_id: String) -> Result<Option<Vec<u8>>, String> {
     let app_config = config::load_config().map_err(|e| e.to_string())?;
-    for pc in app_config
-        .providers
-        .iter()
-        .filter(|p| p.enabled && p.provider_type == LocalFilesProvider::ID)
-    {
-        let cfg: LocalFilesConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+    for cfg in localfiles_search_configs(&app_config) {
         if let Some(bytes) = extract_cover(&cfg, &book_id) {
             return Ok(Some(bytes));
         }
@@ -294,12 +318,7 @@ pub async fn get_local_cover(book_id: String) -> Result<Option<Vec<u8>>, String>
 #[tauri::command]
 pub async fn get_book_file(book_id: String) -> Result<Vec<u8>, String> {
     let app_config = config::load_config().map_err(|e| e.to_string())?;
-    for pc in app_config
-        .providers
-        .iter()
-        .filter(|p| p.enabled && p.provider_type == LocalFilesProvider::ID)
-    {
-        let cfg: LocalFilesConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+    for cfg in localfiles_search_configs(&app_config) {
         if let Some(bytes) = read_book_file(&cfg, &book_id) {
             return Ok(bytes);
         }
@@ -772,13 +791,10 @@ pub async fn send_to_kindle(book_id: String, title: String) -> Result<SendOutcom
     }
 
     // Resolve the local EPUB bytes (library-scoped; unknown id → not found).
+    // The search includes the managed downloads directory, so a downloaded book
+    // is Send-to-Kindle-able with no special-casing.
     let mut bytes: Option<Vec<u8>> = None;
-    for pc in app_config
-        .providers
-        .iter()
-        .filter(|p| p.enabled && p.provider_type == LocalFilesProvider::ID)
-    {
-        let lf: LocalFilesConfig = serde_json::from_value(pc.settings.clone()).unwrap_or_default();
+    for lf in localfiles_search_configs(&app_config) {
         if let Some(b) = read_book_file(&lf, &book_id) {
             bytes = Some(b);
             break;
@@ -802,4 +818,58 @@ pub async fn send_to_kindle(book_id: String, title: String) -> Result<SendOutcom
         title
     };
     Ok(send_epub_to_kindle(cfg, &subject, &filename, &bytes, &sender).await)
+}
+
+/// Download a DRM-free book to local disk so it persists across restarts, shows
+/// up in the library, and becomes readable + Send-to-Kindle-able offline.
+///
+/// This is the download-to-disk entry point. It resolves the book's acquisition
+/// URL (OPDS stores it in `identifiers["opds:acquisition_url"]`), fetches the
+/// bytes through the connector DOWNLOAD path — an authenticated
+/// [`OpdsFetcher`] when an OPDS provider is configured, else a plain
+/// [`ReqwestFetcher`] — content-validates that they are a real EPUB, enforces
+/// the per-file size cap, and persists into the managed downloads directory via
+/// [`DownloadStore`] (deduped by acquisition URL). Because downloads land as
+/// LocalFiles-scannable EPUBs, the resulting book is immediately readable,
+/// cover-resolvable and Send-to-Kindle-able with no special-casing.
+///
+/// Like [`send_to_kindle`], this is a **user action**, so it returns a typed
+/// [`DownloadOutcome`] the UI surfaces as success or a clear failure rather than
+/// silently swallowing errors.
+#[tauri::command]
+pub async fn download_book(book: Book) -> Result<DownloadOutcome, String> {
+    let app_config = config::load_config().map_err(|e| e.to_string())?;
+    let store = DownloadStore::default_store();
+
+    // Prefer an auth-aware OPDS fetcher when an OPDS provider is configured
+    // (carries credentials for private feeds); fall back to a plain GET, which
+    // is sufficient for public acquisition links.
+    let opds_cfg = app_config
+        .providers
+        .iter()
+        .find(|p| p.enabled && p.provider_type == OpdsProvider::ID)
+        .map(|pc| serde_json::from_value::<OpdsConfig>(pc.settings.clone()).unwrap_or_default());
+
+    let outcome = match opds_cfg {
+        Some(cfg) => {
+            let fetcher = OpdsFetcher::new(cfg);
+            download_book_to_store(&store, &book, &fetcher).await
+        }
+        None => {
+            let fetcher = ReqwestFetcher::default();
+            download_book_to_store(&store, &book, &fetcher).await
+        }
+    };
+    Ok(outcome)
+}
+
+/// List the books that have been downloaded to local disk.
+///
+/// The UI uses this to badge catalog entries that are already downloaded and to
+/// surface the offline library. Reads the downloads manifest; a
+/// missing/corrupt manifest degrades to an empty list.
+#[tauri::command]
+pub async fn list_downloads() -> Result<Vec<DownloadEntry>, String> {
+    let store = DownloadStore::default_store();
+    store.list().map_err(|e| e.to_string())
 }
