@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AudioChapter, Book, BookMetadata, ConflictChoice, KindleConfig, PlaybackManifest, PlaybackTrack, PluginInfo, ProgressConflict, ProviderBooks, SendOutcome } from "./types";
+import type { AudioChapter, Book, BookMetadata, ConflictChoice, DownloadEntry, DownloadOutcome, KindleConfig, PlaybackManifest, PlaybackTrack, PluginInfo, ProgressConflict, ProviderBooks, SendOutcome } from "./types";
 import { EpubReader, type EpubSource } from "./EpubReader";
 import { AudioPlayer } from "./AudioPlayer";
 import { isTauri } from "./tauri";
@@ -80,6 +80,24 @@ function describeSendOutcome(outcome: SendOutcome, title: string): string {
   }
 }
 
+/** Turn a typed `DownloadOutcome` into a user-facing status line. */
+function describeDownloadOutcome(outcome: DownloadOutcome, title: string): string {
+  switch (outcome.status) {
+    case "downloaded":
+      return `Downloaded “${title}” — it's now in your library, readable offline.`;
+    case "already_downloaded":
+      return `“${title}” is already downloaded.`;
+    case "not_downloadable":
+      return `“${title}” has no download link, so it can't be saved.`;
+    case "too_large":
+      return `“${title}” is too large (${(outcome.size / 1048576).toFixed(1)} MB, limit ${(outcome.limit / 1048576).toFixed(0)} MB).`;
+    case "not_an_epub":
+      return `“${title}” isn't a DRM-free EPUB, so it wasn't saved.`;
+    case "failed":
+      return `Couldn't download “${title}”: ${outcome.reason}`;
+  }
+}
+
 function App() {
   const [providers, setProviders] = useState<ProviderBooks[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,6 +126,12 @@ function App() {
   const [kindleSaving, setKindleSaving] = useState(false);
   const [kindleMsg, setKindleMsg] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
+
+  // Download-to-disk phase: acquisition URLs already saved locally + in-flight
+  // downloads, plus the last download status line.
+  const [downloadedUrls, setDownloadedUrls] = useState<Set<string>>(new Set());
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadMsg, setDownloadMsg] = useState<string | null>(null);
 
   // Two-way sync: progress conflicts awaiting manual resolution (only populated
   // when the conflict policy is `manual` and the reconcile pass found genuine
@@ -190,6 +214,22 @@ function App() {
       .catch((e) => console.warn("list_plugins failed", e));
   }, []);
 
+  // Load the set of already-downloaded acquisition URLs (Tauri only) so catalog
+  // entries can be badged and the Download button hidden for saved books.
+  const refreshDownloads = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      const entries = await invoke<DownloadEntry[]>("list_downloads");
+      setDownloadedUrls(new Set(entries.map((e) => e.acquisition_url)));
+    } catch (e) {
+      console.warn("list_downloads failed", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDownloads();
+  }, [refreshDownloads]);
+
   // Load Send-to-Kindle status + settings (Tauri only). The backend returns the
   // config with the SMTP password blanked, so the secret never reaches the UI.
   const refreshKindle = useCallback(async () => {
@@ -240,6 +280,26 @@ function App() {
       setSendingId(null);
     }
   }, []);
+
+  // Download a DRM-free book to local disk so it persists, joins the library,
+  // and becomes readable + Send-to-Kindle-able offline. User-initiated, so we
+  // surface the typed outcome and refresh the downloaded-URL set on success.
+  const downloadBook = useCallback(async (book: Book) => {
+    setDownloadingId(book.id);
+    setDownloadMsg(null);
+    try {
+      const outcome = await invoke<DownloadOutcome>("download_book", { book });
+      setDownloadMsg(describeDownloadOutcome(outcome, book.title));
+      if (outcome.status === "downloaded" || outcome.status === "already_downloaded") {
+        await refreshDownloads();
+        await loadLibrary();
+      }
+    } catch (e) {
+      setDownloadMsg(`Couldn't download “${book.title}”: ${String(e)}`);
+    } finally {
+      setDownloadingId(null);
+    }
+  }, [refreshDownloads, loadLibrary]);
 
   // Open a locally-scanned EPUB: fetch its bytes from the Rust core and hand the
   // ArrayBuffer to the reader. Only usable for Local Files books under Tauri.
@@ -322,6 +382,28 @@ function App() {
     isTauri() &&
     kindleConfigured;
 
+  // The acquisition URL a DOWNLOAD-capable connector (today: OPDS) stashes in
+  // the book's identifiers; `undefined` when the book can't be downloaded.
+  const acquisitionUrl = (book: Book): string | undefined =>
+    book.identifiers["opds:acquisition_url"];
+
+  // Offer Download for catalog books that carry an acquisition URL and aren't
+  // already saved to disk. (Local/downloaded books have no acquisition URL.)
+  const canDownload = (book: Book) => {
+    const url = acquisitionUrl(book);
+    return (
+      book.media_type === "Ebook" &&
+      isTauri() &&
+      !!url &&
+      !downloadedUrls.has(url)
+    );
+  };
+
+  const isDownloaded = (book: Book) => {
+    const url = acquisitionUrl(book);
+    return !!url && downloadedUrls.has(url);
+  };
+
   const books = useMemo<Book[]>(
     () => providers.flatMap((p) => p.books),
     [providers],
@@ -375,6 +457,7 @@ function App() {
       </header>
 
       {kindleMsg && <p className="app__notice">{kindleMsg}</p>}
+      {downloadMsg && <p className="app__notice">{downloadMsg}</p>}
 
       {conflicts.length > 0 && (
         <section className="app__conflicts">
@@ -627,6 +710,18 @@ function App() {
                 >
                   {sendingId === book.id ? "Sending…" : "Send to Kindle"}
                 </button>
+              )}
+              {canDownload(book) && (
+                <button
+                  className="card__download"
+                  onClick={() => void downloadBook(book)}
+                  disabled={downloadingId === book.id}
+                >
+                  {downloadingId === book.id ? "Downloading…" : "Download"}
+                </button>
+              )}
+              {isDownloaded(book) && (
+                <span className="card__badge">Downloaded</span>
               )}
             </div>
           </article>

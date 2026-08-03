@@ -178,6 +178,36 @@ body {
   cursor: default;
 }
 
+.card__download {
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.card__download:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.card__badge {
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
 .app__notice {
   margin: 0.75rem 0;
   padding: 0.5rem 0.75rem;

@@ -179,3 +179,25 @@ export type SendOutcome =
   | { status: "too_large"; size: number; limit: number }
   | { status: "not_an_epub" }
   | { status: "send_failed"; reason: string };
+
+/** Typed outcome of a `download_book` call (mirrors Rust `DownloadOutcome`). */
+export type DownloadOutcome =
+  | { status: "downloaded"; book_id: string; filename: string }
+  | { status: "already_downloaded"; book_id: string }
+  | { status: "not_downloadable" }
+  | { status: "too_large"; size: number; limit: number }
+  | { status: "not_an_epub" }
+  | { status: "failed"; reason: string };
+
+/** One entry in the downloads manifest (mirrors Rust `DownloadEntry`). */
+export interface DownloadEntry {
+  book_id: string;
+  title: string;
+  source_provider_id: string;
+  acquisition_url: string;
+  media_type: MediaType;
+  isbn?: string | null;
+  downloaded_at: number;
+  size: number;
+  filename: string;
+}
