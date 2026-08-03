@@ -454,10 +454,14 @@ The Rust side is a two-crate Cargo workspace:
    — the throttled save/resume handles it) and self-clears; a manual pause also
    clears it. The pure bits live in `audioTimeline.ts`
    (`sleepRemainingSeconds`, `endOfChapterAbsolute`, `fadeMultiplier`).
-   **Native TODOs** (separate platform work): background playback, lockscreen /
-   now-playing controls, Android Auto / Apple CarPlay, Chromecast, an
-   OS-level/background sleep timer (the in-app one above only runs while the app
-   is foregrounded), equalizer. Outward listening-progress
+   **OS now-playing / lockscreen / media keys — web layer shipped** (see
+   *Now-playing / Media Session* below); **native surfacing pending toolchains.**
+   **Native TODOs** (separate platform work): **true background playback** and a
+   **background-capable sleep timer** (the in-app one above only runs while the
+   app is foregrounded) — both ride the same native audio-session /
+   foreground-service layer (see *Background playback (native roadmap)* below);
+   Android Auto / Apple CarPlay, Chromecast, equalizer. Outward
+   listening-progress
    **sync-back to Audiobookshelf** is wired (opt-in `PATCH /api/me/progress/{id}`;
    see *Progress sync (two-way)*); live verification is pending a running ABS
    server.)*
@@ -471,6 +475,107 @@ The Rust side is a two-crate Cargo workspace:
    `ReadingStore` (`core/src/config/reading.rs`). No DRM handling. Reading
    progress **syncs back to Hardcover** (opt-in; see *Progress sync
    (two-way)*). TODOs: highlights/annotations, full-text search, and dark mode.)*
+
+## Now-playing / Media Session (web layer — shipped)
+
+The audiobook player wires the standard **[Media Session API]**
+(`navigator.mediaSession`) so the OS now-playing card, lockscreen transport, and
+hardware / keyboard media keys drive our **unified, book-absolute** multi-track
+timeline — not the current file. It runs entirely in the webview, so it needs no
+native code and is verified by `npm run build` (typecheck) plus a pure-helper
+check (`npm run check:media-session`).
+
+- **Metadata** — `navigator.mediaSession.metadata = new MediaMetadata({ title,
+  artist, album, artwork })` from the current `Book` (title, `authors.join(", ")`,
+  `series ?? title`), refreshed when the book changes.
+- **Position / state** — `playbackState` tracks play/pause, and
+  `setPositionState({ duration, position, playbackRate })` is fed the
+  **whole-book** duration + absolute position, so the OS scrubber shows progress
+  across the entire audiobook.
+- **Transport handlers** — `play`, `pause` (also disarms the sleep timer, like a
+  manual pause), `seekbackward`/`seekforward` (± skip seconds), `seekto` (the OS
+  scrubber's absolute target routed through the existing
+  `locateAbsolute → (track, offset)` seek), and `previoustrack`/`nexttrack`
+  mapped to **previous/next chapter** on the unified timeline (falling back to
+  ±skip when a book has no chapters). All cross track boundaries via the existing
+  seek helpers, and are cleaned up on unmount.
+- **Feature-detected** — guarded by `"mediaSession" in navigator`, so a webview
+  or headless build without the API simply no-ops (no crash).
+- **Pure, testable core** — the DOM-free mapping lives in `audioTimeline.ts`
+  (`mediaMetadataInput`, `positionStateInput`, `nextChapterStart`,
+  `prevChapterStart`); `AudioPlayer.tsx` only owns the browser wiring.
+- **Artwork caveat** — the OS fetches artwork itself, so only `http(s):` / `data:`
+  cover URLs are passed through. Libro's internal `localcover://{id}` scheme
+  (embedded EPUB covers served by the Tauri shell) is **dropped** from the OS
+  card — it can't be resolved by the OS, so the card shows no art rather than a
+  broken image. A future improvement is to expose a real `http`/`data` cover URL
+  for downloaded/local books so their art appears on the lockscreen.
+- **What actually lights up** — where the platform shell surfaces it: **Windows**
+  SMTC, **macOS** Now Playing, **Linux** MPRIS, and **mobile** lockscreen. The
+  plain webview build in this environment registers the handlers but can't
+  *display* the OS card; that requires the real desktop/mobile shell.
+
+[Media Session API]: https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API
+
+## Background playback (native roadmap — design only, not yet built)
+
+The Media Session API lets the OS *control* playback, but it does **not** grant
+the app permission to keep audio running when it's backgrounded or the screen is
+off — that requires per-platform native capabilities. This layer is **designed
+but not implemented** (it needs iOS/Android toolchains + an MSVC Windows build
+that aren't available in the current environment), so nothing below ships as
+native code yet; it is captured here so the boundary is honest and the wiring is
+a known quantity.
+
+- **iOS** — the app must declare the `audio` value under **`UIBackgroundModes`**
+  in `Info.plist` and activate an **`AVAudioSession`** with the `.playback`
+  category. Template (to live in the generated `src-tauri/gen/apple` project once
+  a Mac/iOS toolchain is available):
+
+  ```xml
+  <!-- Info.plist -->
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>audio</string>
+  </array>
+  ```
+
+  ```swift
+  // AVAudioSession activation (native plugin, iOS)
+  try AVAudioSession.sharedInstance()
+      .setCategory(.playback, mode: .spokenAudio)
+  try AVAudioSession.sharedInstance().setActive(true)
+  ```
+
+- **Android** — background audio requires a **foreground service** with a
+  `mediaPlayback` type plus its ongoing notification, declared in
+  `AndroidManifest.xml`:
+
+  ```xml
+  <!-- AndroidManifest.xml -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+  <service
+      android:name=".PlaybackService"
+      android:foregroundServiceType="mediaPlayback"
+      android:exported="false"/>
+  ```
+
+- **Delivery path** — this is a **Tauri v2 mobile plugin** (`tauri-plugin-*`
+  with iOS Swift + Android Kotlin native code) that owns the audio session /
+  foreground service and bridges to the webview player; an existing plugin such
+  as `tauri-plugin-native-audio` is a candidate if it fits the multi-track model.
+  No such native Rust/Kotlin/Swift is added now — it can't compile in this
+  environment and would break `cargo check` / `npm run build`.
+- **Background sleep timer** — the shipped in-app sleep timer (`AudioPlayer.tsx`)
+  reliably pauses **while the app is foregrounded**. Firing reliably when
+  backgrounded / screen-off rides on the *same* native audio-session /
+  foreground-service layer above (a JS timer isn't guaranteed to run in the
+  background), so it's part of this same native work item. The in-app timer stays
+  as-is; no behavior change until the native layer lands.
+- **Still further out** (listed, not designed): Android Auto / Apple CarPlay,
+  Chromecast, and a system equalizer.
+
 
 ## Legal boundaries
 
