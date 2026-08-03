@@ -12,6 +12,7 @@ import type { LibraryIndex } from './index/types';
 import type { Book } from './models';
 import { createMockProvider } from './providers/mock';
 import { createOpdsProvider, type OpdsConfig } from './providers/opds';
+import { createAbsProvider, type AbsConfig } from './providers/audiobookshelf';
 import { aggregateLibrary, ProviderRegistry } from './providers/registry';
 import type { ProviderRunError } from './providers/registry';
 
@@ -46,6 +47,32 @@ export function registryWithOpds(configs: readonly OpdsConfig[]): ProviderRegist
   const registry = defaultRegistry();
   for (const config of configs) {
     registry.register(createOpdsProvider(config));
+  }
+  return registry;
+}
+
+/**
+ * Config-driven registration of the real Audiobookshelf connector, kept separate
+ * from {@link defaultRegistry} so no live API tokens are baked into the default
+ * pipeline. A UI/settings layer collects {@link AbsConfig}s from on-device storage
+ * (there is no server to hold secrets) and calls this:
+ *
+ * ```ts
+ * const registry = registryWithAbs([
+ *   { id: 'home-abs', displayName: 'Audiobookshelf', baseUrl: 'https://abs.example.com',
+ *     apiToken: token, libraryId },
+ * ]);
+ * const { books, errors } = await loadLibrary(registry);
+ * ```
+ *
+ * As with OPDS, reachability depends on the user's ABS server being CORS-open (see
+ * the CORS note in `providers/audiobookshelf.ts`); an unreachable server surfaces
+ * in `errors`, never crashing the aggregate.
+ */
+export function registryWithAbs(configs: readonly AbsConfig[]): ProviderRegistry {
+  const registry = defaultRegistry();
+  for (const config of configs) {
+    registry.register(createAbsProvider(config));
   }
   return registry;
 }
