@@ -4,7 +4,7 @@ use libro_core::config::{self, AppConfig, ListeningStore, ProviderConfig, Readin
 use libro_core::metadata::{enrich_catalog, BookMetadata, EnrichOptions, MetadataRegistry};
 use libro_core::models::{Book, Progress};
 use libro_core::providers::audiobookshelf::{
-    AudioPlayback, AudiobookshelfConfig, AudiobookshelfProvider,
+    AudiobookshelfConfig, AudiobookshelfProvider, PlaybackManifest,
 };
 use libro_core::providers::hardcover::{HardcoverConfig, HardcoverProvider};
 use libro_core::providers::lazylibrarian::{LazyLibrarianConfig, LazyLibrarianProvider};
@@ -320,20 +320,21 @@ pub async fn get_reading_progress(book_id: String) -> Result<Option<Progress>, S
         .map_err(|e| e.to_string())
 }
 
-/// Resolve a directly-playable audiobook stream + chapter list for the in-app
-/// audio player.
+/// Resolve a directly-playable audiobook **manifest** (all tracks on one
+/// book-absolute timeline + chapters) for the in-app audio player.
 ///
 /// `book_id` is an Audiobookshelf library-item id (the `id` of a `Book` whose
 /// `source_provider_id == "audiobookshelf"`). This opens an ABS playback session
-/// with the connector's auth and returns a normalized [`AudioPlayback`] the
-/// frontend `<audio>` element can load directly.
+/// with the connector's auth and returns a normalized [`PlaybackManifest`]; the
+/// frontend player loads each track's URL directly and auto-advances across
+/// track boundaries on the unified timeline.
 ///
 /// TODO(live): there is no ABS server in this build environment, so this path is
-/// only structurally verified (the pure session→playback mapping is unit-tested
+/// only structurally verified (the pure session→manifest mapping is unit-tested
 /// in [`libro_core::providers::audiobookshelf`]). Live streaming needs a running
 /// ABS instance — see `ARCHITECTURE.md`.
 #[tauri::command]
-pub async fn get_audiobook_stream(book_id: String) -> Result<AudioPlayback, String> {
+pub async fn get_audiobook_stream(book_id: String) -> Result<PlaybackManifest, String> {
     let app_config = config::load_config().map_err(|e| e.to_string())?;
 
     let mut last_err = String::from("no Audiobookshelf provider configured");
