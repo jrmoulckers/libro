@@ -347,23 +347,36 @@ The Rust side is a two-crate Cargo workspace:
    source-agnostic in-app audio player (`src/AudioPlayer.tsx`) plays the user's
    own DRM-free audiobooks via a webview HTML5 `<audio>` element — play/pause,
    scrub, skip ±30s, 0.5×–3× speed, chapter list + jump-to-chapter, time/percent,
-   and keyboard control. It takes a stream URL from the Rust
-   `get_audiobook_stream` command (which opens an Audiobookshelf `/api/items/{id}/play`
-   session and resolves an absolute, token-in-query stream URL + chapters — an
-   HTML media element can't send an `Authorization` header) or, for a
-   backend-free browser demo, a bundled synthetic public-domain sample at
-   `public/sample-audiobook.wav`. Listening position (seconds + percent) is
-   persisted per-book — throttled, plus on pause/chapter change — via
-   `save_listening_progress` / `get_listening_progress`, backed by an on-device
-   `ListeningStore` (`core/src/config/listening.rs`), kept parallel to the reading
-   store so one item can hold independent reading and listening positions. No DRM
-   handling. Pending: live ABS streaming needs a running server; multi-track
-   (multi-file) gapless playback uses only the first track for now. **Native TODOs**
-   (separate platform work): background playback, lockscreen / now-playing
-   controls, Android Auto / Apple CarPlay, Chromecast, sleep timer, equalizer.
-   Outward listening-progress **sync-back to Audiobookshelf** is now wired
-   (opt-in `PATCH /api/me/progress/{id}`; see *Progress sync (two-way)*); live
-   verification is pending a running ABS server.)*
+   and keyboard control. **Multi-track gapless playback:** an ABS audiobook is
+   one track per source file, so `get_audiobook_stream` returns a
+   `PlaybackManifest { tracks, chapters, total_duration }` — every track resolved
+   to an absolute, token-in-query URL (an HTML media element can't send an
+   `Authorization` header) and laid out on a **book-absolute timeline** by the
+   pure `assemble_timeline` helper (each track's `start_offset_seconds` = the
+   cumulative sum of prior durations). The player presents ONE continuous book:
+   the whole UI (seek bar, %/time, chapter mapping, progress saves) speaks
+   book-absolute seconds = `track.start_offset + audio.currentTime`; seek, skip,
+   and chapter-jump all cross track boundaries (mapping absolute →
+   `(track, offset)` via `src/audioTimeline.ts`), and when a track ends the player
+   auto-advances to the next — preserving speed, with the next track **preloaded**
+   (a hidden second `<audio>`) so the boundary gap is minimal. For a backend-free
+   browser demo it instead plays three bundled synthetic public-domain segments
+   (`public/sample-audiobook-1..3.wav`) with a chapter that spans a track
+   boundary. Listening position is persisted per-book as **whole-book** seconds +
+   fraction (`fraction = absolute / total_duration`) — throttled, plus on
+   pause/chapter change — via `save_listening_progress` / `get_listening_progress`,
+   backed by an on-device `ListeningStore` (`core/src/config/listening.rs`), kept
+   parallel to the reading store so one item can hold independent reading and
+   listening positions; on resume the saved absolute position is mapped back to
+   `(track, offset)`. No DRM handling. Pending: live ABS streaming needs a running
+   server. **TODOs** (not built): true sample-accurate WebAudio gapless (this uses
+   preloaded `<audio>` auto-advance), variable-speed pitch correction, and ABS
+   play-session track-transcode variants. **Native TODOs** (separate platform
+   work): background playback, lockscreen / now-playing controls, Android Auto /
+   Apple CarPlay, Chromecast, sleep timer, equalizer. Outward listening-progress
+   **sync-back to Audiobookshelf** is wired (opt-in `PATCH /api/me/progress/{id}`;
+   see *Progress sync (two-way)*); live verification is pending a running ABS
+   server.)*
 5. **Reading** — EPUB reading experience. *(Started: an in-app EPUB reader
    (`src/EpubReader.tsx`, built on `react-reader`/epub.js) renders the user's own
    DRM-free local EPUBs. It takes its content either as bytes from the Rust
