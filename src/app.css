@@ -1,0 +1,30 @@
+/*
+ * Global stylesheet.
+ *
+ * Design values come from @jrm/tokens, which the studio sync engine vendors from
+ * jrmoulckers/studio into ./vendor/@jrm/tokens. Until the first chore(sync) PR lands,
+ * that directory does not exist and the import below stays commented out.
+ *
+ * Once it lands, uncomment (relative to this file, at src/app.css):
+ *   @import '../vendor/@jrm/tokens/css/default/index.css';
+ *
+ * Do not hardcode colors, radii, shadows, or durations here — reference the semantic
+ * custom properties (var(--color-surface), var(--radius-md), …) instead.
+ */
+
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}

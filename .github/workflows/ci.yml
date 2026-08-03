@@ -1,0 +1,84 @@
+# =============================================================================
+# Libro CI
+# =============================================================================
+#
+# This file is PRODUCT-OWNED. Reusable workflows are "native" to the JRM Studio
+# sync engine: it resolves and reports them but never writes them into member
+# repos (see jrmoulckers/.github sync/lib/assets.mjs). Edit freely here.
+#
+# Every input below is declared in the corresponding reusable workflow's
+# `on.workflow_call.inputs` block — nothing is guessed.
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@main
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      node-version: '22'
+      package-manager: pnpm
+      lint-command: pnpm lint
+      format-check-command: pnpm format:check
+      semantic-pr-title: true
+
+  web:
+    name: Web CI
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@main
+    permissions:
+      contents: read
+    with:
+      node-version: '22'
+      package-manager: pnpm
+      typecheck-command: pnpm typecheck
+      test-command: pnpm test
+      build-command: pnpm build
+
+  preview:
+    name: Deploy Preview
+    # Pure-client build: the artifact provider is the whole story until a host is
+    # chosen. `DEPLOY_TOKEN` is an optional secret used only by provider: custom.
+    if: github.event_name == 'pull_request'
+    needs: web
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@main
+    permissions:
+      contents: read
+    with:
+      node-version: '22'
+      package-manager: pnpm
+      build-command: pnpm build
+      output-dir: dist
+      provider: artifact
+
+  perf:
+    name: Performance Budget
+    needs: web
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@main
+    permissions:
+      contents: read
+    with:
+      node-version: '22'
+      package-manager: pnpm
+      build-command: pnpm build
+      output-dir: dist
+      bundle-budget-kb: 2048
+      # Lighthouse is skipped while `url` is empty. Set it once a stable preview
+      # or production URL exists; lhci-min-performance / lhci-min-accessibility
+      # then default to 90 / 95.
+      url: ''
