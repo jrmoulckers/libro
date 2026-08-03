@@ -3,9 +3,15 @@
 Product-specific operating guide for `jrmoulckers/libro`, a member repo of **JRM Studio**.
 
 This file extends the shared studio base guide. The studio sync engine injects that base
-between `<!-- studio:base:start -->` / `<!-- studio:base:end -->` markers below; everything
-outside those markers is product-local and is never touched by the sync. Do not hand-edit
-inside the managed block — edit the canonical copy in `jrmoulckers/.github` instead.
+between a pair of `studio:base:start` / `studio:base:end` HTML-comment markers below;
+everything outside those markers is product-local and is never touched by the sync. Do not
+hand-edit inside the managed block — edit the canonical copy in `jrmoulckers/.github` instead.
+
+> **Do not write the two marker strings in their literal HTML-comment form anywhere in this
+> file except as the real block delimiters.** The engine locates the managed region with a
+> plain regex over the raw file, so prose that quotes both literals — even inside backticks —
+> forms a phantom empty block, and the first sync then flags `AGENTS.md` as locally modified
+> and skips it.
 
 ## What libro is
 
