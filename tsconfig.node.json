@@ -6,6 +6,7 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "noEmit": true,
+    "skipLibCheck": true,
     "types": ["node"]
   },
   "include": ["vite.config.ts", "svelte.config.js", "eslint.config.js"]

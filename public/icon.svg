@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Libro">
+  <rect width="64" height="64" rx="12" fill="#14161c"/>
+  <rect x="18" y="15" width="30" height="34" rx="2" fill="#6c8cff"/>
+  <rect x="18" y="15" width="6" height="34" fill="#4f6ae0"/>
+  <rect x="27" y="19" width="17" height="26" fill="#f5f3ec"/>
+  <g fill="#c9c6ba">
+    <rect x="29" y="24" width="13" height="2"/>
+    <rect x="29" y="29" width="13" height="2"/>
+    <rect x="29" y="34" width="13" height="2"/>
+    <rect x="29" y="39" width="10" height="2"/>
+  </g>
+</svg>
