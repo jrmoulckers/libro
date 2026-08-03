@@ -22,6 +22,10 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 roxmltree = "0.20"
+# Send-to-Kindle SMTP transport. rustls (NOT native-tls) to stay consistent
+# with our reqwest setup and to build under the x86_64-pc-windows-gnu toolchain
+# (no OpenSSL/MSVC). `builder` gives the MIME multipart message API.
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder", "hostname"] }
 
 [dev-dependencies]
 # Only needed to drive the `#[ignore]`d live-network smoke tests

@@ -12,6 +12,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::kindle::KindleConfig;
+
 pub mod listening;
 pub mod reading;
 pub use listening::ListeningStore;
@@ -91,6 +93,10 @@ pub struct AppConfig {
     /// Metadata-enrichment settings.
     #[serde(default)]
     pub metadata: MetadataConfig,
+    /// Send-to-Kindle SMTP settings (Amazon's official personal-documents email
+    /// flow). Empty/unset means the feature is off. See [`crate::kindle`].
+    #[serde(default)]
+    pub kindle: KindleConfig,
 }
 
 impl AppConfig {
