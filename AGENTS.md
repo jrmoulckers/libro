@@ -89,6 +89,17 @@ Repo-root-relative, that path is **`./vendor/@jrm/tokens/css/default/index.css`*
 resolves the relative form from `src/` cleanly; no alias, no `resolve.alias` entry, and no
 `tokens.targetPath` override in `studio.config.json` are required.
 
+### `@jrm/tokens` is the ONLY `@jrm` package libro gets
+
+The studio is registry-free, and the sync engine vendors **only** the token `dist/` tree.
+`@jrm/tailwind-preset`, `@jrm/eslint-config`, `@jrm/tsconfig`, and `@jrm/prettier-config` are
+**not** synced into member repos and **cannot resolve here**. Studio's README shows
+`presets: [require('@jrm/tailwind-preset')]`, `"extends": "@jrm/tsconfig/svelte.json"`, and
+`"prettier": "@jrm/prettier-config"` — those examples do **not** apply to libro. Our
+`eslint.config.js`, `.prettierrc.json`, and `tsconfig*.json` inline the equivalents locally,
+and must stay that way. Adding an `@jrm/*` dependency other than the vendored tokens will fail
+`pnpm install --frozen-lockfile` in CI.
+
 Rules that follow from studio's frontend principles:
 
 - Style with semantic custom properties — `var(--color-surface)`, `var(--color-text)`,
@@ -134,9 +145,11 @@ Recorded explicitly so reviewers and agents don't treat them as oversights:
   fully static); SSR does not exist here. Judge LCP against the SPA shell, not an SSR baseline.
 - **`principles/security.md` browser posture applies in full, but its server-side controls do
   not.** The entire threat surface is the client bundle and device storage.
-- **`reusable-perf-budget`'s Lighthouse assertions are currently disabled** (`url: ''`) because
-  no hosted preview URL exists yet. The bundle-size budget still runs on every push and PR.
-  Re-enable Lighthouse when a preview host is chosen.
+- **`reusable-perf-budget`'s Lighthouse assertions are deliberately deferred**, not overlooked.
+  `url: ''` makes the workflow self-skip Lighthouse; the bundle-size budget (2048 KB) still runs
+  on every push and PR. This is a **known gap pending a hosted preview URL** — set `url:` in
+  `.github/workflows/ci.yml` once a host is chosen, and `lhci-min-performance` /
+  `lhci-min-accessibility` then default to 90 / 95.
 - **Deploy previews use the `artifact` provider**, not a hosting provider, for the same reason.
 
 ## Sync-engine boundaries — do not hand-author these
