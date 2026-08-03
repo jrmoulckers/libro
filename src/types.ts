@@ -137,6 +137,38 @@ export interface KindleConfig {
   to_address: string;
 }
 
+/** Which local store lane a conflict belongs to (mirrors Rust `ConflictLane`). */
+export type ConflictLane = "listening" | "reading";
+
+/**
+ * One side (local or remote) of a pending progress conflict (mirrors the Rust
+ * `progress_sync::ConflictSide`).
+ */
+export interface ConflictSide {
+  fraction: number;
+  position_seconds: number | null;
+  finished: boolean;
+  updated_at: number | null;
+  /** "This device" locally, or the remote source's name. */
+  source: string;
+}
+
+/**
+ * A progress conflict awaiting manual resolution (mirrors the Rust
+ * `progress_sync::ProgressConflict`). Surfaced only when the conflict policy is
+ * `manual` and the two-way sync found genuinely divergent, unorderable progress.
+ */
+export interface ProgressConflict {
+  book_id: string;
+  title: string;
+  lane: ConflictLane;
+  local: ConflictSide;
+  remote: ConflictSide;
+}
+
+/** The user's choice when resolving a conflict (mirrors Rust `ConflictChoice`). */
+export type ConflictChoice = "keep_local" | "use_remote" | "keep_furthest";
+
 /**
  * The typed result of a `send_to_kindle` call (mirrors the Rust `SendOutcome`,
  * serialized with a `status` tag).

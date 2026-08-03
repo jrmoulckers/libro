@@ -269,9 +269,38 @@ book advanced on another device resumes at the right place here.
   listening throttle (`ListeningSyncState::note_synced_position`), so a reconciled
   position isn't immediately echoed back up to ABS on the next save.
 
-TODOs: real-time/webhook sync (instead of pull-on-load); a manual per-book
-conflict-resolution UI (let the user choose when auto last-write-wins isn't
-wanted); richer Hardcover fraction + a per-row `updated_at` if the API exposes
+##### Manual conflict resolution (opt-in)
+
+By default the reconcile is fully automatic (`conflict_resolution: "auto"`,
+`#[serde(default)]` on `AppConfig`). Setting it to `"manual"` surfaces genuine
+conflicts for the user to resolve instead of silently auto-picking:
+
+- **Detection (pure).** `is_genuine_conflict(local, local_updated_at, remote)`
+  returns `true` only when both sides carry meaningful, **divergent** progress
+  (fractions apart by more than `PROGRESS_TIE_EPSILON`), **neither is finished**
+  (finished-sticky always resolves deterministically), **and** timestamps can't
+  order them (missing, or within `RECENCY_TIE_SECONDS`). A clear winner (one side
+  newer or finished, or within the tie window) is *not* a conflict and still
+  auto-resolves exactly as in auto mode — so `manual` never regresses the
+  unambiguous cases.
+- **Pending set + commands.** In manual mode `reconcile_catalog_with_policy`
+  records each ambiguous case as a `ProgressConflict` (book id/title, lane, and
+  both display sides) **without writing the store**; clear winners still apply.
+  The Tauri layer stashes them in a `manage`d `ConflictState` (keyed by book id,
+  rebuilt each pass). `list_progress_conflicts()` returns the pending set;
+  `resolve_progress_conflict(book_id, choice)` — `choice ∈ {keep_local,
+  use_remote, keep_furthest}` — writes the chosen `Progress` into the correct
+  `ReadingStore`/`ListeningStore` lane, seeds the anti-oscillation throttle
+  (audio lane) so the resolved value isn't pushed straight back out, and clears
+  it from the pending set. Everything is failure-isolated; library load never
+  breaks.
+- **UI.** `App.tsx` shows a "Sync conflicts (N)" banner (only when manual mode is
+  on *and* conflicts exist) listing each book's two positions with **Keep this
+  device** / **Use [source]** / **Keep furthest** buttons; resolving calls the
+  command and removes the row.
+
+TODOs: real-time/webhook sync (instead of pull-on-load); richer Hardcover
+fraction + a per-row `updated_at` if the API exposes
 page-level progress (which would activate the newest-wins branch for reading); and
 session-based ABS progress via the `/api/session` close endpoint if richer than
 the `me/progress` PATCH.
@@ -374,9 +403,18 @@ The Rust side is a two-crate Cargo workspace:
    `(track, offset)`. No DRM handling. Pending: live ABS streaming needs a running
    server. **TODOs** (not built): true sample-accurate WebAudio gapless (this uses
    preloaded `<audio>` auto-advance), variable-speed pitch correction, and ABS
-   play-session track-transcode variants. **Native TODOs** (separate platform
-   work): background playback, lockscreen / now-playing controls, Android Auto /
-   Apple CarPlay, Chromecast, sleep timer, equalizer. Outward listening-progress
+   play-session track-transcode variants. An in-app **sleep timer** is shipped
+   (`AudioPlayer.tsx`): presets (15/30/45/60 min) plus **"End of chapter"**
+   (computed from the book-absolute chapter boundaries); while armed it shows the
+   remaining time with **+5 min** extend and cancel; on expiry it does a short
+   linear volume fade (`fadeMultiplier`) then **pauses** (position is never reset
+   — the throttled save/resume handles it) and self-clears; a manual pause also
+   clears it. The pure bits live in `audioTimeline.ts`
+   (`sleepRemainingSeconds`, `endOfChapterAbsolute`, `fadeMultiplier`).
+   **Native TODOs** (separate platform work): background playback, lockscreen /
+   now-playing controls, Android Auto / Apple CarPlay, Chromecast, an
+   OS-level/background sleep timer (the in-app one above only runs while the app
+   is foregrounded), equalizer. Outward listening-progress
    **sync-back to Audiobookshelf** is wired (opt-in `PATCH /api/me/progress/{id}`;
    see *Progress sync (two-way)*); live verification is pending a running ABS
    server.)*

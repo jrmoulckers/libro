@@ -16,6 +16,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(libro_core::sync::ReadingSyncState::new())
         .manage(libro_core::listening_sync::ListeningSyncState::new())
+        .manage(commands::ConflictState::new())
         .invoke_handler(tauri::generate_handler![
             commands::list_all_books,
             commands::list_books_by_provider,
@@ -29,6 +30,8 @@ pub fn run() {
             commands::save_listening_progress,
             commands::get_listening_progress,
             commands::reconcile_progress,
+            commands::list_progress_conflicts,
+            commands::resolve_progress_conflict,
             commands::list_plugins,
             commands::kindle_configured,
             commands::get_kindle_config,

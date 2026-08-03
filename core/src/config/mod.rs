@@ -97,6 +97,11 @@ pub struct AppConfig {
     /// flow). Empty/unset means the feature is off. See [`crate::kindle`].
     #[serde(default)]
     pub kindle: KindleConfig,
+    /// Inbound progress-sync conflict policy: `auto` (last-write-wins /
+    /// furthest-position, the default) or `manual` (surface genuine conflicts
+    /// for the user to resolve). See [`crate::progress_sync::ConflictResolution`].
+    #[serde(default)]
+    pub conflict_resolution: crate::progress_sync::ConflictResolution,
 }
 
 impl AppConfig {

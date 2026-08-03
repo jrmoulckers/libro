@@ -207,6 +207,189 @@ fn remote_to_progress(remote: &RemoteProgress, local: Option<&Progress>) -> Prog
     }
 }
 
+/// The conflict-resolution policy for the inbound reconciliation pass.
+///
+/// `Auto` (the default) keeps the historical behavior: every book is resolved by
+/// [`reconcile`] (last-write-wins / furthest-position) and written straight to
+/// the store. `Manual` diverts only *genuine* conflicts (see
+/// [`is_genuine_conflict`]) to a pending set for the user to resolve; clear
+/// winners still auto-apply, so switching to `Manual` never regresses the
+/// unambiguous cases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ConflictResolution {
+    /// Auto last-write-wins / furthest-position (unchanged behavior).
+    #[default]
+    Auto,
+    /// Surface genuine conflicts for manual resolution; clear winners auto-apply.
+    Manual,
+}
+
+impl ConflictResolution {
+    /// Whether ambiguous conflicts should be surfaced rather than auto-resolved.
+    pub fn is_manual(self) -> bool {
+        matches!(self, ConflictResolution::Manual)
+    }
+}
+
+/// Detect a **genuine, unorderable** conflict between a local and a remote
+/// progress — the only case a `Manual` policy surfaces to the user.
+///
+/// Returns `true` only when *all* of the following hold:
+/// * **Both sides carry meaningful, divergent progress** — the fractions differ
+///   by more than [`PROGRESS_TIE_EPSILON`] (tiny deltas are "in sync", never a
+///   conflict).
+/// * **Neither side is finished** — the finished-sticky rule always resolves
+///   deterministically, so a finished record is never a conflict.
+/// * **Timestamps cannot confidently order them** — either side is missing an
+///   `updated_at`, or the two are within [`RECENCY_TIE_SECONDS`]. When both are
+///   present and meaningfully apart, newest-wins decides and there is no
+///   conflict.
+///
+/// A clear winner (one side newer, one side finished, or the two within the tie
+/// window) returns `false` and still auto-resolves exactly as before. This is a
+/// pure classifier with no side effects.
+pub fn is_genuine_conflict(
+    local: &Progress,
+    local_updated_at: Option<i64>,
+    remote: &RemoteProgress,
+) -> bool {
+    // Finished-sticky resolves deterministically — never a conflict.
+    if local_is_finished(local) || remote.is_finished() {
+        return false;
+    }
+    // Positions within the no-thrash window are "in sync" — never a conflict.
+    if (local.fraction - remote.fraction).abs() <= PROGRESS_TIE_EPSILON {
+        return false;
+    }
+    // Both timestamps present and meaningfully apart ⇒ newest-wins can decide.
+    if let (Some(lt), Some(rt)) = (local_updated_at, remote.updated_at) {
+        if (lt - rt).abs() > RECENCY_TIE_SECONDS {
+            return false;
+        }
+    }
+    // Divergent positions with no confident ordering ⇒ genuine conflict.
+    true
+}
+
+/// Which local store lane a pending conflict belongs to (frontend-facing).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ConflictLane {
+    /// Audiobook progress (seconds ↔ Audiobookshelf).
+    Listening,
+    /// Ebook reading progress (CFI ↔ Hardcover).
+    Reading,
+}
+
+impl From<Lane> for ConflictLane {
+    fn from(lane: Lane) -> Self {
+        match lane {
+            Lane::Audio => ConflictLane::Listening,
+            Lane::Reading => ConflictLane::Reading,
+        }
+    }
+}
+
+/// One side (local or remote) of a pending conflict, for rendering the choice.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ConflictSide {
+    /// Fractional completion in `0.0..=1.0`.
+    pub fraction: f32,
+    /// Position in seconds when tracked (audio); `None` otherwise.
+    pub position_seconds: Option<f64>,
+    /// Whether this side considers the item finished.
+    pub finished: bool,
+    /// Server last-update time (epoch seconds) when the side exposes one.
+    pub updated_at: Option<i64>,
+    /// Human label for the side ("This device" locally, the source name remotely).
+    pub source: String,
+}
+
+/// A conflict awaiting manual resolution: enough to render both options and,
+/// once chosen, write the correct [`Progress`] into the correct lane.
+///
+/// The two `*_progress` payloads are the concrete values each choice would
+/// write; they are kept off the wire (`serde(skip)`) since the UI only needs the
+/// display [`ConflictSide`]s — the resolver reads them from the pending store.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ProgressConflict {
+    pub book_id: String,
+    pub title: String,
+    pub lane: ConflictLane,
+    pub local: ConflictSide,
+    pub remote: ConflictSide,
+    #[serde(skip)]
+    pub local_progress: Progress,
+    #[serde(skip)]
+    pub remote_progress: Progress,
+}
+
+/// The user's choice when resolving a [`ProgressConflict`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictChoice {
+    /// Keep this device's local progress.
+    KeepLocal,
+    /// Adopt the remote's progress.
+    UseRemote,
+    /// Keep whichever side is furthest along (largest fraction).
+    KeepFurthest,
+}
+
+impl ProgressConflict {
+    /// The concrete [`Progress`] a given [`ConflictChoice`] resolves to.
+    pub fn resolved(&self, choice: ConflictChoice) -> Progress {
+        match choice {
+            ConflictChoice::KeepLocal => self.local_progress.clone(),
+            ConflictChoice::UseRemote => self.remote_progress.clone(),
+            ConflictChoice::KeepFurthest => {
+                if self.remote_progress.fraction > self.local_progress.fraction {
+                    self.remote_progress.clone()
+                } else {
+                    self.local_progress.clone()
+                }
+            }
+        }
+    }
+}
+
+/// Build a [`ProgressConflict`] from a book, its lane, and the divergent
+/// local/remote records. The remote payload is merged via [`remote_to_progress`]
+/// (preserving local fields the remote doesn't carry, e.g. an EPUB CFI).
+fn build_conflict(
+    book: &Book,
+    lane: Lane,
+    local: &Progress,
+    remote: &RemoteProgress,
+) -> ProgressConflict {
+    let source_name = match lane {
+        Lane::Audio => "Audiobookshelf",
+        Lane::Reading => "Hardcover",
+    };
+    ProgressConflict {
+        book_id: book.id.clone(),
+        title: book.title.clone(),
+        lane: lane.into(),
+        local: ConflictSide {
+            fraction: local.fraction,
+            position_seconds: local.position_seconds,
+            finished: local.finished,
+            updated_at: None,
+            source: "This device".to_string(),
+        },
+        remote: ConflictSide {
+            fraction: remote.fraction,
+            position_seconds: remote.position_seconds,
+            finished: remote.finished,
+            updated_at: remote.updated_at,
+            source: source_name.to_string(),
+        },
+        local_progress: local.clone(),
+        remote_progress: remote_to_progress(remote, Some(local)),
+    }
+}
+
 /// What the apply pass did for one book — returned (never thrown) so the caller
 /// can tally it and move on.
 #[derive(Debug, Clone, PartialEq)]
@@ -221,6 +404,8 @@ pub enum ReconcileOutcome {
     KeptLocal,
     /// Remote won; the merged progress was written to the local store.
     PulledDown(Progress),
+    /// Manual mode: a genuine conflict was recorded as pending; store untouched.
+    Conflict,
     /// A remote/store error occurred and was swallowed; message is for logs.
     Failed(String),
 }
@@ -266,6 +451,8 @@ pub struct ReconcileReport {
     pub already_in_sync: u32,
     pub no_remote: u32,
     pub disabled: u32,
+    /// Genuine conflicts recorded as pending in manual mode (store untouched).
+    pub conflicts: u32,
     pub failed: u32,
 }
 
@@ -278,6 +465,7 @@ impl ReconcileReport {
             ReconcileOutcome::AlreadyInSync => self.already_in_sync += 1,
             ReconcileOutcome::NoRemote => self.no_remote += 1,
             ReconcileOutcome::Disabled => self.disabled += 1,
+            ReconcileOutcome::Conflict => self.conflicts += 1,
             ReconcileOutcome::Failed(_) => self.failed += 1,
         }
     }
@@ -332,6 +520,25 @@ pub async fn reconcile_catalog(
     reading: Option<&SyncLane<'_>>,
     concurrency: usize,
 ) -> ReconcileReport {
+    reconcile_catalog_with_policy(books, audio, reading, concurrency, ConflictResolution::Auto)
+        .await
+        .0
+}
+
+/// Policy-aware batch reconciliation. Identical to [`reconcile_catalog`] under
+/// [`ConflictResolution::Auto`] (and returns an empty conflict list). Under
+/// [`ConflictResolution::Manual`], a *genuine* conflict (see
+/// [`is_genuine_conflict`]) is **recorded as a pending [`ProgressConflict`]
+/// instead of written**; clear winners still auto-apply exactly as in auto mode.
+///
+/// Returns the [`ReconcileReport`] tally plus the pending conflicts to surface.
+pub async fn reconcile_catalog_with_policy(
+    books: &[Book],
+    audio: Option<&SyncLane<'_>>,
+    reading: Option<&SyncLane<'_>>,
+    concurrency: usize,
+    policy: ConflictResolution,
+) -> (ReconcileReport, Vec<ProgressConflict>) {
     use futures::stream::{self, StreamExt};
 
     let lane_ref = |lane: Lane| match lane {
@@ -365,6 +572,7 @@ pub async fn reconcile_catalog(
 
     // Phase 2 — sequential reconcile + apply (serialized store writes).
     let mut report = ReconcileReport::default();
+    let mut conflicts: Vec<ProgressConflict> = Vec::new();
     for (i, lane, res) in fetched {
         let store = lane_ref(lane).expect("lane present").store;
         let outcome = match res {
@@ -372,6 +580,17 @@ pub async fn reconcile_catalog(
             Ok(None) => ReconcileOutcome::NoRemote,
             Ok(Some(remote)) => {
                 let local = store.get_progress(&books[i].id);
+                // Manual mode: divert a genuine conflict to the pending set
+                // (no store write); clear winners fall through to auto-apply.
+                if policy.is_manual() {
+                    if let Some(l) = local.as_ref() {
+                        if is_genuine_conflict(l, None, &remote) {
+                            conflicts.push(build_conflict(&books[i], lane, l, &remote));
+                            report.record(&ReconcileOutcome::Conflict);
+                            continue;
+                        }
+                    }
+                }
                 match reconcile(local.as_ref(), Some(&remote)) {
                     Reconciliation::RemoteWins(p) => {
                         match store.put_progress(&books[i].id, p.clone()) {
@@ -387,7 +606,7 @@ pub async fn reconcile_catalog(
         };
         report.record(&outcome);
     }
-    report
+    (report, conflicts)
 }
 
 #[cfg(test)]
@@ -635,6 +854,7 @@ mod tests {
         r.record(&ReconcileOutcome::AlreadyInSync);
         r.record(&ReconcileOutcome::NoRemote);
         r.record(&ReconcileOutcome::Disabled);
+        r.record(&ReconcileOutcome::Conflict);
         r.record(&ReconcileOutcome::Failed("x".into()));
         assert_eq!(
             r,
@@ -644,6 +864,7 @@ mod tests {
                 already_in_sync: 1,
                 no_remote: 1,
                 disabled: 1,
+                conflicts: 1,
                 failed: 1,
             }
         );
@@ -722,5 +943,99 @@ mod tests {
         assert!((audio_store.get_progress("a1").unwrap().fraction - 0.1).abs() < 1e-6);
         // Local reading store is the source of truth — untouched by the failed pull.
         assert!((reading_store.get_progress("e1").unwrap().fraction - 0.3).abs() < 1e-6);
+    }
+
+    // ---- manual conflict detection (is_genuine_conflict) -----------------
+
+    #[test]
+    fn conflict_only_on_divergent_untimestamped_positions() {
+        // Divergent fractions, no timestamps → genuine conflict.
+        assert!(is_genuine_conflict(&local(0.2, false), None, &remote(0.8, false, None)));
+    }
+
+    #[test]
+    fn tiny_delta_is_not_a_conflict() {
+        // Within PROGRESS_TIE_EPSILON → in sync, never a conflict.
+        assert!(!is_genuine_conflict(&local(0.500, false), None, &remote(0.505, false, None)));
+    }
+
+    #[test]
+    fn finished_side_is_never_a_conflict() {
+        // Remote finished (sticky) → deterministic, not a conflict.
+        assert!(!is_genuine_conflict(&local(0.2, false), None, &remote(0.9, true, None)));
+        // Local finished → deterministic, not a conflict.
+        assert!(!is_genuine_conflict(&local(1.0, true), None, &remote(0.2, false, None)));
+    }
+
+    #[test]
+    fn confident_timestamp_ordering_is_not_a_conflict() {
+        // Both timestamps present and far apart → newest-wins decides, no conflict.
+        assert!(!is_genuine_conflict(&local(0.2, false), Some(1_000), &remote(0.8, false, Some(5_000))));
+    }
+
+    #[test]
+    fn tied_timestamps_with_divergence_is_a_conflict() {
+        // Timestamps within RECENCY_TIE_SECONDS → can't order → conflict.
+        assert!(is_genuine_conflict(&local(0.2, false), Some(1_000), &remote(0.8, false, Some(1_001))));
+    }
+
+    // ---- manual-mode catalog (reconcile_catalog_with_policy) -------------
+
+    #[tokio::test]
+    async fn manual_mode_records_conflict_without_writing() {
+        // Divergent, untimestamped audio positions → genuine conflict.
+        let audio_src = FakeSource { remote: Some(remote(0.8, false, None)), fail: false };
+        let audio_store = FakeStore::default();
+        audio_store.map.lock().unwrap().insert("a1".into(), local(0.2, false));
+        let audio_lane = SyncLane { enabled: true, source: &audio_src, store: &audio_store };
+
+        let books = vec![book("a1")];
+        let (report, conflicts) = reconcile_catalog_with_policy(
+            &books,
+            Some(&audio_lane),
+            None,
+            4,
+            ConflictResolution::Manual,
+        )
+        .await;
+
+        assert_eq!(report.conflicts, 1);
+        assert_eq!(report.pulled_down, 0, "manual conflict is not auto-written");
+        // Store is left untouched at the local value.
+        assert!((audio_store.get_progress("a1").unwrap().fraction - 0.2).abs() < 1e-6);
+        // The pending conflict carries both sides and both resolvable payloads.
+        assert_eq!(conflicts.len(), 1);
+        let c = &conflicts[0];
+        assert_eq!(c.book_id, "a1");
+        assert_eq!(c.lane, ConflictLane::Listening);
+        assert!((c.local.fraction - 0.2).abs() < 1e-6);
+        assert!((c.remote.fraction - 0.8).abs() < 1e-6);
+        assert!((c.resolved(ConflictChoice::KeepLocal).fraction - 0.2).abs() < 1e-6);
+        assert!((c.resolved(ConflictChoice::UseRemote).fraction - 0.8).abs() < 1e-6);
+        assert!((c.resolved(ConflictChoice::KeepFurthest).fraction - 0.8).abs() < 1e-6);
+    }
+
+    #[tokio::test]
+    async fn manual_mode_still_auto_resolves_clear_winners() {
+        // Remote finished → clear winner, auto-applied even in manual mode.
+        let audio_src = FakeSource { remote: Some(remote(1.0, true, None)), fail: false };
+        let audio_store = FakeStore::default();
+        audio_store.map.lock().unwrap().insert("a1".into(), local(0.2, false));
+        let audio_lane = SyncLane { enabled: true, source: &audio_src, store: &audio_store };
+
+        let books = vec![book("a1")];
+        let (report, conflicts) = reconcile_catalog_with_policy(
+            &books,
+            Some(&audio_lane),
+            None,
+            4,
+            ConflictResolution::Manual,
+        )
+        .await;
+
+        assert_eq!(report.conflicts, 0, "finished-sticky is not a conflict");
+        assert_eq!(report.pulled_down, 1);
+        assert!(conflicts.is_empty());
+        assert!(audio_store.get_progress("a1").unwrap().finished);
     }
 }

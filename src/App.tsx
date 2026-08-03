@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AudioChapter, Book, BookMetadata, KindleConfig, PlaybackManifest, PlaybackTrack, PluginInfo, ProviderBooks, SendOutcome } from "./types";
+import type { AudioChapter, Book, BookMetadata, ConflictChoice, KindleConfig, PlaybackManifest, PlaybackTrack, PluginInfo, ProgressConflict, ProviderBooks, SendOutcome } from "./types";
 import { EpubReader, type EpubSource } from "./EpubReader";
 import { AudioPlayer } from "./AudioPlayer";
 import { isTauri } from "./tauri";
@@ -109,6 +109,41 @@ function App() {
   const [kindleMsg, setKindleMsg] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
 
+  // Two-way sync: progress conflicts awaiting manual resolution (only populated
+  // when the conflict policy is `manual` and the reconcile pass found genuine
+  // divergence). Best-effort — a failed reconcile never blocks library load.
+  const [conflicts, setConflicts] = useState<ProgressConflict[]>([]);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  // Run the inbound reconcile pass over the loaded catalog, then refresh the
+  // pending-conflict set. Failure-isolated: any error is logged and swallowed so
+  // the library view is never affected.
+  const reconcileAndLoadConflicts = useCallback(async (books: Book[]) => {
+    if (!isTauri()) return;
+    try {
+      await invoke("reconcile_progress", { books });
+      const pending = await invoke<ProgressConflict[]>("list_progress_conflicts");
+      setConflicts(pending);
+    } catch (e) {
+      console.warn("reconcile/list conflicts failed", e);
+    }
+  }, []);
+
+  const resolveConflict = useCallback(
+    async (bookId: string, choice: ConflictChoice) => {
+      setResolvingId(bookId);
+      try {
+        await invoke("resolve_progress_conflict", { bookId, choice });
+        setConflicts((prev) => prev.filter((c) => c.book_id !== bookId));
+      } catch (e) {
+        console.warn("resolve conflict failed", e);
+      } finally {
+        setResolvingId(null);
+      }
+    },
+    [],
+  );
+
   const loadLibrary = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -118,12 +153,15 @@ function App() {
       // can degrade gracefully when one connector is offline.
       const result = await invoke<ProviderBooks[]>("list_books_by_provider");
       setProviders(result);
+      // Best-effort inbound reconcile over the merged catalog (opt-in per
+      // provider; surfaces manual conflicts). Never blocks the library view.
+      void reconcileAndLoadConflicts(result.flatMap((p) => p.books));
     } catch (e) {
       setError(String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [reconcileAndLoadConflicts]);
 
   const searchMetadata = useCallback(async () => {
     if (!query.trim()) return;
@@ -337,6 +375,56 @@ function App() {
       </header>
 
       {kindleMsg && <p className="app__notice">{kindleMsg}</p>}
+
+      {conflicts.length > 0 && (
+        <section className="app__conflicts">
+          <h2>Sync conflicts ({conflicts.length})</h2>
+          <p className="app__tagline">
+            These books have divergent progress across devices that can't be
+            ordered automatically. Choose which position to keep.
+          </p>
+          {conflicts.map((c) => (
+            <div key={c.book_id} className="app__conflict">
+              <div className="app__conflict-info">
+                <strong>{c.title}</strong>{" "}
+                <span className="app__conflict-lane">
+                  {c.lane === "listening" ? "audiobook" : "reading"}
+                </span>
+                <div className="app__conflict-sides">
+                  <span>
+                    This device: {Math.round(c.local.fraction * 100)}%
+                    {c.local.finished ? " (finished)" : ""}
+                  </span>
+                  <span>
+                    {c.remote.source}: {Math.round(c.remote.fraction * 100)}%
+                    {c.remote.finished ? " (finished)" : ""}
+                  </span>
+                </div>
+              </div>
+              <div className="app__conflict-actions">
+                <button
+                  onClick={() => void resolveConflict(c.book_id, "keep_local")}
+                  disabled={resolvingId === c.book_id}
+                >
+                  Keep this device
+                </button>
+                <button
+                  onClick={() => void resolveConflict(c.book_id, "use_remote")}
+                  disabled={resolvingId === c.book_id}
+                >
+                  Use {c.remote.source}
+                </button>
+                <button
+                  onClick={() => void resolveConflict(c.book_id, "keep_furthest")}
+                  disabled={resolvingId === c.book_id}
+                >
+                  Keep furthest
+                </button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {isTauri() && showKindleSettings && (
         <section className="app__kindle">

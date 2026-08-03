@@ -24,8 +24,45 @@ use libro_core::listening_sync::{
     sync_listening_progress, ListeningSyncOutcome, ListeningSyncState,
 };
 use libro_core::progress_sync::{
-    lane_for, reconcile_catalog, Lane, ProgressSource, ProgressStoreLike, ReconcileReport, SyncLane,
+    lane_for, reconcile_catalog_with_policy, ConflictChoice, ConflictLane, Lane, ProgressConflict,
+    ProgressSource, ProgressStoreLike, ReconcileReport, SyncLane,
 };
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+/// In-memory store of progress conflicts awaiting manual resolution, keyed by
+/// `book_id`. Populated by [`reconcile_progress`] when the policy is
+/// [`ConflictResolution::Manual`]; read by [`list_progress_conflicts`] and
+/// drained by [`resolve_progress_conflict`]. Best-effort UI state — it is not
+/// persisted and is rebuilt on each reconcile pass.
+#[derive(Default)]
+pub struct ConflictState(Mutex<HashMap<String, ProgressConflict>>);
+
+impl ConflictState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Replace the entire pending set with the latest reconcile pass's result.
+    fn replace_all(&self, items: Vec<ProgressConflict>) {
+        let mut guard = self.0.lock().unwrap();
+        guard.clear();
+        for c in items {
+            guard.insert(c.book_id.clone(), c);
+        }
+    }
+
+    /// Snapshot the pending conflicts for the UI.
+    fn list(&self) -> Vec<ProgressConflict> {
+        self.0.lock().unwrap().values().cloned().collect()
+    }
+
+    /// Remove and return one pending conflict (on resolve).
+    fn take(&self, book_id: &str) -> Option<ProgressConflict> {
+        self.0.lock().unwrap().remove(book_id)
+    }
+}
 
 /// Max concurrent remote progress fetches in [`reconcile_progress`]. Bounded so a
 /// large library never bursts the ABS/Hardcover APIs (mirrors the metadata
@@ -461,6 +498,7 @@ pub async fn get_listening_progress(book_id: String) -> Result<Option<Progress>,
 pub async fn reconcile_progress(
     books: Vec<Book>,
     listening_state: tauri::State<'_, ListeningSyncState>,
+    conflict_state: tauri::State<'_, ConflictState>,
 ) -> Result<ReconcileReport, String> {
     let app_config = config::load_config().map_err(|e| e.to_string())?;
 
@@ -514,13 +552,19 @@ pub async fn reconcile_progress(
         store: &reading_store as &dyn ProgressStoreLike,
     });
 
-    let report = reconcile_catalog(
+    let report = reconcile_catalog_with_policy(
         &books,
         audio_lane.as_ref(),
         reading_lane.as_ref(),
         RECONCILE_CONCURRENCY,
+        app_config.conflict_resolution,
     )
     .await;
+    let (report, conflicts) = report;
+
+    // Stash any pending conflicts (manual mode only; auto mode yields none) for
+    // the UI to render and resolve. Replaces the previous pass's set.
+    conflict_state.replace_all(conflicts);
 
     // Seed the outward listening throttle for every ABS audiobook at its current
     // stored position, so a reconciled pull-down isn't bounced straight back to
@@ -537,6 +581,56 @@ pub async fn reconcile_progress(
     }
 
     Ok(report)
+}
+
+/// List the progress conflicts awaiting manual resolution (see
+/// [`ConflictResolution::Manual`]). Empty in auto mode or when the last
+/// reconcile pass found no genuine conflicts.
+#[tauri::command]
+pub fn list_progress_conflicts(
+    conflict_state: tauri::State<'_, ConflictState>,
+) -> Vec<ProgressConflict> {
+    conflict_state.list()
+}
+
+/// Resolve one pending progress conflict by writing the chosen [`Progress`] into
+/// the correct local store lane, seeding the outward-sync throttle so the
+/// resolved value isn't spuriously pushed back out, and clearing it from the
+/// pending set.
+///
+/// Returns `true` if a conflict was resolved, `false` if the id was unknown
+/// (already resolved or never pending). Failure-isolated: a store write error
+/// surfaces as `Err` but never affects other conflicts or library load.
+#[tauri::command]
+pub fn resolve_progress_conflict(
+    book_id: String,
+    choice: ConflictChoice,
+    conflict_state: tauri::State<'_, ConflictState>,
+    listening_state: tauri::State<'_, ListeningSyncState>,
+) -> Result<bool, String> {
+    let Some(conflict) = conflict_state.take(&book_id) else {
+        return Ok(false);
+    };
+
+    let chosen: Progress = conflict.resolved(choice);
+
+    match conflict.lane {
+        ConflictLane::Listening => {
+            let store = ListeningStore::default_store();
+            store.save(&book_id, chosen.clone()).map_err(|e| e.to_string())?;
+            // Anti-oscillation: seed the outward throttle at the resolved value
+            // so it isn't immediately re-pushed to ABS.
+            if let Some(pos) = chosen.position_seconds {
+                listening_state.note_synced_position(&book_id, pos, chosen.finished);
+            }
+        }
+        ConflictLane::Reading => {
+            let store = ReadingStore::default_store();
+            store.save(&book_id, chosen).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(true)
 }
 
 
