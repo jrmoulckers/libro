@@ -26,6 +26,20 @@
   import { importEpubFiles, LOCAL_PROVIDER_ID, type ImportableFile } from './lib/local/import';
   import { isLocalCoverUrl, localCoverObjectUrl } from './lib/local/store';
   import { positionToProgress } from './lib/reader/locator';
+  import {
+    applyTheme,
+    nextTheme,
+    persistTheme,
+    prefersDark,
+    readStoredTheme,
+    resolveInitialTheme,
+    type Theme,
+  } from './lib/pwa/theme';
+  import {
+    isStandalone,
+    shouldShowInstall,
+    type BeforeInstallPromptEvent,
+  } from './lib/pwa/install';
 
   type LoadState = 'loading' | 'loaded' | 'error';
   type ReaderComponent = typeof import('./lib/reader/Reader.svelte').default;
@@ -77,6 +91,43 @@
 
   let fileInput: HTMLInputElement;
   let objectUrls: string[] = [];
+
+  // --- PWA: theme toggle (dataset.theme only — values arrive with @jrm/tokens) ---
+  let theme = $state<Theme>(resolveInitialTheme(prefersDark(), readStoredTheme()));
+  function toggleTheme(): void {
+    theme = nextTheme(theme);
+    applyTheme(theme);
+    persistTheme(theme);
+  }
+
+  // --- PWA: install affordance (feature-detected; iOS Safari has no prompt) ---
+  let deferredPrompt = $state<BeforeInstallPromptEvent | null>(null);
+  let installed = $state(false);
+  const standalone = isStandalone();
+  const installVisible = $derived(
+    shouldShowInstall({ promptAvailable: deferredPrompt !== null, installed, standalone }),
+  );
+
+  function onBeforeInstallPrompt(event: Event): void {
+    // Suppress the mini-infobar; we show our own accessible affordance instead.
+    event.preventDefault();
+    deferredPrompt = event as BeforeInstallPromptEvent;
+  }
+  function onAppInstalled(): void {
+    installed = true;
+    deferredPrompt = null;
+  }
+  async function install(): Promise<void> {
+    const prompt = deferredPrompt;
+    if (!prompt) return;
+    deferredPrompt = null; // a prompt can only be used once
+    try {
+      await prompt.prompt();
+      await prompt.userChoice;
+    } catch {
+      // The user dismissed the prompt or it was already consumed — nothing to do.
+    }
+  }
 
   // Group the sorted catalog, dropping media types with no items.
   const sections = $derived(
@@ -326,6 +377,8 @@
   }
 
   onMount(async () => {
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onAppInstalled);
     try {
       await reload();
       loadState = 'loaded';
@@ -339,13 +392,25 @@
   });
 
   onDestroy(() => {
+    window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.removeEventListener('appinstalled', onAppInstalled);
     for (const url of objectUrls) URL.revokeObjectURL(url);
   });
 </script>
 
 <main>
   <header>
-    <h1>Libro</h1>
+    <div class="masthead">
+      <h1>Libro</h1>
+      <div class="shell-controls">
+        <button type="button" class="control" onclick={toggleTheme} aria-pressed={theme === 'dark'}>
+          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        </button>
+        {#if installVisible}
+          <button type="button" class="control install" onclick={install}> Install app </button>
+        {/if}
+      </div>
+    </div>
     <p class="tagline">
       A cross-platform, pure-client media hub for books, audiobooks, and your personal library.
     </p>
@@ -499,6 +564,22 @@
     margin: 0 auto;
     max-width: 60rem;
     padding: 2rem 1rem;
+  }
+
+  /* Title + controls on one baseline row; the install button appearing changes
+     row width, not height, so it does not shift the content below (no CLS). */
+  .masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .shell-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .tagline {
