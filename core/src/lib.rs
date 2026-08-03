@@ -12,6 +12,7 @@
 //!   ([`metadata::MetadataProvider`]); distinct from library `Provider`s.
 //! * [`config`] — local, encrypted-at-rest configuration (boundary only).
 //! * [`kindle`] — Send-to-Kindle via Amazon's official email flow.
+//! * [`downloads`] — download-to-disk store for DRM-free acquisitions.
 //! * [`sync`] — reading-progress sync to tracking services (e.g. Hardcover).
 //! * [`listening_sync`] — listening-progress sync-back to Audiobookshelf.
 //! * [`progress_sync`] — inbound (pull-down) progress sync + reconciliation.
@@ -22,6 +23,7 @@
 //! runtime that the desktop/mobile shell links against.
 
 pub mod config;
+pub mod downloads;
 pub mod kindle;
 pub mod listening_sync;
 pub mod metadata;

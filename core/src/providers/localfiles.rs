@@ -193,6 +193,29 @@ fn is_epub(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Content-based EPUB sniff: does this byte buffer look like a real EPUB?
+///
+/// Unlike [`is_epub`] (which only checks the file *extension*), this opens the
+/// bytes as a ZIP and verifies the presence of `META-INF/container.xml` — the
+/// mandatory EPUB entry. It is used to validate **downloaded** bytes before we
+/// persist them, so an HTML error page or a truncated download is rejected as
+/// [`crate::downloads::DownloadOutcome::NotAnEpub`] instead of landing on disk.
+pub fn is_epub_bytes(bytes: &[u8]) -> bool {
+    let cursor = std::io::Cursor::new(bytes);
+    match zip::ZipArchive::new(cursor) {
+        Ok(mut zip) => zip.by_name("META-INF/container.xml").is_ok(),
+        Err(_) => false,
+    }
+}
+
+/// Public wrapper over the stable path-hash id used by [`read_book_file`] and
+/// [`extract_cover`], canonicalizing `path` first. The download store records
+/// this id so a downloaded EPUB resolves through the exact same reader/cover
+/// path as any other locally-scanned book.
+pub fn book_id_for_path(path: &Path) -> String {
+    book_id_for(&canonical(path))
+}
+
 fn canonical(path: &Path) -> PathBuf {
     fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
