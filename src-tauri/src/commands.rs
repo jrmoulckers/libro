@@ -18,7 +18,7 @@ use libro_core::providers::localfiles::{
 };
 use libro_core::providers::opds::{OpdsConfig, OpdsProvider};
 use libro_core::providers::Provider;
-use libro_core::plugins::{load_plugins, PluginProvider};
+use libro_core::plugins::{load_plugins, PluginKind, PluginProvider, WasmPluginProvider};
 use libro_core::sync::{sync_reading_progress, ReadingSyncState, SyncOutcome};
 use libro_core::listening_sync::{
     sync_listening_progress, ListeningSyncOutcome, ListeningSyncState,
@@ -116,10 +116,25 @@ fn build_providers(config: &AppConfig) -> Vec<Box<dyn Provider>> {
             other => {
                 // Not a native connector — is it an installed plugin?
                 if let Some(loaded) = plugins.get(other) {
-                    providers.push(Box::new(PluginProvider::new(
-                        loaded.manifest.clone(),
-                        settings,
-                    )));
+                    match loaded.manifest.kind() {
+                        Ok(PluginKind::Declarative) => {
+                            providers.push(Box::new(PluginProvider::new(
+                                loaded.manifest.clone(),
+                                settings,
+                            )));
+                        }
+                        Ok(PluginKind::Wasm) => match &loaded.wasm_bytes {
+                            Some(bytes) => providers.push(Box::new(WasmPluginProvider::new(
+                                loaded.manifest.clone(),
+                                bytes.clone(),
+                                settings,
+                            ))),
+                            None => eprintln!(
+                                "libro: wasm plugin '{other}' has no loaded module bytes, skipping"
+                            ),
+                        },
+                        Err(e) => eprintln!("libro: plugin '{other}' has an invalid kind: {e}"),
+                    }
                 } else {
                     // Unknown connector type; ignore for now. A later phase may
                     // surface this to the user as a config warning.

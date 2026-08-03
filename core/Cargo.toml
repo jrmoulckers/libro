@@ -18,10 +18,16 @@ serde_json = "1"
 async-trait = "0.1"
 bitflags = { version = "2", features = ["serde"] }
 thiserror = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 roxmltree = "0.20"
+# WASM plugin runtime (plugin kind v2). `wasmi` is a pure-Rust Wasm INTERPRETER
+# — no JIT — so it runs on iOS (which forbids JIT) as well as Android/desktop,
+# and builds under x86_64-pc-windows-gnu (no cranelift/LLVM/MSVC). Chosen over
+# wasmtime (Cranelift JIT; iOS-forbidden and ~300 crates) and wasm3 (C, needs a
+# C toolchain). See core/src/plugins/wasm.rs.
+wasmi = "1"
 # Send-to-Kindle SMTP transport. rustls (NOT native-tls) to stay consistent
 # with our reqwest setup and to build under the x86_64-pc-windows-gnu toolchain
 # (no OpenSSL/MSVC). `builder` gives the MIME multipart message API.
@@ -33,3 +39,7 @@ lettre = { version = "0.11", default-features = false, features = ["smtp-transpo
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # Temp dirs for the Local Files connector tests (generate throwaway EPUBs).
 tempfile = "3"
+# Compile small hand-written WAT modules to Wasm in the WASM-runtime tests
+# (fuel-exhaustion loop, malformed guest output, ABI-version mismatch) so those
+# edge cases need no wasm toolchain. Pure Rust, builds under windows-gnu.
+wat = "1"

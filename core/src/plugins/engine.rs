@@ -85,8 +85,11 @@ impl Provider for PluginProvider {
     }
 
     async fn list_library(&self) -> ProviderResult<Vec<Book>> {
+        let catalog = self.manifest.catalog.as_ref().ok_or_else(|| {
+            ProviderError::Config("plugin manifest has no catalog spec".into())
+        })?;
         // v1 only serves GET catalogs.
-        match self.manifest.catalog.request.method {
+        match catalog.request.method {
             HttpMethod::Get => {}
         }
 
@@ -148,7 +151,11 @@ fn interpolate(template: &str, config: &Value) -> ProviderResult<String> {
 /// Build the final request: interpolate url/query/headers, append the query
 /// string, then enforce the domain allowlist on the resolved URL.
 pub fn resolve_request(manifest: &PluginManifest, config: &Value) -> ProviderResult<ResolvedRequest> {
-    let spec = &manifest.catalog.request;
+    let catalog = manifest
+        .catalog
+        .as_ref()
+        .ok_or_else(|| ProviderError::Config("plugin manifest has no catalog spec".into()))?;
+    let spec = &catalog.request;
     let mut url = interpolate(&spec.url, config)?;
 
     if !spec.query.is_empty() {
@@ -232,7 +239,10 @@ fn url_encode(s: &str) -> String {
 /// Robust: a non-array items location or a non-object/id-less/title-less item is
 /// skipped (logged), never fatal — one bad record can't sink the whole catalog.
 pub fn map_response(manifest: &PluginManifest, json: &Value) -> Vec<Book> {
-    let catalog = &manifest.catalog;
+    let catalog = match manifest.catalog.as_ref() {
+        Some(c) => c,
+        None => return Vec::new(),
+    };
     let items = if catalog.items_path.trim().is_empty() {
         json.as_array().cloned().unwrap_or_default()
     } else {

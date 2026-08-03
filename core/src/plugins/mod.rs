@@ -4,29 +4,34 @@
 //! dropping a small, declarative manifest into their plugins directory — no
 //! recompiling Libro, no shipping native code.
 //!
-//! # Why declarative manifests (and not WASM) for v1
+//! # Two plugin kinds: declarative manifests (v1) + WASM modules (v2)
 //!
-//! Three mechanisms were considered: (a) a WASM runtime (Extism/wasmtime),
-//! (b) this declarative-manifest engine, (c) subprocess/JSON-RPC. The choice is
-//! driven by Libro's hard constraints:
+//! Three mechanisms were considered: (a) a WASM runtime, (b) a declarative
+//! manifest engine, (c) subprocess/JSON-RPC. Libro ships **two** of them behind
+//! the same boundary — a manifest is *either* a declarative catalog spec or a
+//! sandboxed WASM module — driven by Libro's hard constraints:
 //!
-//! * **Mobile is a first-class target.** iOS forbids JIT compilation, and the
-//!   default Extism/wasmtime backend is a Cranelift JIT — a non-starter on iOS.
-//!   Subprocess spawning is likewise unavailable in the iOS/Android sandboxes.
+//! * **Mobile is a first-class target.** iOS forbids JIT compilation, so a
+//!   JIT-backed WASM runtime (wasmtime/Extism's default Cranelift backend) is a
+//!   non-starter. The v2 WASM kind therefore uses [`wasmi`], a pure-Rust Wasm
+//!   **interpreter** (no code generation → iOS-safe), not a JIT. Subprocess
+//!   spawning stays unavailable in the iOS/Android sandboxes, so (c) is out.
 //! * **Sandboxing.** A plugin must only reach *explicitly declared* domains,
 //!   with no ambient filesystem or network. A declarative manifest is inert data
-//!   — there is no arbitrary code to escape the sandbox — so the host trivially
-//!   mediates every network call. This is a *tighter* boundary than sandboxing
-//!   arbitrary WASM.
-//! * **Build/footprint.** Extism pulls ~300 transitive crates (wasmtime +
-//!   cranelift), inflating the already-constrained `x86_64-pc-windows-gnu`
-//!   cdylib link and the security-audit surface, for no benefit to the common
-//!   case (mapping a REST/JSON catalog into [`Book`]s).
+//!   — no code to escape the sandbox. A WASM module *is* code, so the host runs
+//!   it with **no ambient capabilities** and mediates every network call through
+//!   host imports gated by the same `allowed_domains` allowlist, plus fuel and
+//!   memory limits so a runaway module can't hang or exhaust the host.
+//! * **Right tool per job.** The **declarative kind (v1)** handles the common
+//!   case — mapping a REST/JSON catalog into [`Book`]s — with zero code and a
+//!   tiny footprint. The **WASM kind (v2)** covers connectors whose logic
+//!   exceeds declarative field-mapping (pagination shapes, response stitching,
+//!   computed fields), in real code, still fully sandboxed.
 //!
-//! So **v1 ships this declarative engine**: a pure-Rust interpreter over a JSON
-//! manifest that describes a REST endpoint and a field→[`Book`] mapping. A WASM
-//! runtime (for plugins that need real logic beyond declarative mapping) is a
-//! documented future step — see `ARCHITECTURE.md`.
+//! Both kinds parse to the same [`PluginManifest`], validate through the same
+//! rules, present as the same [`Provider`], and are capability-scoped
+//! identically. See [`engine`] for the declarative engine, [`wasm`] for the
+//! WASM runtime + ABI, and `ARCHITECTURE.md` for the full model.
 //!
 //! # Security boundary
 //!
@@ -34,11 +39,14 @@
 //! the user's own services and official/public APIs, network restricted to the
 //! manifest's `allowed_domains`, and **no** bundled scrapers/indexers or DRM
 //! circumvention. The loader rejects malformed or over-broad manifests; the
-//! [`engine`] denies any request whose host is not on the allowlist.
+//! [`engine`] and the [`wasm`] host both deny any request whose host is not on
+//! the allowlist.
 //!
 //! [`Book`]: crate::models::Book
+//! [`Provider`]: crate::providers::Provider
 
 pub mod engine;
+pub mod wasm;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -50,6 +58,7 @@ use crate::models::MediaType;
 use crate::providers::ProviderCapabilities;
 
 pub use engine::PluginProvider;
+pub use wasm::WasmPluginProvider;
 
 /// The plugin API version this build implements.
 ///
@@ -200,7 +209,34 @@ fn default_media_type() -> MediaType {
     MediaType::Ebook
 }
 
-/// A plugin manifest — the complete, declarative description of a connector.
+/// The WASM-kind spec: a sandboxed `.wasm` module shipped beside the manifest,
+/// implementing the catalog contract in code. See [`wasm`] for the ABI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WasmSpec {
+    /// Path to the `.wasm` module, **relative to the manifest file**.
+    pub path: String,
+    /// The guest ABI version. If declared, it must equal
+    /// [`wasm::WASM_ABI_VERSION`]; the guest also exports it for a runtime check.
+    #[serde(default)]
+    pub abi_version: Option<u32>,
+    /// Default media type stamped on produced books (the guest may override it
+    /// per book via a `media_type` field).
+    #[serde(default = "default_media_type")]
+    pub media_type: MediaType,
+}
+
+/// Which of the two plugin kinds a manifest is. Exactly one kind is present.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginKind {
+    /// Declarative JSON catalog spec (v1) — interpreted by [`engine`].
+    Declarative,
+    /// Sandboxed WASM module (v2) — run by [`wasm`].
+    Wasm,
+}
+
+/// A plugin manifest — the complete description of a connector. A manifest is
+/// **exactly one kind**: it carries either a `catalog` (declarative) or a `wasm`
+/// spec, never both and never neither (see [`PluginManifest::kind`]).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
     /// Stable machine id, used as the provider type + `Book::source_provider_id`.
@@ -218,7 +254,12 @@ pub struct PluginManifest {
     pub permissions: PluginPermissions,
     #[serde(default)]
     pub config_schema: Vec<ConfigField>,
-    pub catalog: CatalogSpec,
+    /// The declarative catalog spec (kind = [`PluginKind::Declarative`]).
+    #[serde(default)]
+    pub catalog: Option<CatalogSpec>,
+    /// The WASM module spec (kind = [`PluginKind::Wasm`]).
+    #[serde(default)]
+    pub wasm: Option<WasmSpec>,
 }
 
 impl PluginManifest {
@@ -234,14 +275,32 @@ impl PluginManifest {
             .fold(ProviderCapabilities::empty(), |acc, c| acc | c.bit())
     }
 
+    /// Determine the plugin kind, enforcing that **exactly one** of `catalog` /
+    /// `wasm` is present.
+    pub fn kind(&self) -> Result<PluginKind, PluginError> {
+        match (self.catalog.is_some(), self.wasm.is_some()) {
+            (true, false) => Ok(PluginKind::Declarative),
+            (false, true) => Ok(PluginKind::Wasm),
+            (true, true) => Err(PluginError::Invalid(
+                "manifest declares both 'catalog' and 'wasm' (exactly one kind is required)".into(),
+            )),
+            (false, false) => Err(PluginError::Invalid(
+                "manifest declares neither 'catalog' nor 'wasm' (exactly one kind is required)"
+                    .into(),
+            )),
+        }
+    }
+
     /// Validate the manifest, rejecting malformed or over-broad definitions.
     ///
     /// Enforced invariants:
     /// * `plugin_api_version` matches this build,
     /// * `id`/`name` are present and `id` has no whitespace,
-    /// * the plugin requests `catalog` (the only capability v1's engine serves),
+    /// * the plugin requests `catalog` (the capability both kinds serve),
     /// * at least one `allowed_domains` entry, none wildcard/over-broad,
-    /// * a non-empty request URL and `id`/`title` field mappings.
+    /// * **exactly one** plugin kind, valid for that kind:
+    ///   * declarative: a non-empty request URL and `id`/`title` field mappings,
+    ///   * wasm: a non-empty module path and (if declared) a matching ABI version.
     pub fn validate(&self) -> Result<(), PluginError> {
         if self.plugin_api_version != PLUGIN_API_VERSION {
             return Err(PluginError::Invalid(format!(
@@ -260,7 +319,7 @@ impl PluginManifest {
         }
         if !self.capabilities.contains(&PluginCapability::Catalog) {
             return Err(PluginError::Invalid(
-                "plugin must request the 'catalog' capability (the only one v1 serves)".into(),
+                "plugin must request the 'catalog' capability".into(),
             ));
         }
         if self.permissions.allowed_domains.is_empty() {
@@ -271,13 +330,32 @@ impl PluginManifest {
         for d in &self.permissions.allowed_domains {
             validate_domain(d)?;
         }
-        if self.catalog.request.url.trim().is_empty() {
-            return Err(PluginError::Invalid("catalog.request.url is empty".into()));
-        }
-        if self.catalog.fields.id.trim().is_empty() || self.catalog.fields.title.trim().is_empty() {
-            return Err(PluginError::Invalid(
-                "catalog.fields.id and .title are required".into(),
-            ));
+        match self.kind()? {
+            PluginKind::Declarative => {
+                let catalog = self.catalog.as_ref().expect("kind() guarantees Some");
+                if catalog.request.url.trim().is_empty() {
+                    return Err(PluginError::Invalid("catalog.request.url is empty".into()));
+                }
+                if catalog.fields.id.trim().is_empty() || catalog.fields.title.trim().is_empty() {
+                    return Err(PluginError::Invalid(
+                        "catalog.fields.id and .title are required".into(),
+                    ));
+                }
+            }
+            PluginKind::Wasm => {
+                let spec = self.wasm.as_ref().expect("kind() guarantees Some");
+                if spec.path.trim().is_empty() {
+                    return Err(PluginError::Invalid("wasm.path is empty".into()));
+                }
+                if let Some(v) = spec.abi_version {
+                    if v != wasm::WASM_ABI_VERSION {
+                        return Err(PluginError::Invalid(format!(
+                            "wasm.abi_version {v} is unsupported (this build implements {})",
+                            wasm::WASM_ABI_VERSION
+                        )));
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -314,6 +392,9 @@ pub struct LoadedPlugin {
     pub manifest: PluginManifest,
     /// The manifest file this plugin was loaded from.
     pub source_path: PathBuf,
+    /// For a WASM-kind plugin, the module bytes read from the `.wasm` file beside
+    /// the manifest (size-checked at load). `None` for a declarative plugin.
+    pub wasm_bytes: Option<Vec<u8>>,
 }
 
 /// The host-side registry of installed plugins.
@@ -380,14 +461,37 @@ pub fn load_plugins(dir: &Path) -> PluginRegistry {
     PluginRegistry::from_plugins(plugins)
 }
 
-/// Load, parse, and validate a single manifest file.
+/// Load, parse, and validate a single manifest file. For a WASM-kind plugin,
+/// also reads and size-checks the `.wasm` module beside the manifest.
 pub fn load_one(path: &Path) -> Result<LoadedPlugin, PluginError> {
     let bytes = fs::read(path).map_err(|e| PluginError::Io(e.to_string()))?;
     let manifest = PluginManifest::from_json(&bytes)?;
     manifest.validate()?;
+
+    let wasm_bytes = match manifest.kind()? {
+        PluginKind::Declarative => None,
+        PluginKind::Wasm => {
+            let spec = manifest.wasm.as_ref().expect("kind() guarantees Some");
+            let wasm_path = path.parent().unwrap_or_else(|| Path::new(".")).join(&spec.path);
+            let wb = fs::read(&wasm_path).map_err(|e| {
+                PluginError::Io(format!("reading wasm module '{}': {e}", wasm_path.display()))
+            })?;
+            if wb.len() > wasm::MAX_WASM_BYTES {
+                return Err(PluginError::Invalid(format!(
+                    "wasm module '{}' is {} bytes, over the {}-byte limit",
+                    wasm_path.display(),
+                    wb.len(),
+                    wasm::MAX_WASM_BYTES
+                )));
+            }
+            Some(wb)
+        }
+    };
+
     Ok(LoadedPlugin {
         manifest,
         source_path: path.to_path_buf(),
+        wasm_bytes,
     })
 }
 
@@ -496,5 +600,86 @@ mod tests {
     fn load_plugins_on_missing_dir_is_empty_not_error() {
         let reg = load_plugins(Path::new("C:/definitely/not/here/libro-plugins"));
         assert!(reg.is_empty());
+    }
+
+    // ---- WASM-kind manifests -------------------------------------------------
+
+    fn wasm_manifest_json() -> &'static str {
+        r#"{
+          "id": "example-wasm-catalog",
+          "name": "Example WASM Catalog",
+          "plugin_api_version": 1,
+          "capabilities": ["catalog"],
+          "permissions": { "allowed_domains": ["api.wasm-books.test"] },
+          "wasm": { "path": "mod.wasm", "abi_version": 1, "media_type": "Ebook" }
+        }"#
+    }
+
+    #[test]
+    fn a_wasm_manifest_is_kind_wasm_and_validates() {
+        let m = PluginManifest::from_json(wasm_manifest_json().as_bytes()).unwrap();
+        m.validate().unwrap();
+        assert_eq!(m.kind().unwrap(), PluginKind::Wasm);
+    }
+
+    #[test]
+    fn rejects_a_manifest_declaring_both_kinds() {
+        // Splice a `catalog` alongside the `wasm` block.
+        let json = wasm_manifest_json().replace(
+            "\"wasm\":",
+            "\"catalog\": { \"request\": { \"url\": \"{base_url}/x\" }, \"fields\": { \"id\": \"id\", \"title\": \"t\" } }, \"wasm\":",
+        );
+        let m = PluginManifest::from_json(json.as_bytes()).unwrap();
+        assert!(m.kind().is_err());
+        assert!(matches!(m.validate(), Err(PluginError::Invalid(_))));
+    }
+
+    #[test]
+    fn rejects_a_manifest_declaring_neither_kind() {
+        let json = r#"{
+          "id": "empty", "name": "Empty", "plugin_api_version": 1,
+          "capabilities": ["catalog"],
+          "permissions": { "allowed_domains": ["api.example.test"] }
+        }"#;
+        let m = PluginManifest::from_json(json.as_bytes()).unwrap();
+        assert!(m.kind().is_err());
+        assert!(matches!(m.validate(), Err(PluginError::Invalid(_))));
+    }
+
+    #[test]
+    fn rejects_a_wasm_manifest_with_a_mismatched_abi_version() {
+        let json = wasm_manifest_json().replace("\"abi_version\": 1", "\"abi_version\": 99");
+        let m = PluginManifest::from_json(json.as_bytes()).unwrap();
+        assert!(matches!(m.validate(), Err(PluginError::Invalid(_))));
+    }
+
+    #[test]
+    fn load_one_rejects_a_wasm_manifest_whose_module_file_is_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        // Manifest points at mod.wasm, which does not exist beside it.
+        fs::write(dir.path().join("p.json"), wasm_manifest_json()).unwrap();
+        let err = load_one(&dir.path().join("p.json")).unwrap_err();
+        assert!(matches!(err, PluginError::Io(_)), "got {err:?}");
+    }
+
+    #[test]
+    fn load_one_reads_wasm_bytes_beside_the_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("p.json"), wasm_manifest_json()).unwrap();
+        fs::write(dir.path().join("mod.wasm"), b"\0asm\x01\0\0\0").unwrap();
+        let loaded = load_one(&dir.path().join("p.json")).unwrap();
+        assert_eq!(loaded.manifest.kind().unwrap(), PluginKind::Wasm);
+        assert_eq!(loaded.wasm_bytes.as_deref(), Some(&b"\0asm\x01\0\0\0"[..]));
+    }
+
+    #[test]
+    fn shipped_example_wasm_manifest_loads_with_its_module() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("plugins")
+            .join("example-wasm-catalog.json");
+        let loaded = load_one(&path).expect("example wasm manifest loads + validates");
+        assert_eq!(loaded.manifest.kind().unwrap(), PluginKind::Wasm);
+        assert!(loaded.wasm_bytes.map(|b| b.len()).unwrap_or(0) > 0);
     }
 }
