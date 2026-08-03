@@ -1,0 +1,24 @@
+{
+  "id": "example-rest-catalog",
+  "displayName": "Example REST Catalog",
+  "kind": "declarative",
+  "version": "1.0.0",
+  "author": "Libro contributors",
+  "baseUrl": "https://api.example-books.test",
+  "allowedDomains": ["api.example-books.test"],
+  "capabilities": ["catalog"],
+  "catalog": {
+    "endpoint": "/api/books",
+    "itemsPath": "results",
+    "mediaType": "ebook",
+    "fields": {
+      "id": "id",
+      "title": "title",
+      "authors": "authors",
+      "series": "series.name",
+      "cover": "cover",
+      "description": "summary",
+      "identifiers": "identifiers"
+    }
+  }
+}
