@@ -93,6 +93,42 @@ export function registryWithAbs(configs: readonly AbsConfig[]): ProviderRegistry
   return registry;
 }
 
+/**
+ * Config-driven registration of **user-installed plugins** (third-party catalog
+ * connectors) on top of an existing registry. Kept separate from
+ * {@link defaultRegistry} so nothing plugin-related is baked into the default,
+ * secret-free unit-test baseline.
+ *
+ * The whole plugin SDK (`plugins/`) — the declarative engine, the WASM runtime,
+ * and the loader — is **lazily imported** here so it stays OUT of the main entry
+ * chunk; it only arrives when a user actually has plugins installed. A
+ * settings/UI layer collects one {@link import('./plugins/load').PluginEntry} per
+ * installed plugin from on-device storage (the manifest JSON, plus the `.wasm`
+ * bytes and config a WASM plugin needs) and calls this:
+ *
+ * ```ts
+ * const { registry, errors } = await registryWithPlugins(base, entries);
+ * const { books } = await loadLibrary(registry);
+ * ```
+ *
+ * Failure-isolated: an invalid manifest surfaces in `errors` and is skipped, and
+ * every plugin request is sandboxed to its manifest's `allowedDomains`. Like the
+ * OPDS/ABS connectors, a declarative plugin's fetch only works against a
+ * CORS-open server (there is no app-owned proxy). No secrets are baked in.
+ */
+export async function registryWithPlugins(
+  base: ProviderRegistry,
+  entries: readonly import('./plugins/load').PluginEntry[],
+  deps: import('./plugins/load').LoadPluginsDeps = {},
+): Promise<{ registry: ProviderRegistry; errors: import('./plugins/load').PluginLoadError[] }> {
+  const { loadPlugins } = await import('./plugins/load');
+  const { providers, errors } = loadPlugins(entries, deps);
+  for (const provider of providers) {
+    base.register(provider);
+  }
+  return { registry: base, errors };
+}
+
 /** The best on-device index for the current environment. */
 export function defaultIndex(): LibraryIndex {
   return idbAvailable() ? new IdbLibraryIndex() : new InMemoryLibraryIndex();
