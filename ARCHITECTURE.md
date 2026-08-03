@@ -371,6 +371,7 @@ The Rust side is a two-crate Cargo workspace:
                         │     ├─ LocalFilesProvider (EPUB on disk)       │
                         │     ├─ OpdsProvider (real OPDS 1.2 Atom)       │
                         │     ├─ LibbyProvider (deep-link-only)          │
+                        │     ├─ DownloadsProvider (downloaded EPUBs)    │
                         │     ├─ PluginProvider (declarative manifests)  │
                         │     └─ WasmPluginProvider (wasmi sandbox)      │
                         │          │ list_library()                     │
@@ -393,7 +394,10 @@ The Rust side is a two-crate Cargo workspace:
    downloads). *(Started: **Send-to-Kindle** delivers the user's own DRM-free
    EPUBs to their `@kindle.com` address via Amazon's official personal-documents
    email flow — `core/src/kindle.rs`, the `send_to_kindle` command; see
-   "Send-to-Kindle" below.)*
+   "Send-to-Kindle" below. Also shipped: a **download-to-disk store**
+   (`core/src/downloads.rs`, the `download_book` command) that saves DRM-free
+   OPDS acquisitions locally — persistent, in the library, readable and
+   Send-to-Kindle-able offline; see "Download-to-disk store".)*
 3. **Plugin / connector system** — harden the `Provider` abstraction, dynamic
    registration, per-connector config UI. *(Shipped: a **plugin SDK**
    (`core/src/plugins/`) lets a user add a new connector — no recompiling Libro.
@@ -553,8 +557,60 @@ circumvention.
 sender; the message building, validators, size guard, and orchestration are
 unit-tested with a fake sender (no network). **Deferred (not built):** the
 official Send to Kindle desktop/app API, MOBI/AZW conversion (unnecessary now
-that EPUB is native), in-app approved-sender guidance, and sending non-local
-(OPDS-downloaded) books once a download-to-disk store exists.
+that EPUB is native), and in-app approved-sender guidance. Sending
+**downloaded** (OPDS-acquired) books already works — a downloaded EPUB is a
+local file, so Send-to-Kindle resolves it identically (see *Download-to-disk*).
+
+## Download-to-disk store
+
+Libro can **download** a DRM-free book from a `DOWNLOAD`-capable connector
+(today: an OPDS acquisition link) to local disk so it (1) persists across
+restarts, (2) shows up in the library, (3) is readable in the in-app reader, and
+(4) is Send-to-Kindle-able — all offline.
+
+*Design principle — reuse the Local Files plumbing.* Downloads land as ordinary
+`.epub` files in a **managed downloads directory** (`<data-dir>/downloads`).
+Because the reader (`get_book_file`), covers (`get_local_cover`) and
+Send-to-Kindle (`send_to_kindle`) already operate on locally-scanned EPUBs by
+their FNV-1a **path-hash id**, a downloaded book works with **zero
+special-casing**: the store records the exact `book_id` that
+`localfiles::book_id_for_path` assigns the persisted file, and the three
+id-resolving commands search a shared config set = every configured Local Files
+provider **plus** the downloads directory. A `DownloadsProvider` (capability
+`CATALOG`) surfaces the directory into the catalog by delegating to a
+`LocalFilesProvider` pointed at it, so downloaded books carry
+`source_provider_id = "localfiles"` (reader/kindle-ready) while being labelled
+"Downloads" in the aggregation.
+
+*Store (`core/src/downloads.rs`, mirrors the reading/listening stores):*
+- **`DownloadStore`** owns the downloads dir and a JSON **manifest**
+  (`manifest.json`) of `{ book_id, title, source_provider_id, acquisition_url,
+  media_type, isbn?, downloaded_at, size, filename }`. Files and the manifest are
+  written **atomically** (temp + rename); a missing/corrupt manifest degrades to
+  empty so a bad write never bricks the library.
+- **Dedup** is keyed on the acquisition URL: a book already downloaded returns
+  `AlreadyDownloaded` **before** any fetch (idempotent, file written once).
+- **Fetch seam** (`BookFetcher` trait) — a real `ReqwestFetcher` (plain GET) and
+  an auth-aware `OpdsFetcher` (reuses `OpdsProvider::download_url`, so private
+  feeds' credentials apply); tests inject a fake fetcher, so the persist / dedup
+  / validate orchestration (`download_book_to_store`) runs with **no network**.
+- **Validation:** fetched bytes are content-sniffed as a real EPUB
+  (`localfiles::is_epub_bytes` — a ZIP with `META-INF/container.xml`) so an HTML
+  error page never lands on disk as a book; a per-file **size cap**
+  (`MAX_DOWNLOAD_BYTES`) is enforced before the write.
+- **Typed outcome:** like Send-to-Kindle, downloading is a **user action**, so
+  `download_book(book)` returns a `DownloadOutcome` (`Downloaded` /
+  `AlreadyDownloaded` / `NotDownloadable` / `TooLarge` / `NotAnEpub` /
+  `Failed`) the UI surfaces. `list_downloads()` backs the UI's "Downloaded"
+  badge and the offline library.
+
+*Legal posture (unchanged):* only the user's own DRM-free acquisitions from
+configured providers; no scraping, no DRM, no bundled sources.
+
+**Deferred (not built):** resumable/chunked downloads + a progress bar; non-EPUB
+(PDF/audiobook) downloads; a download queue/manager UI; and eviction/quota
+management of the downloads directory.
+
 
 ## Provider landscape — what's possible
 
@@ -589,7 +645,8 @@ Realistic connector targets, by tier:
   acquisition link/type for `DOWNLOAD`). Supports HTTP Basic auth (Calibre-Web's
   default) and unauthenticated public feeds. Live-verified against Project
   Gutenberg; Calibre-Web-specific verification pending the user's own instance.
-  *TODO:* OPDS 2.0 (JSON), download-to-disk + UI, richer series extraction.
+  *TODO:* OPDS 2.0 (JSON) and richer series extraction. *(Download-to-disk +
+  UI shipped — see "Download-to-disk store".)*
 
 *Official public APIs (user-supplied key):*
 - **Hardcover** — official public GraphQL API for reading status, ratings, and
