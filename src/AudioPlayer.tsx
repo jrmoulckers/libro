@@ -5,21 +5,25 @@ import {
   useRef,
   useState,
 } from "react";
-import type { AudioChapter, Book, Progress } from "./types";
+import type { AudioChapter, Book, PlaybackTrack, Progress } from "./types";
+import { locateAbsolute, toAbsolute, totalDuration } from "./audioTimeline";
 import { tryInvoke } from "./tauri";
 import "./AudioPlayer.css";
 
 /**
- * The audio the player should render: a URL an `<audio>` element can load. This
+ * The audio the player should render: the ordered list of tracks (one per source
+ * file) that make up one audiobook, laid out on a book-absolute timeline. This
  * is intentionally source-agnostic — the same component powers the bundled
- * public-domain browser demo (`/sample-audiobook.wav`) and the Audiobookshelf
- * stream URL resolved by the `get_audiobook_stream` command — so ABS and the
- * sample reuse one rendering path.
+ * public-domain browser demo (multiple `/sample-audiobook-N.wav` segments) and
+ * an Audiobookshelf manifest resolved by `get_audiobook_stream` — so ABS and the
+ * sample reuse one rendering path. A single-file book is just a one-track list.
  */
 export interface AudioPlayerProps {
-  /** Directly-playable audio URL. */
-  src: string;
-  /** Optional chapter markers for the jump-to-chapter list. */
+  /** Ordered tracks with cumulative `start_offset_seconds`. */
+  tracks: PlaybackTrack[];
+  /** Total book duration in seconds; defaults to the sum of track durations. */
+  totalDuration?: number;
+  /** Optional chapter markers (book-absolute times) for the jump-to list. */
   chapters?: AudioChapter[];
   /** Title, shown in the header. */
   title?: string;
@@ -56,21 +60,28 @@ function formatTime(seconds: number): string {
 }
 
 /**
- * In-app audiobook player (playback phase v1).
+ * In-app audiobook player (multi-track gapless playback).
  *
- * A webview HTML5-audio player: play/pause, a scrubbable seek bar, skip
- * back/forward (default 30s), a playback-speed control (0.5×–3×), a chapter list
- * with jump-to-chapter, and a current-time / duration / percent readout.
- * Keyboard: space toggles play/pause, ←/→ skip. Listening position is persisted
- * per-book (throttled) so the user resumes where they left off.
+ * A webview HTML5-audio player that treats a multi-file ABS audiobook as ONE
+ * continuous book on a **unified timeline**: play/pause, a scrubbable seek bar,
+ * skip back/forward (default 30s), a playback-speed control (0.5×–3×), a chapter
+ * list with jump-to-chapter, and a current-time / duration / percent readout —
+ * all in **book-absolute** seconds. When a track ends it auto-advances to the
+ * next (preserving speed); the next track is preloaded so the boundary gap is
+ * minimal. Seek / skip / chapter-jump all cross track boundaries. Listening
+ * position is persisted per-book (throttled) as whole-book seconds + fraction, so
+ * the user resumes where they left off.
  *
- * Deliberately NOT in v1 (native platform work — tracked as TODOs): background
- * playback, lockscreen / now-playing controls, Android Auto / CarPlay,
- * Chromecast, sleep timer, and an equalizer. Outward progress sync to
- * Audiobookshelf is also a later phase.
+ * Keyboard: space toggles play/pause, ←/→ skip, Esc closes.
+ *
+ * Deliberately NOT here (native/advanced work — tracked as TODOs): true
+ * sample-accurate WebAudio gapless (this uses preloaded `<audio>` auto-advance),
+ * variable-speed pitch correction, background playback, lockscreen / now-playing
+ * controls, Android Auto / CarPlay, Chromecast, sleep timer, and an equalizer.
  */
 export function AudioPlayer({
-  src,
+  tracks,
+  totalDuration: totalProp,
   chapters = [],
   title,
   bookId,
@@ -80,15 +91,33 @@ export function AudioPlayer({
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [trackIndex, setTrackIndex] = useState(0);
+  const [within, setWithin] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [restored, setRestored] = useState(bookId ? false : true);
 
   const lastSaveRef = useRef(0);
-  const resumeToRef = useRef<number | null>(null);
+  // Within-track offset to apply once the (newly-switched) track's metadata is
+  // ready — seeking requires the media to be loaded first.
+  const pendingWithinRef = useRef<number | null>(null);
+  // Whether to auto-resume playback after a track switch (auto-advance / seek
+  // while playing).
+  const resumePlayRef = useRef(false);
+  // Latest values mirrored into refs so event handlers stay stable.
+  const playingRef = useRef(false);
+  const speedRef = useRef(1);
 
-  // Restore any saved listening position before playback starts.
+  const total = useMemo(
+    () => (totalProp && totalProp > 0 ? totalProp : totalDuration(tracks)),
+    [totalProp, tracks],
+  );
+  const currentTrack = tracks[trackIndex];
+  const nextTrack = tracks[trackIndex + 1];
+  // The unified, book-absolute position the whole UI speaks in.
+  const absolute = toAbsolute(tracks, trackIndex, within);
+
+  // Restore any saved listening position (book-absolute) before playback starts,
+  // mapping it back to the right track + within-track offset.
   useEffect(() => {
     let cancelled = false;
     if (!bookId) return;
@@ -98,58 +127,71 @@ export function AudioPlayer({
       });
       if (cancelled) return;
       if (p?.position_seconds != null && p.position_seconds > 0) {
-        resumeToRef.current = p.position_seconds;
+        const { index, offset } = locateAbsolute(tracks, p.position_seconds);
+        setTrackIndex(index);
+        setWithin(offset);
+        pendingWithinRef.current = offset;
       }
       setRestored(true);
     })();
     return () => {
       cancelled = true;
     };
+    // Intentionally keyed only on bookId: restore runs once per book.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
   const persist = useCallback(
-    (positionSeconds: number, total: number, finished: boolean) => {
+    (absolutePos: number, finished: boolean) => {
       if (!bookId) return;
-      const fraction = total > 0 ? Math.min(1, positionSeconds / total) : 0;
+      const fraction = total > 0 ? Math.min(1, absolutePos / total) : 0;
       const progress: Progress = {
         fraction,
-        position_seconds: positionSeconds,
+        position_seconds: absolutePos,
         locator: null,
         finished: finished || fraction >= 0.999,
       };
-      // `book` lets the backend best-effort mirror the position to Audiobookshelf
-      // (opt-in; only for ABS-sourced books). See libro_core::listening_sync.
+      // `book` lets the backend best-effort mirror the whole-book position to
+      // Audiobookshelf (opt-in; only for ABS-sourced books). The number is now
+      // book-absolute, which is exactly what the ABS progress API expects.
       void tryInvoke("save_listening_progress", { bookId, progress, book });
     },
-    [bookId, book],
+    [bookId, book, total],
   );
 
-  // Throttled progress save: at most every SAVE_INTERVAL_MS during playback.
-  const handleTimeUpdate = useCallback(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    setCurrent(el.currentTime);
-    const now = Date.now();
-    if (now - lastSaveRef.current >= SAVE_INTERVAL_MS) {
-      lastSaveRef.current = now;
-      persist(el.currentTime, el.duration || duration, el.ended);
-    }
-  }, [persist, duration]);
+  // Switch the active track, remembering the within-track offset to seek to once
+  // it loads and whether to resume playing at the boundary.
+  const switchToTrack = useCallback(
+    (index: number, offset: number, autoplay: boolean) => {
+      pendingWithinRef.current = offset;
+      resumePlayRef.current = autoplay;
+      setWithin(offset);
+      setTrackIndex(index);
+    },
+    [],
+  );
 
-  const handleLoadedMetadata = useCallback(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    setDuration(el.duration || 0);
-    // Apply a restored position once we know the media is seekable.
-    if (resumeToRef.current != null) {
-      try {
-        el.currentTime = resumeToRef.current;
-      } catch {
-        /* seeking may be unavailable until further buffering — non-fatal */
+  // Seek to a book-absolute position, switching tracks if it lands in another.
+  const seekAbsolute = useCallback(
+    (absoluteTarget: number, save = false) => {
+      const clamped = Math.max(0, Math.min(absoluteTarget, total));
+      const { index, offset } = locateAbsolute(tracks, clamped);
+      if (index === trackIndex) {
+        const el = audioRef.current;
+        if (el) el.currentTime = offset;
+        setWithin(offset);
+      } else {
+        switchToTrack(index, offset, playingRef.current);
       }
-      resumeToRef.current = null;
-    }
-  }, []);
+      if (save) persist(clamped, false);
+    },
+    [tracks, total, trackIndex, switchToTrack, persist],
+  );
+
+  const skip = useCallback(
+    (delta: number) => seekAbsolute(absolute + delta),
+    [seekAbsolute, absolute],
+  );
 
   const togglePlay = useCallback(() => {
     const el = audioRef.current;
@@ -158,36 +200,74 @@ export function AudioPlayer({
     else el.pause();
   }, []);
 
-  const skip = useCallback((delta: number) => {
-    const el = audioRef.current;
-    if (!el) return;
-    const target = Math.max(0, Math.min(el.duration || 0, el.currentTime + delta));
-    el.currentTime = target;
-    setCurrent(target);
-  }, []);
-
-  const seekTo = useCallback(
-    (seconds: number, save = false) => {
-      const el = audioRef.current;
-      if (!el) return;
-      el.currentTime = seconds;
-      setCurrent(seconds);
-      if (save) persist(seconds, el.duration || duration, false);
-    },
-    [persist, duration],
-  );
-
   const changeSpeed = useCallback((rate: number) => {
     const el = audioRef.current;
     if (el) el.playbackRate = rate;
+    speedRef.current = rate;
     setSpeed(rate);
+  }, []);
+
+  // Throttled progress save: at most every SAVE_INTERVAL_MS during playback.
+  const handleTimeUpdate = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    setWithin(el.currentTime);
+    const now = Date.now();
+    if (now - lastSaveRef.current >= SAVE_INTERVAL_MS) {
+      lastSaveRef.current = now;
+      persist(toAbsolute(tracks, trackIndex, el.currentTime), el.ended);
+    }
+  }, [persist, tracks, trackIndex]);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    // Re-apply the chosen speed — a fresh track resets playbackRate to 1.
+    el.playbackRate = speedRef.current;
+    // Apply a pending within-track seek (restore or cross-boundary switch).
+    if (pendingWithinRef.current != null) {
+      try {
+        el.currentTime = pendingWithinRef.current;
+      } catch {
+        /* seeking may be unavailable until further buffering — non-fatal */
+      }
+      setWithin(pendingWithinRef.current);
+      pendingWithinRef.current = null;
+    }
+    if (resumePlayRef.current) {
+      resumePlayRef.current = false;
+      void el.play();
+    }
+  }, []);
+
+  // A track finished: auto-advance to the next (gapless-ish, preserving speed),
+  // or mark the book finished at the very end.
+  const handleEnded = useCallback(() => {
+    if (trackIndex < tracks.length - 1) {
+      switchToTrack(trackIndex + 1, 0, true);
+    } else {
+      setPlaying(false);
+      persist(total, true);
+    }
+  }, [trackIndex, tracks.length, switchToTrack, persist, total]);
+
+  // Save on pause so a position isn't lost between throttle ticks.
+  const handlePause = useCallback(() => {
+    setPlaying(false);
+    playingRef.current = false;
+    const el = audioRef.current;
+    if (el) persist(toAbsolute(tracks, trackIndex, el.currentTime), el.ended);
+  }, [persist, tracks, trackIndex]);
+
+  const handlePlay = useCallback(() => {
+    setPlaying(true);
+    playingRef.current = true;
   }, []);
 
   // Keyboard: space = play/pause, arrows = skip, Esc = close.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      // Don't hijack typing in inputs.
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
         return;
       }
@@ -206,28 +286,28 @@ export function AudioPlayer({
     return () => document.removeEventListener("keydown", onKey);
   }, [togglePlay, skip, skipSeconds, onClose]);
 
-  // Save on pause and on unmount so a position isn't lost between throttle ticks.
-  const handlePause = useCallback(() => {
-    setPlaying(false);
-    const el = audioRef.current;
-    if (el) persist(el.currentTime, el.duration || duration, el.ended);
-  }, [persist, duration]);
-
   const activeChapterIndex = useMemo(() => {
     if (chapters.length === 0) return -1;
-    return chapters.findIndex((c) => current >= c.start && current < c.end);
-  }, [chapters, current]);
+    return chapters.findIndex((c) => absolute >= c.start && absolute < c.end);
+  }, [chapters, absolute]);
 
   const jumpToChapter = useCallback(
     (chapter: AudioChapter) => {
-      seekTo(chapter.start, true);
+      seekAbsolute(chapter.start, true);
       const el = audioRef.current;
-      if (el && el.paused) void el.play();
+      const { index } = locateAbsolute(tracks, chapter.start);
+      if (index === trackIndex) {
+        // Same track: play immediately.
+        if (el && el.paused) void el.play();
+      } else {
+        // Different track: resume once the new track's metadata loads.
+        resumePlayRef.current = true;
+      }
     },
-    [seekTo],
+    [seekAbsolute, tracks, trackIndex],
   );
 
-  const percent = duration > 0 ? Math.round((current / duration) * 100) : 0;
+  const percent = total > 0 ? Math.round((absolute / total) * 100) : 0;
 
   return (
     <div className="player">
@@ -242,36 +322,48 @@ export function AudioPlayer({
       </header>
 
       <div className="player__stage">
-        {restored && (
+        {restored && currentTrack && (
           <audio
             ref={audioRef}
-            src={src}
+            src={currentTrack.url}
             preload="metadata"
             onLoadedMetadata={handleLoadedMetadata}
             onTimeUpdate={handleTimeUpdate}
-            onPlay={() => setPlaying(true)}
+            onPlay={handlePlay}
             onPause={handlePause}
-            onEnded={() => {
-              setPlaying(false);
-              const el = audioRef.current;
-              if (el) persist(el.duration || duration, el.duration || duration, true);
-            }}
+            onEnded={handleEnded}
+          />
+        )}
+        {/* Preload the upcoming track so the auto-advance boundary gap is small.
+            True sample-accurate gapless needs WebAudio (documented TODO). */}
+        {nextTrack && (
+          <audio
+            key={nextTrack.url}
+            src={nextTrack.url}
+            preload="auto"
+            style={{ display: "none" }}
           />
         )}
 
+        {tracks.length > 1 && (
+          <p className="player__track-indicator">
+            Track {trackIndex + 1} of {tracks.length}
+          </p>
+        )}
+
         <div className="player__seek">
-          <span className="player__time">{formatTime(current)}</span>
+          <span className="player__time">{formatTime(absolute)}</span>
           <input
             className="player__scrub"
             type="range"
             min={0}
-            max={Math.max(0, duration)}
+            max={Math.max(0, total)}
             step={0.1}
-            value={Math.min(current, duration || current)}
+            value={Math.min(absolute, total || absolute)}
             aria-label="Seek"
-            onChange={(e) => seekTo(Number(e.target.value))}
+            onChange={(e) => seekAbsolute(Number(e.target.value))}
           />
-          <span className="player__time">{formatTime(duration)}</span>
+          <span className="player__time">{formatTime(total)}</span>
         </div>
 
         <div className="player__controls">

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AudioChapter, AudioPlayback, Book, BookMetadata, PluginInfo, ProviderBooks } from "./types";
+import type { AudioChapter, Book, BookMetadata, PlaybackManifest, PlaybackTrack, PluginInfo, ProviderBooks } from "./types";
 import { EpubReader, type EpubSource } from "./EpubReader";
 import { AudioPlayer } from "./AudioPlayer";
 import { isTauri } from "./tauri";
@@ -17,7 +17,8 @@ interface ReaderState {
 
 /** What the audio player is currently playing (null = not playing). */
 interface PlayerState {
-  src: string;
+  tracks: PlaybackTrack[];
+  totalDuration: number;
   title: string;
   chapters: AudioChapter[];
   bookId?: string;
@@ -25,14 +26,32 @@ interface PlayerState {
 }
 
 /**
- * Chapter markers for the bundled synthetic sample audiobook: three 4-second
- * tone segments, so the chapter list / jump-to-chapter is demoable in a plain
- * browser (`npm run dev`) with no backend.
+ * The bundled synthetic sample audiobook, used to demo the player in a plain
+ * browser (`npm run dev`) with no backend. THREE short public-domain tone
+ * segments (`/sample-audiobook-1..3.wav`, ~3s each) are laid out on one
+ * book-absolute timeline so auto-advance and cross-boundary seek/chapter-jump
+ * are all exercisable. `start_offset_seconds` is the cumulative sum of prior
+ * durations, exactly like the Rust `assemble_timeline` helper produces for ABS.
+ */
+const SAMPLE_TRACK_SECONDS = 3;
+const SAMPLE_TRACKS: PlaybackTrack[] = [1, 2, 3].map((n, i) => ({
+  index: i,
+  url: `/sample-audiobook-${n}.wav`,
+  duration_seconds: SAMPLE_TRACK_SECONDS,
+  start_offset_seconds: i * SAMPLE_TRACK_SECONDS,
+  mime_type: "audio/wav",
+}));
+const SAMPLE_TOTAL = SAMPLE_TRACKS.length * SAMPLE_TRACK_SECONDS; // 9s
+
+/**
+ * Chapter markers for the sample. "Crossing" deliberately spans the 3s track
+ * boundary (2s–5s) so jumping to it and playing through it exercises the
+ * cross-boundary chapter + auto-advance logic.
  */
 const SAMPLE_CHAPTERS: AudioChapter[] = [
-  { id: 0, start: 0, end: 4, title: "Prologue" },
-  { id: 1, start: 4, end: 8, title: "Chapter One" },
-  { id: 2, start: 8, end: 12, title: "Chapter Two" },
+  { id: 0, start: 0, end: 2, title: "Prologue" },
+  { id: 1, start: 2, end: 5, title: "Crossing (spans a track boundary)" },
+  { id: 2, start: 5, end: SAMPLE_TOTAL, title: "Finale" },
 ];
 
 function App() {
@@ -133,13 +152,14 @@ function App() {
     setOpeningId(book.id);
     setError(null);
     try {
-      const playback = await invoke<AudioPlayback>("get_audiobook_stream", {
+      const manifest = await invoke<PlaybackManifest>("get_audiobook_stream", {
         bookId: book.id,
       });
       setPlayer({
-        src: playback.stream_url,
+        tracks: manifest.tracks,
+        totalDuration: manifest.total_duration,
         title: book.title,
-        chapters: playback.chapters,
+        chapters: manifest.chapters,
         bookId: book.id,
         book,
       });
@@ -154,7 +174,8 @@ function App() {
   // a plain browser without the Tauri backend.
   const openSampleAudiobook = useCallback(() => {
     setPlayer({
-      src: "/sample-audiobook.wav",
+      tracks: SAMPLE_TRACKS,
+      totalDuration: SAMPLE_TOTAL,
       title: "Synthetic Sample Audiobook",
       chapters: SAMPLE_CHAPTERS,
     });
@@ -191,7 +212,9 @@ function App() {
   if (player) {
     return (
       <AudioPlayer
-        src={player.src}
+        key={player.bookId ?? player.tracks[0]?.url ?? "sample"}
+        tracks={player.tracks}
+        totalDuration={player.totalDuration}
         title={player.title}
         chapters={player.chapters}
         bookId={player.bookId}

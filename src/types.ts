@@ -79,16 +79,31 @@ export interface AudioChapter {
 }
 
 /**
- * A directly-playable audiobook stream + chapters (mirrors the Rust
- * `AudioPlayback`), returned by the `get_audiobook_stream` command. `stream_url`
- * is loadable straight into an `<audio>` element (auth token in the query
- * string, since a media element can't send an Authorization header).
+ * A single audio track (one source file) placed on the book-absolute timeline
+ * (mirrors the Rust `PlaybackTrack`). The whole-book position while this track
+ * plays is `start_offset_seconds + audio.currentTime`.
  */
-export interface AudioPlayback {
-  stream_url: string;
-  duration?: number | null;
+export interface PlaybackTrack {
+  index: number;
+  /** Directly-playable stream URL (auth token in the query string). */
+  url: string;
+  duration_seconds: number;
+  /** Cumulative start offset = sum of all prior track durations. */
+  start_offset_seconds: number;
   mime_type?: string | null;
+}
+
+/**
+ * A directly-playable audiobook manifest: the full ordered track list on one
+ * book-absolute timeline, plus chapters and total duration (mirrors the Rust
+ * `PlaybackManifest`), returned by the `get_audiobook_stream` command. The
+ * player presents one continuous book — seek/skip/chapter-jump across track
+ * boundaries and auto-advance from one track to the next.
+ */
+export interface PlaybackManifest {
+  tracks: PlaybackTrack[];
   chapters: AudioChapter[];
+  total_duration: number;
 }
 
 /**
