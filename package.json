@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "check:media-session": "node --experimental-strip-types scripts/mediaSession.check.mts",
     "preview": "vite preview",
     "tauri": "tauri"
   },

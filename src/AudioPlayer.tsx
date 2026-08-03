@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import type { AudioChapter, Book, PlaybackTrack, Progress } from "./types";
-import { endOfChapterAbsolute, fadeMultiplier, locateAbsolute, sleepRemainingSeconds, toAbsolute, totalDuration } from "./audioTimeline";
+import { endOfChapterAbsolute, fadeMultiplier, locateAbsolute, mediaMetadataInput, nextChapterStart, positionStateInput, prevChapterStart, sleepRemainingSeconds, toAbsolute, totalDuration } from "./audioTimeline";
 import { tryInvoke } from "./tauri";
 import "./AudioPlayer.css";
 
@@ -94,11 +94,18 @@ function formatTime(seconds: number): string {
  * pause/close so it can't fire later. Position is never reset: the throttled save
  * + resume handle it.
  *
+ * OS now-playing / lockscreen / media keys are wired via the standard
+ * **Media Session API** (`navigator.mediaSession`): metadata, book-absolute
+ * `setPositionState`, and play/pause/seek/seek-to plus previous/next-chapter
+ * handlers all drive the unified timeline. This lights up the OS transport where
+ * the shell surfaces it (Windows SMTC / macOS Now Playing / Linux MPRIS / mobile
+ * lockscreen); the plain webview build can't render the OS card itself.
+ *
  * Deliberately NOT here (native/advanced work — tracked as TODOs): true
  * sample-accurate WebAudio gapless (this uses preloaded `<audio>` auto-advance),
- * variable-speed pitch correction, background playback, lockscreen / now-playing
- * controls, Android Auto / CarPlay, Chromecast, OS-level/background sleep, and an
- * equalizer.
+ * variable-speed pitch correction, **true background playback / background sleep
+ * timer** (needs native audio-session + foreground-service work — see
+ * ARCHITECTURE.md), Android Auto / CarPlay, Chromecast, and an equalizer.
  */
 export function AudioPlayer({
   tracks,
@@ -145,6 +152,12 @@ export function AudioPlayer({
   const nextTrack = tracks[trackIndex + 1];
   // The unified, book-absolute position the whole UI speaks in.
   const absolute = toAbsolute(tracks, trackIndex, within);
+  // Mirrored into a ref so the (stable) OS media-key handlers can read the live
+  // position without being re-registered on every tick.
+  const absoluteRef = useRef(0);
+  useEffect(() => {
+    absoluteRef.current = absolute;
+  }, [absolute]);
 
   // Restore any saved listening position (book-absolute) before playback starts,
   // mapping it back to the right track + within-track offset.
@@ -223,20 +236,31 @@ export function AudioPlayer({
     [seekAbsolute, absolute],
   );
 
+  const playAudio = useCallback(() => {
+    void audioRef.current?.play();
+  }, []);
+
+  // Pause and disarm any armed sleep timer (so it can't fire later), restoring
+  // full volume. Shared by the button, the keyboard, and the OS media controls.
+  const pauseAudio = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.pause();
+    if (sleepRef.current) {
+      setSleep(null);
+      el.volume = 1;
+    }
+  }, []);
+
   const togglePlay = useCallback(() => {
     const el = audioRef.current;
     if (!el) return;
     if (el.paused) {
-      void el.play();
+      playAudio();
     } else {
-      el.pause();
-      // A manual pause disarms the sleep timer so it can't fire later.
-      if (sleepRef.current) {
-        setSleep(null);
-        el.volume = 1;
-      }
+      pauseAudio();
     }
-  }, []);
+  }, [playAudio, pauseAudio]);
 
   const changeSpeed = useCallback((rate: number) => {
     const el = audioRef.current;
@@ -390,6 +414,111 @@ export function AudioPlayer({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [togglePlay, skip, skipSeconds, onClose]);
+
+  // Jump to the next chapter on the unified timeline (media "nexttrack"); fall
+  // back to a plain skip-forward when there are no chapters to jump to.
+  const gotoNextChapter = useCallback(() => {
+    const target = nextChapterStart(chapters, absoluteRef.current);
+    if (target != null) {
+      seekAbsolute(target, true);
+    } else {
+      skip(skipSeconds);
+    }
+  }, [chapters, seekAbsolute, skip, skipSeconds]);
+
+  // Jump to the previous chapter (media "previoustrack") — restart the current
+  // chapter or step to the prior one; fall back to skip-back with no chapters.
+  const gotoPrevChapter = useCallback(() => {
+    const target = prevChapterStart(chapters, absoluteRef.current);
+    if (target != null) {
+      seekAbsolute(target, true);
+    } else {
+      skip(-skipSeconds);
+    }
+  }, [chapters, seekAbsolute, skip, skipSeconds]);
+
+  // --- OS now-playing / lockscreen / media keys (Media Session API) --------
+  //
+  // Wires the standard `navigator.mediaSession` to our unified multi-track
+  // player so the OS now-playing card, lockscreen transport, and hardware /
+  // keyboard media keys drive whole-book playback. Feature-detected so browsers
+  // / webviews without the API simply no-op. Actual OS surfacing (Windows SMTC /
+  // macOS Now Playing / Linux MPRIS / mobile lockscreen) requires the real
+  // desktop/mobile shell — the plain webview here registers the handlers but
+  // can't display the OS card.
+
+  // Now-playing metadata: refreshed whenever the book (or title) changes.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const input = mediaMetadataInput(book, title);
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: input.title,
+        artist: input.artist,
+        album: input.album,
+        artwork: input.artwork,
+      });
+    } catch {
+      /* MediaMetadata unavailable in this webview — non-fatal */
+    }
+  }, [book, title]);
+
+  // Playback state + position on the book-absolute timeline, so the OS scrubber
+  // reflects whole-book progress (not the current file). Runs as `absolute`
+  // ticks during playback.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    ms.playbackState = playing ? "playing" : "paused";
+    const ps = positionStateInput(total, absolute, speed);
+    if (ps && typeof ms.setPositionState === "function") {
+      try {
+        ms.setPositionState(ps);
+      } catch {
+        /* invalid duration/position for this tick — skip */
+      }
+    }
+  }, [playing, absolute, total, speed]);
+
+  // Transport action handlers. seekto maps the OS scrubber's absolute target
+  // through our existing locateAbsolute→(track,offset) seek; previous/next map
+  // to chapter navigation across track boundaries. Cleaned up on unmount.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    const set = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch {
+        /* some actions are unsupported in a given webview — ignore */
+      }
+    };
+    set("play", () => playAudio());
+    set("pause", () => pauseAudio());
+    set("seekbackward", (d) => skip(-(d.seekOffset ?? skipSeconds)));
+    set("seekforward", (d) => skip(d.seekOffset ?? skipSeconds));
+    set("seekto", (d) => {
+      if (typeof d.seekTime === "number") seekAbsolute(d.seekTime, true);
+    });
+    set("previoustrack", () => gotoPrevChapter());
+    set("nexttrack", () => gotoNextChapter());
+    return () => {
+      for (const action of [
+        "play",
+        "pause",
+        "seekbackward",
+        "seekforward",
+        "seekto",
+        "previoustrack",
+        "nexttrack",
+      ] as MediaSessionAction[]) {
+        set(action, null);
+      }
+    };
+  }, [playAudio, pauseAudio, skip, skipSeconds, seekAbsolute, gotoPrevChapter, gotoNextChapter]);
 
   const activeChapterIndex = useMemo(() => {
     if (chapters.length === 0) return -1;
