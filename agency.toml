@@ -1,0 +1,6 @@
+# synced from jrmoulckers/.github — canonical source; do not edit here
+[mcps.servers]
+context7 = { args = ["-y", "@upstash/context7-mcp@latest"], command = "npx", tools = ["*"], type = "stdio" }
+playwright = { args = ["-y", "@anthropic/mcp-server-playwright"], command = "npx", tools = ["*"], type = "stdio" }
+sequential-thinking = { args = ["-y", "@modelcontextprotocol/server-sequential-thinking"], command = "npx", tools = ["*"], type = "stdio" }
+memory = { args = ["-y", "@modelcontextprotocol/server-memory"], command = "npx", tools = ["*"], type = "stdio" }

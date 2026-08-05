@@ -1,0 +1,347 @@
+{
+  "version": 1,
+  "backbone": "jrmoulckers/.github",
+  "generatedAt": "2026-08-05T19:07:10.462Z",
+  "entries": {
+    ".github/agents/accessibility-reviewer.agent.md": {
+      "sourceSha256": "f83d90b50ea87be04935ba849c0a93eda729452a2d7eee81e0cb02b4bf04dae5",
+      "targetSha256": "f616ea0dbb9d4fc8414ea502196b4b6dd1da7a3e67e0c71b65c0352fabb1d38a",
+      "syncedAt": "2026-08-05T19:07:10.453Z"
+    },
+    ".github/agents/ai-ops-engineer.agent.md": {
+      "sourceSha256": "616239796aea0cd04b83dd8f351d0804d02ccf9f4af94e8bbc155dd0a33ad453",
+      "targetSha256": "94528f44ec5aa403f77432e144e60e402c3f7a7a417271aee4d8ca0e65e87ea6",
+      "syncedAt": "2026-08-05T19:07:10.453Z"
+    },
+    ".github/agents/architect.agent.md": {
+      "sourceSha256": "6008a496fcc161d609d1f9ed04472794baf02ecaa5f5c473f1cfb18b2d4abfc6",
+      "targetSha256": "c6083da6ea7e8264466f74e7fda314f8ecdd9a61363ab31bb28ff4b1a1f06676",
+      "syncedAt": "2026-08-05T19:07:10.453Z"
+    },
+    ".github/agents/backend-engineer.agent.md": {
+      "sourceSha256": "a52de158b12a331137c032f4e9070b8716e733cd7b4c0056236fa8989fef9bc5",
+      "targetSha256": "49e228f0be4886d3350f558530c3e4125b44878f606e33882b00cecdf13182d8",
+      "syncedAt": "2026-08-05T19:07:10.453Z"
+    },
+    ".github/agents/business-analyst.agent.md": {
+      "sourceSha256": "f871578e519bff5a65a63755f5de4ee4673828c0db29c24439ebec4f2cfa7150",
+      "targetSha256": "09a206273e823d4f09ba2e23ff17b74ed63e6f10a97ef5fb19b03c716a60a92b",
+      "syncedAt": "2026-08-05T19:07:10.453Z"
+    },
+    ".github/agents/compliance-specialist.agent.md": {
+      "sourceSha256": "ccfa4067cf62e18380feeb648c06c889cd6b768befc0582800e73ea9e33b9f4c",
+      "targetSha256": "aa4a8fd37b984f014221d6754012a9cfa254df98b507fdea7e819660c63c5ae3",
+      "syncedAt": "2026-08-05T19:07:10.453Z"
+    },
+    ".github/agents/data-engineer.agent.md": {
+      "sourceSha256": "a2b58adafa626362f7d5422a03e25427b4b81809ac1ad9bd912e4e5b688f82df",
+      "targetSha256": "e5cfa637983de373eb7c62a6b49abf87d3c975c80b6930f4707a3ac0f3374667",
+      "syncedAt": "2026-08-05T19:07:10.453Z"
+    },
+    ".github/agents/design-engineer.agent.md": {
+      "sourceSha256": "097ec5195cfb5fa5ded11e51b4e3c1ce5b723ee76e3e61e0b3efe61cf21ac9f5",
+      "targetSha256": "989b47c655fafcbfa7d6b5a1a27419fa63474a29b68e00ef6bc3b5961cc69e84",
+      "syncedAt": "2026-08-05T19:07:10.454Z"
+    },
+    ".github/agents/devops-engineer.agent.md": {
+      "sourceSha256": "62fe77391cdfcccca4b432dc087e45f04f62d4ab818c2f9611fc455d66e8f319",
+      "targetSha256": "4af444b05d57057dd594e6d071df509448b68687f344229bdf934f30252d140b",
+      "syncedAt": "2026-08-05T19:07:10.454Z"
+    },
+    ".github/agents/docs-writer.agent.md": {
+      "sourceSha256": "1606526634fd18b6009b376dd19019aa5c24776032595e2506e7d7575be38425",
+      "targetSha256": "9f3408183cb806612c8e90079bb6cb57943fefc7ec3a6f8b4c73c8bf5354fb01",
+      "syncedAt": "2026-08-05T19:07:10.454Z"
+    },
+    ".github/agents/experimentation-engineer.agent.md": {
+      "sourceSha256": "0e01e95c8199014864b39d12c094845d3741984868d2e8a5a8c2f36b04195dbf",
+      "targetSha256": "a8e4fd9387eb92e3b2cc6248906f0ff6935abafb2e6ebf1b74a8c69779ad7206",
+      "syncedAt": "2026-08-05T19:07:10.454Z"
+    },
+    ".github/agents/localization-engineer.agent.md": {
+      "sourceSha256": "4789fdf640a6348f416c26f240d52c3fdd5e0cc2f366c171821705e1b7dccc1f",
+      "targetSha256": "330285e55a469f9656693e56a38ba05764ee83f8601c2981ee3105959d24e568",
+      "syncedAt": "2026-08-05T19:07:10.454Z"
+    },
+    ".github/agents/marketing-strategist.agent.md": {
+      "sourceSha256": "cd2e72879476a8f8f00d4c1c33a67a24b79ae446489f82213fdbe7a9696965f1",
+      "targetSha256": "d62f2ab6d28104673c642627c8168b584f7d0ca4192687e5118baeb8fb7cdbc0",
+      "syncedAt": "2026-08-05T19:07:10.454Z"
+    },
+    ".github/agents/performance-engineer.agent.md": {
+      "sourceSha256": "713c030fcb3d8f2e0500e79ba6e690d4172527f0d1200bff6d7a66d63f62fa44",
+      "targetSha256": "b706857097942e17c25c5da3767d3e205bc7f279636ebf003a78f53948200424",
+      "syncedAt": "2026-08-05T19:07:10.454Z"
+    },
+    ".github/agents/product-manager.agent.md": {
+      "sourceSha256": "f22a71a15852790497aaadcc744c596e5838ce021e10e5f0ec4e89f6596bc4f3",
+      "targetSha256": "c064bc552a6d6ef7c26b7ac50012b939bafd8049f15d2e4bc10af55e1228eca9",
+      "syncedAt": "2026-08-05T19:07:10.455Z"
+    },
+    ".github/agents/qa-tester.agent.md": {
+      "sourceSha256": "a61b01e266dafaa5fadab47933d007852c753f3526c68dd151b58ce8cc47067e",
+      "targetSha256": "f42f8ee48776fcf2d1bffd1fe71dde65dd87cbae4b109f449328aaa1e53b61be",
+      "syncedAt": "2026-08-05T19:07:10.455Z"
+    },
+    ".github/agents/release-manager.agent.md": {
+      "sourceSha256": "b136335b85a04b5cf2b6971103bd9008bc8d68bd39eea60645b2e2ebb3f091ae",
+      "targetSha256": "5322a80c1f6feef71e814a99732e709a04023c3110df1c8cba7b76b0b0dd2bc8",
+      "syncedAt": "2026-08-05T19:07:10.455Z"
+    },
+    ".github/agents/security-reviewer.agent.md": {
+      "sourceSha256": "21d35aee151bc4176836c35e712f9a3bf8c552ed6756479d2445a6fa40ffca4e",
+      "targetSha256": "c3a70d50898057ab384f587a305b01e7a1d76ddb76cd8eeb01bbd7f4803689f1",
+      "syncedAt": "2026-08-05T19:07:10.455Z"
+    },
+    ".github/agents/web-engineer.agent.md": {
+      "sourceSha256": "725dc62b11c3012bcf2676973772f03134367509f2267e1d64539bc7add5540d",
+      "targetSha256": "c11e3f7bccca27ccdedcd7ed54743c484b5208a96ab373d2a0b50be74efcbdf9",
+      "syncedAt": "2026-08-05T19:07:10.455Z"
+    },
+    ".github/instructions/agents.instructions.md": {
+      "sourceSha256": "919a7e2887a9d9171aba0431ada46b7d5ca9c82194c2974bb25e023f4e7ca6f6",
+      "targetSha256": "ade177d02f985313763ca57d6d9bb093ca7b005ac68612e3e640900267b5861e",
+      "syncedAt": "2026-08-05T19:07:10.459Z"
+    },
+    ".github/instructions/docs.instructions.md": {
+      "sourceSha256": "e3abf5e92b341f3cac288a921ef5f2676290e9e8de7e6ed2fe3f8b596665c970",
+      "targetSha256": "599f82c2a6edb5559cb3324fe81e4f7019a8d108aa0d9ceabf1e121473fe89ab",
+      "syncedAt": "2026-08-05T19:07:10.459Z"
+    },
+    ".github/instructions/skills.instructions.md": {
+      "sourceSha256": "15b6cd3175e3f71c23b03d481dbe3b6f81bf222026cd9748e5b14d1f0cd0a6e8",
+      "targetSha256": "8c92e3c6436ded3fe6d66c6512c1577838cedb5c4e814a4cef9ead5ede7031ec",
+      "syncedAt": "2026-08-05T19:07:10.459Z"
+    },
+    ".github/instructions/tokens.instructions.md": {
+      "sourceSha256": "221fee8b3ab139b52d3b55cdc23bb1522da2cf1c4c88eb66b3cf138f62153002",
+      "targetSha256": "cc203e133af9f36ceddb804bb430116640e20a9576f49047e49e0a0e3dba05a3",
+      "syncedAt": "2026-08-05T19:07:10.459Z"
+    },
+    ".github/instructions/workflow.instructions.md": {
+      "sourceSha256": "efd04bc03b5f05b666a0dd941f9612ddfc816e5171225c4f5b3bbf25beda71fd",
+      "targetSha256": "577e706e94018d9159ef74596e14ae341ef1628c6ed4170376c360d415657f60",
+      "syncedAt": "2026-08-05T19:07:10.459Z"
+    },
+    ".github/prompts/backlog.prompt.md": {
+      "sourceSha256": "3d89a722994d69217b8489eb44fa6dd265ebc6f3c781f81e5c5ca5122a79d70e",
+      "targetSha256": "bd7ab6ce8db190d8fa04f1d9adc3942d9caf682b93e4ba4728ccc6145b0e5cce",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/prompts/cleanup.prompt.md": {
+      "sourceSha256": "9b0e4e4c94e361f8fc59a5a1da99894d8bed4cc06096dcb1f133a77cf68367f7",
+      "targetSha256": "31a1c944acf234a6f64d020a7ec127849e804f89a280198b6157e6950df1ea14",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/prompts/fix-ci.prompt.md": {
+      "sourceSha256": "de28cbb2c039690a0c9e1bdd521885db37a9b9c6be4b586167c8e5cf5b1e8256",
+      "targetSha256": "edb6e02eef31dc774db13300eadacae04489ac4942f84d3dfd9eb80b6d7a5cc6",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/prompts/rebase-all.prompt.md": {
+      "sourceSha256": "17152cf09898a2a6cb5ea2e1f390db5e1df935c48af0ac8fa2f4dab7df490b6b",
+      "targetSha256": "fe092d66be2ca24c962085329d93b00d78c788a5c7382fba7c8cad7e0cb391cf",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/prompts/review.prompt.md": {
+      "sourceSha256": "041a14fed45e9b0adb3f9dd69425978b9fc4557c39b01d4c895ea7059362528b",
+      "targetSha256": "060a41b483876e80e910db6fad77c73b4a56c3351b38565e0ca52c4ca4f1af95",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/prompts/sprint.prompt.md": {
+      "sourceSha256": "25a2a7cf1731499df068b088e8efb3587692e0158b30aedec70102beb2f5a83e",
+      "targetSha256": "defe35ccbda76c7227ba47f84c1f57e38ff0f164d3cc7f4e72e656c0d92e9b6e",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/prompts/team.prompt.md": {
+      "sourceSha256": "d0655e6874904468756929174af171ccc678d4e421834efc0ae42f579929a05b",
+      "targetSha256": "6ca59920bc30cc261f8596e810688584a8c0bd05e8379b0cd2e4ae7263dd0a7a",
+      "syncedAt": "2026-08-05T19:07:10.459Z"
+    },
+    ".github/skills/accessibility-testing/CHECKLIST.md": {
+      "sourceSha256": "3beba6418cb63661b908ed82bb156ecd1fd4b588996f5f0dbdad7443655670ad",
+      "targetSha256": "65d5d6308744222aa381a70b4d3e8788ef98595ed06202623ff13ae9bb853890",
+      "syncedAt": "2026-08-05T19:07:10.455Z"
+    },
+    ".github/skills/accessibility-testing/SKILL.md": {
+      "sourceSha256": "2a4ff58e1192b16406315daaedefef83e115f32ac3fd5540797f4b540978d0dc",
+      "targetSha256": "59b3ffef44de6cff6af48adbe07249c6375ac5f14a9617fa384cd728cf0f18eb",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/design-tokens/SKILL.md": {
+      "sourceSha256": "4bbef30133d1ea560287819e72c8dbcbb716932dd7514e8035297367d5620c8a",
+      "targetSha256": "4982420b4e82db74724361b51da87a899ea25636c507e12f91b5d47310e58ca9",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/dev-onboarding/SKILL.md": {
+      "sourceSha256": "02a427a72c750269e08c2b7fc2eb837ffa9a53dcecf27a3130008170ff599049",
+      "targetSha256": "314c50ef0fccaf7a4f627966c519630122a22e97279ac70898d700e5e12af0ee",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/go-to-market/SKILL.md": {
+      "sourceSha256": "e0bddf960967f049fd3c395868bd462ad55d5e6df99a696b4377f686509019ab",
+      "targetSha256": "ffaa27ac605d2c9a96fd29efe53cd881bac42ebfbd217187c5a45301bf082f58",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/i18n-localization/CHECKLIST.md": {
+      "sourceSha256": "b45613757b35d89c34c96178b931890b3c6ef71ad484b1c818ab2348dec6577c",
+      "targetSha256": "663878f49bff8799456fb0595733ffe994d5b819533523a8f4a9df18f7c48690",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/i18n-localization/SKILL.md": {
+      "sourceSha256": "ae6b42c7df37b8a1600233af018d317ec9b1a73670e2a8397ff5b85503aaf8d2",
+      "targetSha256": "49b183b640b751d61c7ac8b45b055f941fd02f1578b1ef0014a925fdfb99ca6e",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/issue-management/SKILL.md": {
+      "sourceSha256": "ba26fb4b87cb8daed4b1788441bc71f39b4018485b5960ebc46e8014a9eabcb7",
+      "targetSha256": "67783070cc63e2b84e6e1653b98f941cc7a2f44710a9015edcc7e451a587e884",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/mcp-agent-tooling/SKILL.md": {
+      "sourceSha256": "f9a25a0fdebb637d7b3e50ec9b83f987f6a68f9e5b8e9f31c9fd743d70ae98a7",
+      "targetSha256": "a0c21692fd12cccddbb72cd80233bdc2950efcd602dc29368156c94e371e1356",
+      "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/monetization/SKILL.md": {
+      "sourceSha256": "43e373b5d6bcc958396d905c89c50712b5d2f8932969fbbf75ee0e4e2b4b9c66",
+      "targetSha256": "3339a5683c9799a72d76fe48a1b5e6f5149484fac32639fdd92f08815c7af37e",
+      "syncedAt": "2026-08-05T19:07:10.457Z"
+    },
+    ".github/skills/performance-budgets/SKILL.md": {
+      "sourceSha256": "a7654a146ae02721db36938cbe4607e334fe454318e7f7d3c82cd69d4947dfc2",
+      "targetSha256": "e8b28c3e837a25ccc2b3d28b987e18d702145d254ba77f054530c1cdffc9e66a",
+      "syncedAt": "2026-08-05T19:07:10.457Z"
+    },
+    ".github/skills/performance-budgets/WEB_CHECKLIST.md": {
+      "sourceSha256": "def3fbbe486c7727b640b24b76c3da38d791a34c265996bc70221dbdfcc8120c",
+      "targetSha256": "f84e6972708eb65c104189ae43904cd27cca2b8b2545bba4c4550c685441cda3",
+      "syncedAt": "2026-08-05T19:07:10.457Z"
+    },
+    ".github/skills/privacy-compliance/SKILL.md": {
+      "sourceSha256": "bb8dc7d1b63565134dc1670c710690e7391a3814fc0687beb05b5b3acfaf31d5",
+      "targetSha256": "cef300ed2f5a65d01c722b05b48ef77b156c908949800e8d43dbd63a7818af81",
+      "syncedAt": "2026-08-05T19:07:10.457Z"
+    },
+    ".github/skills/project-management/SKILL.md": {
+      "sourceSha256": "18b6345243fb3836cac17ab94090b386abbbe4d973a3671b2996d5ebe680b3f8",
+      "targetSha256": "4f5abdc1ad77919db83d42f7b9cd6f52507bb21083c0bf3ca2f8b972f94faf14",
+      "syncedAt": "2026-08-05T19:07:10.457Z"
+    },
+    ".github/skills/prompt-engineering/SKILL.md": {
+      "sourceSha256": "4119e2776350ec9903189295e370875a3370a58e7980c95b70d39348f836d7eb",
+      "targetSha256": "c7ff8fc1ee7963126814878e44ab16c5fff76ded471939936b203a92cca3c1cf",
+      "syncedAt": "2026-08-05T19:07:10.457Z"
+    },
+    ".github/skills/security-review-methodology/CHECKLIST.md": {
+      "sourceSha256": "7984e6aa10f1acfc5840dfb481789b0b8b438e0ceb94b106fca34d33f72136de",
+      "targetSha256": "d64588ab915f0620d726f57156bffe433897608be4a46179a8b1dcd67159e315",
+      "syncedAt": "2026-08-05T19:07:10.457Z"
+    },
+    ".github/skills/security-review-methodology/SKILL.md": {
+      "sourceSha256": "656e96701e37fb5fc4d61c662feb5ea9ccbf2a10fc983b1367a8e18d61f99cc1",
+      "targetSha256": "91d1028ddd14cb44a2b708e36159c915ba5c5f38b7b25114dbdc0c43b5ca43aa",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/skills/sprint-planning/SKILL.md": {
+      "sourceSha256": "9492b6bd016dac1035d1b7aad701d30caad4275620e7fe789f6b8824bcabb91c",
+      "targetSha256": "801cd0d13bb022c8c4626072d6deeb4063a5c7bc5f86d37a94ad324ac63a77a9",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    ".github/skills/ux-testing/SKILL.md": {
+      "sourceSha256": "4d95bab786514ec948002de0906986a01577159e90907f8065516f73943dfdb8",
+      "targetSha256": "c3d3da17e254f6ce8132e1c6040f7f09e7ff494d4e902e287ee72e5abc61753e",
+      "syncedAt": "2026-08-05T19:07:10.458Z"
+    },
+    "AGENTS.md": {
+      "sourceSha256": "8f7d2cf3091d62277cf98ce3e8f35f77a8bb192fb20486f74ed8e6b9b8be33d8",
+      "targetSha256": "e28382afae36f0057b936558fd5f25dc2e39ffd55c4ddb36a9cdd848a07872ec",
+      "syncedAt": "2026-08-05T19:07:10.451Z"
+    },
+    "agency.toml": {
+      "sourceSha256": "281f6b5cf11d21b51acd26d139cb10d6ca9526f4844e4bac8ce8b759d9a5049e",
+      "targetSha256": "c5dc520a8bd3a4414bff540c4c00796ad1dbe4c43422731845ec07881911ef35",
+      "syncedAt": "2026-08-05T19:07:10.452Z"
+    },
+    "vendor/@jrm/tokens/css/default/index.css": {
+      "sourceSha256": "cf5214b93290c39c6a1e35dd2ac9b8df9dd6fe26e57c85c7c1d554888dc34c2f",
+      "targetSha256": "8de39ffd250fd85b444e75254d950385e9254d7839d894fe830c25132521404d",
+      "syncedAt": "2026-08-05T19:07:10.459Z"
+    },
+    "vendor/@jrm/tokens/css/default/tokens-dark-oled.css": {
+      "sourceSha256": "2ff46d8fff8761e9d7feae98e927e36f71eab99b62129772e7eaf2359e9fbbcc",
+      "targetSha256": "5fb5c07f9438929ba128f2b4eaf7c4ab2168e89d2a56f987dcb24eec6b428c56",
+      "syncedAt": "2026-08-05T19:07:10.460Z"
+    },
+    "vendor/@jrm/tokens/css/default/tokens-dark.css": {
+      "sourceSha256": "01af015752a5cef4e9571458abe589e7aac87a660d5e9234f5aad4f1dcef33ed",
+      "targetSha256": "53fbc9d8ced28dcac04708795736daacc3f925355c6747c0a5feaff93b19a3dc",
+      "syncedAt": "2026-08-05T19:07:10.460Z"
+    },
+    "vendor/@jrm/tokens/css/default/tokens-high-contrast.css": {
+      "sourceSha256": "447878d48a6756cedf140ea4d88b85f3268ff8284ec7a02d5a37c55df0595c18",
+      "targetSha256": "12d22deb031e4d92a98599e628184688263a3ca0c3be24e3777d011e2febec5a",
+      "syncedAt": "2026-08-05T19:07:10.460Z"
+    },
+    "vendor/@jrm/tokens/css/default/tokens.css": {
+      "sourceSha256": "343e10b1ac7914f2a3d1255cfc6ffad1930ac1a17da9eb5aa5551e6e4f67062c",
+      "targetSha256": "bb35859efbfb66ccb46c5bcc082d552e33ab1a53b0f61575d9b1932862886d87",
+      "syncedAt": "2026-08-05T19:07:10.460Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.dark-oled.d.ts": {
+      "sourceSha256": "7c664068a688ec61e1844ea98e60421c9621296709c0d87a9be8d9d58dc57cb4",
+      "targetSha256": "673eba7f5ba89bc68e1eca4e6defa3c84d6b9bd9b9c4d0477992378a92fd5a02",
+      "syncedAt": "2026-08-05T19:07:10.460Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.dark-oled.js": {
+      "sourceSha256": "5fb302cb1dee71b6649432ed4876a3af6dfbadcb26db80b590c40e0f079d83d5",
+      "targetSha256": "2a1cdb87edf51afb96ba02d37b9ab4c8e8c9c10a8a6991a3fd9495325fb08df8",
+      "syncedAt": "2026-08-05T19:07:10.460Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.dark.d.ts": {
+      "sourceSha256": "b5c69f8738fe2d2aa281e3c00719d54486a87b9ad638e8c4c72434ce8267636f",
+      "targetSha256": "47f4e9c0b15ad7ddd6cebfb66d1614ed0caf50b72ef9a5395a28c8952c7ccaa7",
+      "syncedAt": "2026-08-05T19:07:10.461Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.dark.js": {
+      "sourceSha256": "4c93c6e4a87fb014f75109b2cf237e7bad00de408cd91254d224cebff24ecbdb",
+      "targetSha256": "552fab49c3c45232492d9acaed3ba41df9060cb00548490d9359fa89cca5e6ed",
+      "syncedAt": "2026-08-05T19:07:10.461Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.high-contrast.d.ts": {
+      "sourceSha256": "edf1099006f2936abc79328ec1fe90dbde6b8f19d27e5b0f46884a34c7b97ed5",
+      "targetSha256": "432034685862716e39fee39db5ad8127bddec27c434cfbc9fed663f212e02934",
+      "syncedAt": "2026-08-05T19:07:10.461Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.high-contrast.js": {
+      "sourceSha256": "84926f6df84d4a261a43731c8396fc5a4392dbd7f5dd976356db37658dba1c5e",
+      "targetSha256": "d639bba1b5db52811db9fd59b4bdd1d216dddff9a536c6794b6f017a0e6809b3",
+      "syncedAt": "2026-08-05T19:07:10.461Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.light.d.ts": {
+      "sourceSha256": "083baa505afb21a328371317f592017c5169de739b1dba4b7cc74ad510089a92",
+      "targetSha256": "6c871828f9f6f915e9cf7c23ea5639e4dd67dcc7497a3e2f8e5f77c6594fe614",
+      "syncedAt": "2026-08-05T19:07:10.461Z"
+    },
+    "vendor/@jrm/tokens/js/default/tokens.light.js": {
+      "sourceSha256": "2b99418dd6d78b494bdd365b70dba82dc87d3f0a4fbdb201f072b4c7cba5f132",
+      "targetSha256": "6c327ab3f2c99f361245c6273fc2192647a37c7dc8b26a5ed010f33d16f97f0f",
+      "syncedAt": "2026-08-05T19:07:10.461Z"
+    },
+    "vendor/@jrm/tokens/js/index.d.ts": {
+      "sourceSha256": "852802c61e34befbe963e7c7e47abbfc3728b2687b9a73ff522177676aa8a165",
+      "targetSha256": "05b8872cee1709287265f680a1f66d1019fd97457f0809d3ad9ba704d8d9cd9f",
+      "syncedAt": "2026-08-05T19:07:10.462Z"
+    },
+    "vendor/@jrm/tokens/js/index.js": {
+      "sourceSha256": "f0e8a8ffc74ecf3c3015c619dc8a1f6fb4067f9404392af96a0633e0a4d87f7c",
+      "targetSha256": "e6f65ac26d8aab9dc02c05acd2906971ca7a8df49785f5f8e885743996dac69d",
+      "syncedAt": "2026-08-05T19:07:10.462Z"
+    },
+    "vendor/@jrm/tokens/tailwind/default.cjs": {
+      "sourceSha256": "6e7f6486dcdd44e7ce9c3d0cf60827cbae2d75dab216f774cb6e0d32b0a6a8a9",
+      "targetSha256": "708c645a8553135c9bcf76b525891fc9da25d1b35f5044e6dd73057699a1f184",
+      "syncedAt": "2026-08-05T19:07:10.462Z"
+    }
+  }
+}
