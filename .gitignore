@@ -15,6 +15,7 @@ coverage
 .turbo
 .vite
 .svelte-kit
+.impeccable
 
 # Environment — real values never get committed; .env.example is tracked
 .env

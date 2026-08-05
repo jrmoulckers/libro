@@ -1,0 +1,13 @@
+{
+  "id": "example-wasm-catalog",
+  "displayName": "Example WASM Catalog",
+  "kind": "wasm",
+  "version": "1.0.0",
+  "author": "Libro contributors",
+  "allowedDomains": ["api.wasm-books.test"],
+  "capabilities": ["catalog"],
+  "wasm": {
+    "abiVersion": 1,
+    "mediaType": "ebook"
+  }
+}
