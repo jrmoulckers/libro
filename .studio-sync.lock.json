@@ -1,0 +1,29 @@
+{
+  "$schema": "https://jrmoulckers.dev/schemas/studio-sync.lock.json",
+  "description": "Provenance lock for JRM Studio design-token sync into libro. Records the exact upstream source of the vendored @jrm/tokens tree. Managed by the studio sync engine; this first entry was written by the manual first sync.",
+  "source": {
+    "repo": "jrmoulckers/studio",
+    "commit": "a26d52650a6c54bb5de16d9533c37b2a4680d881",
+    "sourcePath": "packages/tokens/dist"
+  },
+  "package": {
+    "name": "@jrm/tokens",
+    "version": "0.0.0"
+  },
+  "vendor": {
+    "destination": "vendor/@jrm/tokens/",
+    "files": [
+      "vendor/@jrm/tokens/css/default/index.css",
+      "vendor/@jrm/tokens/css/default/tokens.css",
+      "vendor/@jrm/tokens/css/default/tokens-dark.css",
+      "vendor/@jrm/tokens/css/default/tokens-dark-oled.css",
+      "vendor/@jrm/tokens/css/default/tokens-high-contrast.css",
+      "vendor/@jrm/tokens/package.json"
+    ]
+  },
+  "sync": {
+    "method": "manual",
+    "firstSync": true,
+    "syncedAt": "2026-08-05T18:42:30.949Z"
+  }
+}

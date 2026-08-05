@@ -33,6 +33,7 @@
     prefersDark,
     readStoredTheme,
     resolveInitialTheme,
+    themeLabel,
     type Theme,
   } from './lib/pwa/theme';
   import {
@@ -403,8 +404,14 @@
     <div class="masthead">
       <h1>Libro</h1>
       <div class="shell-controls">
-        <button type="button" class="control" onclick={toggleTheme} aria-pressed={theme === 'dark'}>
-          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        <button
+          type="button"
+          class="control"
+          onclick={toggleTheme}
+          aria-label={`Theme: ${themeLabel(theme)}. Activate to switch to ${themeLabel(nextTheme(theme))}.`}
+        >
+          <span class="control-label">Theme</span>
+          <span class="control-value">{themeLabel(theme)}</span>
         </button>
         {#if installVisible}
           <button type="button" class="control install" onclick={install}> Install app </button>
@@ -491,6 +498,7 @@
       <ul class="import-status" aria-label="Import results" aria-live="polite">
         {#each importRows as row (row.name + row.detail)}
           <li class:ok={row.ok} class:skip={!row.ok}>
+            <span class="import-marker" aria-hidden="true">{row.ok ? '✓' : '✕'}</span>
             <span class="import-name">{row.name}</span>
             <span class="import-detail">{row.detail}</span>
           </li>
@@ -530,7 +538,9 @@
                   <span class="series">{book.series}</span>
                 {/if}
                 {#if progressLabel(book)}
-                  <span class="progress">{progressLabel(book)}</span>
+                  <span class="progress" class:finished={book.progress?.finished}>
+                    {progressLabel(book)}
+                  </span>
                 {/if}
                 {#if canRead(book)}
                   <button type="button" class="read" onclick={() => openReader(book)}>
@@ -563,7 +573,12 @@
   main {
     margin: 0 auto;
     max-width: 60rem;
-    padding: 2rem 1rem;
+    padding: var(--spacing-3xl) var(--spacing-lg);
+  }
+
+  header {
+    padding-block-end: var(--spacing-lg);
+    border-block-end: 1px solid var(--semantic-border-default);
   }
 
   /* Title + controls on one baseline row; the install button appearing changes
@@ -573,71 +588,139 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .shell-controls {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--spacing-sm);
+  }
+
+  /* The theme cycle control shows its current value; it is the studio "default"
+     (neutral) button — the Royal Violet primary is reserved for real actions. */
+  .control {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--spacing-xs);
+  }
+
+  .control-label {
+    font-size: var(--text-overline-size);
+    font-weight: var(--text-overline-weight);
+    letter-spacing: var(--text-overline-letter-spacing);
+    text-transform: uppercase;
+    color: var(--semantic-text-secondary);
+  }
+
+  .control-value {
+    font-weight: var(--font-weight-semibold);
+    color: var(--semantic-text-primary);
+  }
+
+  /* Primary actions wear the one brand action color (Royal Violet). */
+  .install {
+    color: var(--button-primary-text);
+    background: var(--button-primary-bg);
+    border-color: var(--button-primary-border);
+  }
+
+  .install:hover:not(:disabled) {
+    background: var(--button-primary-hover-bg);
   }
 
   .tagline {
     max-width: 42rem;
+    color: var(--semantic-text-secondary);
+  }
+
+  /* Import panel is an elevated card. */
+  .import {
+    margin-block-start: var(--spacing-2xl);
+    padding: var(--card-padding);
+    background: var(--semantic-background-elevated);
+    border: 1px solid var(--semantic-border-default);
+    border-radius: var(--card-radius);
+    box-shadow: var(--shadow-lift);
   }
 
   .import-hint {
     max-width: 42rem;
+    color: var(--semantic-text-secondary);
   }
 
   .import-status {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    margin-block-start: 1rem;
+    gap: var(--spacing-xs);
+    margin-block-start: var(--spacing-lg);
     padding: 0;
     list-style: none;
   }
 
   .import-status li {
     display: flex;
-    gap: 0.75rem;
-    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+  }
+
+  .import-marker {
+    font-weight: var(--font-weight-bold);
+  }
+
+  .import-status li.ok .import-marker {
+    color: var(--semantic-status-positive);
+  }
+
+  .import-status li.skip .import-marker {
+    color: var(--semantic-status-negative);
   }
 
   .import-name {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .import-detail {
+    margin-inline-start: auto;
+    color: var(--semantic-text-secondary);
   }
 
   .enrich-control {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-block-start: 0.75rem;
+    gap: var(--spacing-sm);
+    margin-block-start: var(--spacing-sm);
   }
 
   .enrich-control label {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
+  }
+
+  .enrich-status {
+    color: var(--semantic-text-secondary);
   }
 
   .sync-control {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-block-start: 0.75rem;
+    gap: var(--spacing-sm);
+    margin-block-start: var(--spacing-sm);
   }
 
+  /* A conflict banner is a negative-status surface. Text stays primary for
+     contrast; the coral border + heading carry the signal (not hue alone). */
   .conflicts {
-    margin-block-start: 1rem;
-    border: 1px solid var(--color-border);
+    margin-block-start: var(--spacing-lg);
+    border: 1px solid var(--semantic-status-negative);
     border-radius: var(--radius-md);
-    padding: 1rem;
+    padding: var(--spacing-lg);
+    background: var(--semantic-background-raised);
   }
 
   .conflicts h3 {
-    margin: 0 0 0.75rem;
+    margin: 0 0 var(--spacing-sm);
   }
 
   .conflicts ul {
@@ -646,22 +729,23 @@
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--spacing-lg);
   }
 
   .conflict-title {
     margin: 0;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
   }
 
   .conflict-detail {
-    margin: 0.25rem 0 0.5rem;
+    margin: var(--spacing-xs) 0 var(--spacing-sm);
+    color: var(--semantic-text-secondary);
   }
 
   .conflict-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: var(--spacing-sm);
   }
 
   /* Reserve vertical space so swapping loading/empty/loaded states doesn't shift
@@ -672,38 +756,63 @@
 
   .status {
     margin: 0;
+    color: var(--semantic-text-secondary);
   }
 
   .counts {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: var(--spacing-sm);
+    margin-block-start: var(--spacing-lg);
     padding: 0;
     list-style: none;
   }
 
+  .counts li {
+    padding: var(--pill-padding-y) var(--pill-padding-x);
+    font-size: var(--text-label-size);
+    color: var(--pill-text);
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
+    border-radius: var(--pill-radius);
+  }
+
   .shelf {
-    margin-block-start: 2rem;
+    margin-block-start: var(--spacing-3xl);
   }
 
   .items {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-    gap: 1rem;
+    gap: var(--spacing-lg);
+    margin-block-start: var(--spacing-lg);
     padding: 0;
     list-style: none;
   }
 
+  /* Each book is an elevated card that lifts on hover. */
   .item {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--spacing-xs);
+    padding: var(--card-padding);
+    background: var(--semantic-background-elevated);
+    border: 1px solid var(--semantic-border-default);
+    border-radius: var(--card-radius);
+    box-shadow: var(--shadow-lift);
+    transition: border-color var(--duration-state) var(--easing-standard);
+  }
+
+  .item:hover {
+    border-color: var(--semantic-interactive-default);
   }
 
   /* Fixed aspect ratio reserves layout space before the cover loads (no CLS). */
   .cover {
     aspect-ratio: 2 / 3;
     overflow: hidden;
+    background: var(--semantic-background-secondary);
+    border-radius: var(--radius-sm);
   }
 
   .cover img {
@@ -713,7 +822,51 @@
   }
 
   .title {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
+    color: var(--semantic-text-primary);
+  }
+
+  .author {
+    color: var(--semantic-text-secondary);
+  }
+
+  /* Series is a light accent line (Crown Gold text, darkened for contrast). */
+  .series {
+    font-size: var(--text-label-size);
+    color: var(--semantic-accent-ink);
+  }
+
+  /* Progress is a neutral pill; "Finished" adds a positive border + check so the
+     completed state is not signalled by color alone. */
+  .progress {
+    align-self: flex-start;
+    margin-block-start: var(--spacing-xs);
+    padding: var(--pill-padding-y) var(--pill-padding-x);
+    font-size: var(--text-label-size);
+    color: var(--semantic-text-primary);
+    background: var(--semantic-background-raised);
+    border: 1px solid var(--semantic-border-default);
+    border-radius: var(--pill-radius);
+  }
+
+  .progress.finished {
+    border-color: var(--semantic-status-positive);
+  }
+
+  .progress.finished::before {
+    content: '✓ ';
+  }
+
+  /* Read / Listen are primary actions — the one Royal Violet fill. */
+  .read {
+    margin-block-start: var(--spacing-sm);
+    color: var(--button-primary-text);
+    background: var(--button-primary-bg);
+    border-color: var(--button-primary-border);
+  }
+
+  .read:hover:not(:disabled) {
+    background: var(--button-primary-hover-bg);
   }
 
   .visually-hidden {

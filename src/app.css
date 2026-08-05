@@ -1,16 +1,17 @@
 /*
  * Global stylesheet.
  *
- * Design values come from @jrm/tokens, which the studio sync engine vendors from
- * jrmoulckers/studio into ./vendor/@jrm/tokens. Until the first chore(sync) PR lands,
- * that directory does not exist and the import below stays commented out.
+ * Design values come from @jrm/tokens, vendored from jrmoulckers/studio into
+ * ./vendor/@jrm/tokens (see that folder's README and .studio-sync.lock.json for provenance).
+ * The import below is the single entry point: it pulls in the light `:root` base plus the
+ * dark / dark-oled / high-contrast layers and the prefers-* fallbacks.
  *
- * Once it lands, uncomment (relative to this file, at src/app.css):
- *   @import '../vendor/@jrm/tokens/css/default/index.css';
- *
- * Do not hardcode colors, radii, shadows, or durations here — reference the semantic
- * custom properties (var(--color-surface), var(--radius-md), …) instead.
+ * Style with the SEMANTIC custom properties only (var(--semantic-*), var(--radius-*),
+ * var(--shadow-lift), var(--text-*), var(--duration-*)…). Never hardcode a color, radius,
+ * shadow, or duration for a design value — structural layout geometry may stay literal.
  */
+
+@import '../vendor/@jrm/tokens/css/default/index.css';
 
 :root {
   color-scheme: light dark;
@@ -22,9 +23,95 @@
 
 body {
   margin: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  min-height: 100vh;
+  font-family: var(--text-body-family);
+  font-size: var(--text-body-size);
+  font-weight: var(--text-body-weight);
+  line-height: var(--text-body-line-height);
+  color: var(--semantic-text-primary);
+  background: var(--semantic-background-primary);
+}
+
+/* Type scale — semantic roles from the tokens, not ad-hoc sizes. */
+h1 {
+  font-size: var(--text-display-size);
+  font-weight: var(--text-display-weight);
+  line-height: var(--text-display-line-height);
+}
+
+h2 {
+  font-size: var(--text-title-size);
+  font-weight: var(--text-title-weight);
+  line-height: var(--text-title-line-height);
+}
+
+h3 {
+  font-size: var(--text-label-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--text-label-line-height);
+}
+
+a {
+  color: var(--semantic-interactive-default);
+  text-decoration-color: var(--semantic-border-default);
+}
+
+a:hover {
+  color: var(--semantic-interactive-hover);
+}
+
+/* Shared, visible focus ring for every interactive element (Royal Violet). */
+:focus-visible {
+  outline: var(--cognitive-focus-ring-width) solid var(--semantic-border-focus);
+  outline-offset: var(--cognitive-focus-ring-offset);
+}
+
+/* Default button = the studio "default" (neutral) button role. */
+button {
+  font: inherit;
+  min-height: var(--button-default-min-height);
+  padding: var(--button-default-padding-y) var(--button-default-padding-x);
+  color: var(--button-default-text);
+  background: var(--button-default-bg);
+  border: 1px solid var(--button-default-border);
+  border-radius: var(--button-default-radius);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-state) var(--easing-standard),
+    border-color var(--duration-state) var(--easing-standard);
+}
+
+button:hover:not(:disabled) {
+  background: var(--button-default-hover-bg);
+}
+
+button:active:not(:disabled) {
+  background: var(--semantic-background-raised);
+}
+
+button:disabled {
+  color: var(--semantic-text-disabled);
+  background: var(--semantic-interactive-disabled);
+  border-color: var(--semantic-border-default);
+  cursor: not-allowed;
+}
+
+/* Form controls inherit the elevated-surface + border language. */
+select,
+input[type='text'],
+input[type='search'] {
+  font: inherit;
+  min-height: var(--input-min-height);
+  padding: var(--input-padding-y) var(--input-padding-x);
+  color: var(--input-text);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--input-radius);
+}
+
+/* The Royal Violet action accent for native form widgets. */
+input,
+select,
+button {
+  accent-color: var(--semantic-interactive-default);
 }
