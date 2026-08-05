@@ -1,0 +1,46 @@
+{
+  "name": "@jrm/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "JRM Studio design tokens — DTCG sources (seeded from score-king) built with Style Dictionary into CSS custom properties, a Tailwind preset, and typed JS/TS objects.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "main": "./build/js/index.js",
+  "types": "./build/js/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/js/index.d.ts",
+      "import": "./build/js/index.js",
+      "default": "./build/js/index.js"
+    },
+    "./css": "./build/css/default/index.css",
+    "./css/light": "./build/css/default/tokens.css",
+    "./css/dark": "./build/css/default/tokens-dark.css",
+    "./css/dark-oled": "./build/css/default/tokens-dark-oled.css",
+    "./css/high-contrast": "./build/css/default/tokens-high-contrast.css",
+    "./tailwind": "./build/tailwind/default.cjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "build",
+    "dist",
+    "tokens",
+    "config",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node config/style-dictionary.config.mjs",
+    "dist": "node config/style-dictionary.config.mjs && node scripts/dist.mjs",
+    "clean": "node -e \"require('fs').rmSync('build',{recursive:true,force:true});require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepack": "node config/style-dictionary.config.mjs"
+  },
+  "devDependencies": {
+    "style-dictionary": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}
