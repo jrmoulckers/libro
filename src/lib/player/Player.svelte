@@ -518,6 +518,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Functional dimming scrim (not a themed surface). */
     background: rgba(0, 0, 0, 0.5);
     z-index: 100;
   }
@@ -525,18 +526,22 @@
   .player {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--spacing-lg);
     width: min(40rem, 100%);
     max-height: 100%;
-    padding: 1rem;
+    padding: var(--spacing-lg);
     overflow: auto;
+    color: var(--semantic-text-primary);
+    background: var(--semantic-background-elevated);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lift);
   }
 
   .bar {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-lg);
   }
 
   .meta {
@@ -546,22 +551,36 @@
   }
 
   .book-title {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
+    color: var(--semantic-text-primary);
   }
 
   .pos {
-    font-size: 0.875rem;
+    font-size: var(--text-label-size);
+    color: var(--semantic-text-secondary);
   }
 
   .transport {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: var(--spacing-sm);
+  }
+
+  /* Play/pause is the primary transport action — the one Royal Violet fill. */
+  .play {
+    color: var(--button-primary-text);
+    background: var(--button-primary-bg);
+    border-color: var(--button-primary-border);
+  }
+
+  .play:hover:not(:disabled) {
+    background: var(--button-primary-hover-bg);
   }
 
   .scrubber {
     width: 100%;
+    accent-color: var(--semantic-interactive-default);
   }
 
   .options {
@@ -569,14 +588,25 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-lg);
+  }
+
+  .options label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--semantic-text-secondary);
   }
 
   .sleep {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--spacing-sm);
+  }
+
+  .sleep-status {
+    color: var(--semantic-text-secondary);
   }
 
   .chapters {
@@ -594,17 +624,32 @@
   .chapters button {
     display: flex;
     width: 100%;
+    min-height: 0;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-lg);
     text-align: start;
-    padding: 0.375rem 0.5rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    color: var(--semantic-text-secondary);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  .chapters button:hover {
+    background: var(--semantic-background-raised);
   }
 
   .chapters button.current {
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
+    color: var(--semantic-text-primary);
+  }
+
+  .ch-time {
+    color: var(--semantic-text-secondary);
   }
 
   .status {
     margin: auto;
+    color: var(--semantic-text-secondary);
   }
 </style>
