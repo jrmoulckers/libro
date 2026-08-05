@@ -4,3 +4,9 @@ coverage/
 pnpm-lock.yaml
 vendor/
 .impeccable/
+# synced from jrmoulckers/.github — canonical source, not authored here
+.github/agents/
+.github/skills/
+.github/prompts/
+.github/instructions/
+AGENTS.md
