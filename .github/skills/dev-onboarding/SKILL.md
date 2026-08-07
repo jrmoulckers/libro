@@ -12,13 +12,14 @@ description: >
 **Trigger:** first-time setup, local environment failures, prerequisite checks, contributor workflow questions.
 **Inputs:** repository README/AGENTS, package manifests, setup scripts, failing command output, platform in scope.
 **Related:** `mcp-agent-tooling` (agent tools/MCP), `sprint-planning` (work selection),
-`issue-management` (filing onboarding gaps), `fleet-orchestration` (multi-agent execution).
+`issue-management` (filing onboarding gaps).
 
 ## Out of scope
 
 - Product architecture or platform build internals → use the relevant domain skill.
 - MCP server permissions and agent tool wiring → use `mcp-agent-tooling`.
-- Sprint dispatch, CI monitoring, rebases, and merges → use `fleet-orchestration`.
+- Sprint dispatch, CI monitoring, rebases, and merges → use the `team` prompt and workflow
+  instructions.
 - Issue triage and template quality → use `issue-management`.
 
 ## Method

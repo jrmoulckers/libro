@@ -1,11 +1,13 @@
 ---
-applyTo: 'agents/**'
+applyTo: 'agents/**,.github/agents/**'
 ---
 <!-- synced from jrmoulckers/.github — canonical source; do not edit here -->
 
 # Instructions for Agent Definitions
 
-You are working in `agents/`, which defines reusable custom agents and their operating boundaries.
+You are working in canonical `agents/` or a consumer's materialized `.github/agents/`, which define
+reusable custom agents and their operating boundaries. Author canonical changes under `agents/`;
+consumer `.github/agents/` copies are generated and must not be edited directly.
 
 ## Agent File Schema
 
@@ -26,6 +28,10 @@ You are working in `agents/`, which defines reusable custom agents and their ope
 - Use one clear role per file. Do not combine implementation, review, and product ownership in one agent.
 - Keep `primary_paths` aligned with `AGENTS.md`; paths must exist or be called out as net-new in File Ownership.
 - Grant `edit` only to agents that change files. Review-only agents may use `shell` for read-only verification but must not have `edit`.
+- Bare `@kebab-case` references are reserved for canonical agent names and are integrity-checked.
+  Write GitHub account names as links or code without a bare `@` handle.
+- Declare skill dependencies in the **Related skills** block and prompt dependencies as "the
+  `<name>` prompt"; both forms are integrity-checked against each member's selected assets.
 
 ## Content Expectations
 

@@ -26,7 +26,8 @@ gh pr list --state open --limit 200 --json number,title,headRefName,statusCheckR
 ```
 
 - Parse `agents` into a list of agent types.
-- Map each agent to likely issues using labels, file ownership in `AGENTS.md`, and `agents/` metadata.
+- Map each agent to likely issues using labels, file ownership in `AGENTS.md`, and materialized
+  `.github/agents/` metadata (`agents/` is the backbone-only canonical source).
 - Exclude issues already claimed by open PRs.
 
 ### 2. Plan and Deploy

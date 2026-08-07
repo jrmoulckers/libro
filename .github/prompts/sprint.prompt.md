@@ -30,7 +30,8 @@ gh pr list --state open --limit 200 --json number,title,headRefName,statusCheckR
 
 For each sprint:
 
-1. Categorize unclaimed issues by labels, affected files, and the ownership tables in `AGENTS.md` / `agents/`.
+1. Categorize unclaimed issues by labels, affected files, and the ownership tables in `AGENTS.md`
+   and `.github/agents/` (`agents/` in the canonical backbone).
 2. Select one focused issue per available agent type, limiting each wave to the number the repo can safely validate in parallel.
 3. Batch small related issues only when they touch the same files and keep the PR focused.
 4. Track assignments in SQL todos to prevent double-dispatch.
@@ -63,7 +64,7 @@ Issue: #<number> — <title>
 
 2. **Implement**
    - Read the issue fully before changing files.
-   - Follow `AGENTS.md`, relevant `agents/`, and relevant `instructions/`.
+   - Follow `AGENTS.md`, relevant `.github/agents/`, and relevant `.github/instructions/`.
    - Keep the diff scoped and write/update tests where behavior changes.
    - Commit with `type(scope): description (#<issue>)`.
 

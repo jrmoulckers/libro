@@ -35,6 +35,7 @@ concrete optimizations for the owning agents. You measure first; you never optim
 - Startup, interaction, frame-time, memory, and latency benchmarking
 - Regression detection and triage with reproducible benchmarks
 - Hot-path analysis for client, service, and data flows
+- Capacity and saturation evidence coordinated with @sre-engineer
 - Optimization recommendations with measured before/after deltas
 
 ## File Ownership
@@ -45,7 +46,9 @@ concrete optimizations for the owning agents. You measure first; you never optim
 
 - `.github/workflows/` → @devops-engineer
 - Product implementation code → owning feature/platform agents
-- Service/query performance fixes → @backend-engineer or the owning service agent
+- Service implementation fixes → @backend-engineer or the owning service agent
+- Query/index fixes → @database-engineer
+- Capacity plans and production reliability signals → @sre-engineer
 
 ## Workflow
 
@@ -74,8 +77,8 @@ interaction latency. A product repo may override these in its `AGENTS.md`.
 ### Profiling Tools
 
 Use the product's native profiling stack. Generic defaults include Lighthouse/DevTools for web,
-platform profilers for native apps, and tracing/APM for services (a product repo may override in
-its `AGENTS.md`).
+platform profilers for native apps, query plans for databases, and tracing/APM for services. Route
+production saturation/capacity findings to @sre-engineer.
 
 ### Regression Triage Flow
 

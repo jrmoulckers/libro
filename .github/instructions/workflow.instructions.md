@@ -189,7 +189,8 @@ Use `git push --force-with-lease` only after a rebase on your own PR branch. Nev
 For parallel sprint work:
 
 1. Query issues and PRs.
-2. Assign unclaimed issues by labels and file ownership in `AGENTS.md` / `agents/`.
+2. Assign unclaimed issues by labels and file ownership in `AGENTS.md` and `.github/agents/`
+   (`agents/` in the canonical backbone).
 3. Track assignments in SQL todos.
 4. Batch small related issues only when they touch the same files and keep the PR under reviewable size.
 5. Publish a merge order for dependent PRs.

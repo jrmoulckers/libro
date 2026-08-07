@@ -49,8 +49,9 @@ schema/taxonomy/consent correctness only.
 **Do NOT edit** (owned by other agents):
 
 - Domain reporting, business logic, or insight calculations → owning domain/feature agents
-- Observability telemetry → @devops-engineer or owning service agent
-- Storage implementation → @backend-engineer
+- Operational observability telemetry → @sre-engineer
+- Analytics storage schemas, migrations, indexes, and isolation → @database-engineer
+- Instrumentation/storage service implementation → @backend-engineer or owning platform agent
 - Instrumentation callsites → owning platform/feature agents unless explicitly delegated
 
 ## Workflow
@@ -102,6 +103,7 @@ snake_case, typed, and documented in the metrics catalog.
 - NEVER instrument PII, secrets, or sensitive raw product data.
 - Do NOT own domain reporting; this role owns product telemetry.
 - Do NOT implement emission or storage unless the product repo explicitly grants that scope.
+- Do NOT redefine operational SLIs/SLOs as product analytics; coordinate with @sre-engineer.
 - Do NOT add an event without a documented purpose and consent gate.
 
 ### Human-Gated Operations
