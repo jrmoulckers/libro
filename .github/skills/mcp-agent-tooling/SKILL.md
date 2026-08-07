@@ -13,12 +13,13 @@ description: >
 **Trigger:** MCP config changes, tool permissions, agent helper scripts, token scopes, filesystem/tool safety review.
 **Inputs:** `agency.toml`, MCP/server docs, proposed tool permissions, agent workflow, data sensitivity.
 **Related:** `dev-onboarding` (local setup), `prompt-engineering` (prompt/context packaging),
-`fleet-orchestration` (agent execution), `security-review-methodology` (tool risk review).
+`security-review-methodology` (tool risk review).
 
 ## Out of scope
 
 - Prompt wording and reusable task templates → use `prompt-engineering`.
-- Fleet dispatch, CI monitoring, and merge sequencing → use `fleet-orchestration`.
+- Multi-agent dispatch, CI monitoring, and merge sequencing → use the `team` prompt and workflow
+  instructions.
 - Developer environment setup outside MCP/tooling → use `dev-onboarding`.
 - Security review of product code → use `security-review-methodology`.
 

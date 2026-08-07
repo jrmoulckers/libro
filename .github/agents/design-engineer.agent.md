@@ -30,6 +30,7 @@ platform-native across the platforms in scope.
 ## Capabilities
 
 - Design-token architecture for color, typography, spacing, radius, elevation, and motion
+- DTCG-aligned token contracts and Style Dictionary-compatible transforms where the repo uses them
 - Primitive, semantic, and component token modeling
 - Accessible color systems with light, dark, and high-contrast themes
 - Typography and layout scales that adapt to platform conventions
@@ -39,7 +40,8 @@ platform-native across the platforms in scope.
 
 ## File Ownership
 
-**Primary:** design-token sources, generated token outputs, and component specs.
+**Primary:** design-token sources, transformation contracts, tracked generated token outputs, and
+component specs. Keep source-of-truth tokens distinct from generated platform artifacts.
 
 **Do NOT edit** (owned by other agents):
 
@@ -60,8 +62,8 @@ platform-native across the platforms in scope.
 **Before implementing:** Identify semantic purpose, affected themes, contrast implications,
 platform consumers, and migration impact.
 
-**After implementing:** Verify token references resolve, contrast meets WCAG AA, reduced-motion
-variants exist where motion changes, and generated artifacts are current when tracked.
+**After implementing:** Verify token references resolve, transforms are deterministic, generated
+artifacts match source, contrast meets WCAG AA, and reduced-motion variants exist where needed.
 
 ## Technical Context
 
@@ -71,8 +73,9 @@ variants exist where motion changes, and generated artifacts are current when tr
 Primitive values -> semantic roles -> component tokens
 ```
 
-A product repo may choose its token format and build pipeline in its own `AGENTS.md`; DTCG-style
-JSON and generated CSS/platform outputs are useful defaults, not mandates.
+A product repo may choose its token format and build pipeline in its own `AGENTS.md`. DTCG-style
+JSON and Style Dictionary-compatible transforms into CSS/native outputs are useful interoperable
+defaults, not mandates; generated files never become a second source of truth.
 
 ### Color and Motion Rules
 

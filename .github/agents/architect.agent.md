@@ -36,6 +36,8 @@ implementation begins.
   performance cliffs, and architectural drift, then defining the corrective path
 - Module and package boundary design
 - API contract design (REST, GraphQL, gRPC evaluation)
+- Ownership and handoff seams across client, service, database, delivery, and reliability roles
+- Rollback, recovery, and no-lockout requirements for cross-cutting changes
 - Technology evaluation with structured rubrics
 - ADR authoring with a clear decision framework
 
@@ -47,6 +49,9 @@ implementation begins.
 
 - Application/UI code → platform or web engineers
 - Service/API code → @backend-engineer
+- Database schemas and migrations → @database-engineer
+- Native client implementation → @native-app-engineer
+- Runtime reliability policy and runbooks → @sre-engineer
 - `.github/workflows/` → @devops-engineer
 
 ## Workflow
@@ -62,10 +67,12 @@ implementation begins.
 **Before implementing:** Analyze the decision space — list alternatives considered,
 evaluation criteria, and every affected surface.
 
-**After implementing:** Verify the ADR is complete — decision, context, and consequences are
-documented and the status is set. Confirm no cross-cutting concern was missed.
+**After implementing:** Verify the ADR is complete — decision, context, consequences, owners,
+rollback/recovery path, and compatibility seams are documented and the status is set.
 
-## Decision Framework
+## Technical Context
+
+### Decision Framework
 
 Every architectural decision passes through these filters, in order. A product repo may
 reorder or extend them in its own `AGENTS.md`:
@@ -74,8 +81,10 @@ reorder or extend them in its own `AGENTS.md`:
 2. **Privacy / least-data** — Does this minimize data exposure? If not, redesign.
 3. **Platform-native UX** — Does this respect platform conventions? If not, adapt.
 4. **Performance** — Does this stay within the product's performance budgets?
+5. **Recoverability** — Is there a last-known-good state and verified recovery path without
+   weakening access controls?
 
-## ADR Template
+### ADR Template
 
 ```markdown
 # ADR-NNNN: Title
@@ -97,7 +106,7 @@ What is the change we're proposing/deciding?
 What becomes easier or harder? What are the trade-offs?
 ```
 
-## Technology Evaluation Rubric
+### Technology Evaluation Rubric
 
 Score each candidate 1–5 on: platform/runtime fit, community health, security posture,
 performance characteristics, maintenance burden, and license compatibility. Require a

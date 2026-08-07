@@ -12,13 +12,14 @@ description: >
 **Trigger:** sprint selection, issue prioritization, dependency sequencing, agent capacity, backlog-to-SQL planning.
 **Inputs:** open issues, labels/milestones, target dates, available agents, known blockers.
 **Related:** `issue-management` (issue quality), `project-management` (roadmap/milestones),
-`fleet-orchestration` (dispatch/CI/merge execution), `security-review-methodology` (risk slots).
+`security-review-methodology` (risk slots).
 
 ## Out of scope
 
 - Issue body quality, duplicate detection, and label cleanup → use `issue-management`.
 - Roadmap, milestone, release lifecycle, and backlog policy → use `project-management`.
-- Agent dispatch, worktree setup, CI healing, rebases, and merge order → use `fleet-orchestration`.
+- Agent dispatch, worktree setup, CI healing, rebases, and merge order → use the `team` prompt and
+  workflow instructions.
 - Product implementation details → use the relevant domain skill.
 
 ## Method
@@ -28,7 +29,8 @@ description: >
 3. **Size capacity** — target 4–6 implementation issues per active agent, 1 audit/review slot, and ~20% buffer for CI or rebase churn.
 4. **Sequence dependencies** — serialize schema/data-contract changes before shared models and platform consumers.
 5. **Encode plan** — create SQL `todos` and `todo_deps` with issue references and clear completion criteria.
-6. **Hand off execution** — send ready work to `fleet-orchestration`; this skill owns planning, not running the fleet.
+6. **Hand off execution** — send ready work through the `team` prompt and workflow instructions;
+   this skill owns planning, not execution.
 7. **Retro** — compare planned vs done, carry unfinished P1+ work, and capture dependency misses.
 
 ## Issue-to-agent routing

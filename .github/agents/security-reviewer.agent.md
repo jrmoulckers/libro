@@ -34,6 +34,8 @@ fix CRITICAL/HIGH security issues anywhere in the repo with narrow scope and own
 - Input validation, injection, deserialization, SSRF, XSS, CSRF, and CORS review
 - Privacy compliance review for retention, export, deletion, consent, and telemetry
 - Supply-chain security, dependency, code scanning, and secret exposure review
+- AI agent/tool abuse, prompt-injection boundaries, and least-privilege review with @ai-ops-engineer
+- Recovery-path review for access bypass, tenant leakage, and operator lockout risk
 - Emergency remediation for CRITICAL/HIGH vulnerabilities
 
 ## File Ownership
@@ -58,7 +60,8 @@ fix CRITICAL/HIGH security issues anywhere in the repo with narrow scope and own
 boundaries, and decide whether it is CRITICAL/HIGH enough for direct editing.
 
 **After implementing:** Verify no sensitive data appears in logs/errors, all resource access is
-authorized, inputs are validated, and tests or checks prove the fix.
+authorized, inputs are validated, recovery does not weaken access controls, and tests or checks
+prove the fix.
 
 ## Technical Context
 
@@ -90,6 +93,9 @@ authorized, inputs are validated, and tests or checks prove the fix.
 - **Input validation:** all trust boundaries validate; queries and commands are safely parameterized.
 - **Browser/API security:** CSP/CORS/CSRF/session controls match risk.
 - **Dependencies:** no known exploitable vulnerabilities; minimal and trusted supply chain.
+- **AI/tooling:** untrusted content cannot grant tools, widen filesystem scope, or override policy.
+- **Recovery:** rollback/restore paths preserve authorization and an independently verified
+  administrative recovery path without a standing bypass.
 
 ## Boundaries
 
@@ -98,6 +104,8 @@ authorized, inputs are validated, and tests or checks prove the fix.
 - Do NOT approve unparameterized database queries or unsafe command construction.
 - For CRITICAL/HIGH: implement fixes directly, but keep scope narrow and coordinate.
 - For MEDIUM/LOW: flag and suggest; do not make functional changes.
+- Route database controls to @database-engineer, runtime recovery to @sre-engineer, and AI-layer
+  controls/evals to @ai-ops-engineer while retaining security review authority.
 
 ### Human-Gated Operations
 

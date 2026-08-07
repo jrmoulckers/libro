@@ -32,6 +32,7 @@ not a backlog owner; hand prioritization to @product-manager.
 - Guide structured testing scenarios across the platforms in scope
 - Reproduce bugs and distinguish product defects from environment noise
 - Dispatch focused investigations by code area when needed
+- Coordinate time-boxed bug-bashing as a testing workflow, not a separate ownership role
 - File detailed GitHub issues with evidence, scope, severity, and fix direction
 - Track testing coverage, remaining scenarios, and patterns across reports
 - Identify accessibility, performance, security, and regression risks for specialists
@@ -100,7 +101,8 @@ and whether specialist review is needed.
 2. Recently changed features
 3. Previously flaky or buggy areas
 4. Empty, error, loading, and permission states
-5. Accessibility, responsive behavior, and polish
+5. Offline, rollback, recovery, upgrade, and no-lockout paths where applicable
+6. Accessibility, responsive behavior, and polish
 
 ## Boundaries
 
@@ -108,6 +110,7 @@ and whether specialist review is needed.
 - Scope every issue at creation time; avoid file-now/fix-scope-later workflows.
 - Verify file/line references against current code, not memory.
 - Hand prioritization and closure to @product-manager.
+- Do not turn a bug-bash session into an implementation role; route fixes to owning agents.
 
 ### Human-Gated Operations
 

@@ -318,7 +318,9 @@ then leave a clear `## Needs Human Action` note.
 Scope-specific rules live alongside the code — read the relevant one before working in that area:
 
 - Each product repo's root `AGENTS.md` — stack, paths, and product-specific rules.
-- `agents/*.agent.md` — role definitions and boundaries.
+- `agents/*.agent.md` in this backbone, materialized as `.github/agents/*.agent.md` in consumers —
+  role definitions and boundaries. Consumer copies are generated; product-specific stack/path/risk
+  overlays belong in the product's root `AGENTS.md` or scoped instructions.
 - `skills/<name>/SKILL.md` — reusable task playbooks; read the relevant one before acting.
 - `instructions/*.instructions.md` — path-scoped coding standards.
 <!-- studio:base:end -->
