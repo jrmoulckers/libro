@@ -18,16 +18,15 @@ on:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   lint:
     name: Lint
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
     permissions:
       contents: read
       pull-requests: read
@@ -40,7 +39,7 @@ jobs:
 
   web:
     name: Web CI
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
     permissions:
       contents: read
     with:
@@ -49,14 +48,28 @@ jobs:
       typecheck-command: pnpm typecheck
       test-command: pnpm test
       build-command: pnpm build
+      artifact-name: libro-web-build
+      artifact-path: dist
+      artifact-retention-days: 7
+
+  security:
+    name: Security CI
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    permissions:
+      contents: read
+    with:
+      node-version: '22'
+      package-manager: pnpm
+      run-package-audit: true
+      run-secret-scan: true
+      run-dependency-review: true
+      dependency-fail-severity: high
 
   preview:
-    name: Deploy Preview
-    # Pure-client build: the artifact provider is the whole story until a host is
-    # chosen. `DEPLOY_TOKEN` is an optional secret used only by provider: custom.
+    name: Preview Artifact
     if: github.event_name == 'pull_request'
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@main
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
     permissions:
       contents: read
     with:
@@ -64,12 +77,12 @@ jobs:
       package-manager: pnpm
       build-command: pnpm build
       output-dir: dist
-      provider: artifact
+      artifact-name: ${{ needs.web.outputs.artifact-name }}
 
   perf:
     name: Performance Budget
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@main
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
     permissions:
       contents: read
     with:
@@ -77,8 +90,12 @@ jobs:
       package-manager: pnpm
       build-command: pnpm build
       output-dir: dist
+      artifact-name: ${{ needs.web.outputs.artifact-name }}
       bundle-budget-kb: 2048
       # Lighthouse is skipped while `url` is empty. Set it once a stable preview
       # or production URL exists; lhci-min-performance / lhci-min-accessibility
       # then default to 90 / 95.
       url: ''
+      lhci-min-performance: 90
+      lhci-min-accessibility: 95
+      lighthouse-public-upload: false
