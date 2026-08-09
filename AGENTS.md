@@ -122,23 +122,89 @@ introduce placeholder color/spacing literals "for now" — they become permanent
 
 ## Product-specific rules
 
+Rules that restate a ratified engineering principle are cited rather than copied, per
+[ADR-0003](https://github.com/jrmoulckers/.github/blob/main/docs/architecture/0003-four-authority-topology.md).
+Resolve any `ENG-*` ID through
+[`principles/index.json`](https://github.com/jrmoulckers/engineering/blob/main/principles/index.json).
+
 1. **No server tier, ever.** Do not add an API route, a Node server, SSR, or a
-   backend-for-frontend. If a feature seems to need one, it needs a different design.
-2. **No secrets in the repo or the bundle.** There is no server to hold them. A feature that
-   requires a private API key is out of scope by construction. Third-party integrations must
-   work with public endpoints or user-supplied credentials held in device storage only.
+   backend-for-frontend. If a feature seems to need one, it needs a different design. This is a
+   durable constraint recorded here under
+   [`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md).
+2. **No secrets in the repo or the bundle.**
+   [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+   already forbids secrets in source, artifacts, logs, and clients, and
+   [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+   makes client-visible configuration untrusted. libro is stricter only because it has nowhere
+   to inject one at runtime: a feature requiring a private API key is out of scope by
+   construction, so third-party integrations must work with public endpoints or with
+   user-supplied credentials held in device storage.
 3. **User content stays on the device.** Book files, audio, covers, positions, and highlights
-   are private user data. Do not send them anywhere, do not log them, do not add analytics
-   that could carry titles or filenames.
-4. **Own the client budget.** CI enforces a 2048 KB `dist/` budget. Media parsing (EPUB,
-   audio, covers) must be dynamically imported and code-split, never pulled into the entry
-   chunk. Justify every runtime dependency in the PR body.
-5. **Offline is a feature, not a fallback.** Anything added must degrade sensibly with no
-   network. Reserve layout space so loading states don't cause CLS.
+   are personal data under
+   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md),
+   and the device's store is their system of record under
+   [`ENG-LOCAL-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md).
+   libro-specific: there is no destination to send them to, so do not log them and do not add
+   analytics that could carry titles or filenames.
+4. **Own the client budget.** The budget obligation is
+   [`ENG-WEB-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+   (separate delivery and runtime budgets),
+   [`ENG-PERF-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
+   (versioned and owned), and
+   [`ENG-PERF-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
+   (dependency cost). libro's numbers: CI enforces 2048 KB of `dist/`, media parsing (EPUB,
+   audio, covers) must be dynamically imported and code-split rather than pulled into the entry
+   chunk, and every runtime dependency is justified in the PR body. See
+   [practices/performance-budgets.md](https://github.com/jrmoulckers/engineering/blob/main/practices/performance-budgets.md).
+5. **Offline is a feature, not a fallback.** This is
+   [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+   (start with zero external-service configuration; degrade unavailable optional services to
+   explicit local behaviour) plus
+   [`ENG-WEB-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+   (detect optional browser capabilities before use). libro-specific: reserve layout space so
+   loading states don't cause CLS.
 6. **Accessibility is a gate.** WCAG 2.2 AA. Native elements first; media players need full
    keyboard control and correctly labelled transport controls. Honor `prefers-reduced-motion`
    — the tokens already zero durations; don't reintroduce motion that bypasses that.
-7. **Colocate tests.** `src/lib/foo.ts` → `src/lib/foo.test.ts`.
+   [`ENG-PERF-009`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
+   additionally forbids trading accessibility away for performance.
+7. **Colocate tests.** `src/lib/foo.ts` → `src/lib/foo.test.ts`. A libro convention; the
+   obligation it serves is
+   [`ENG-TEST-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md)
+   (regress at the narrowest authoritative boundary).
+
+Sync behaviour in `src/lib/sync/` is governed by
+[`ENG-LOCAL-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+(one narrow provider contract; core local operation never waits on an account, provider, or
+network) and
+[`ENG-LOCAL-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+(ordering, tombstone, concurrency, and merge rules are declared and tested per synchronized
+type). See
+[practices/local-first-sync.md](https://github.com/jrmoulckers/engineering/blob/main/practices/local-first-sync.md).
+
+## Shared engineering configuration — not adopted yet
+
+Lint, format, and TypeScript settings are still authored locally in `eslint.config.js`,
+`.prettierrc.json`, and `tsconfig.*.json`. They are **intended** to come from
+`@jrmoulckers/eslint-config`, `@jrmoulckers/prettier-config`, and `@jrmoulckers/tsconfig`
+(published to GitHub Packages at `v0.1.0`), but that adoption is blocked — see the tracking
+issue and [docs/adopting.md](https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md).
+
+Two things must land upstream first:
+
+1. The backbone's install-bearing reusable workflows must learn registry auth. They call
+   `actions/setup-node` without `registry-url`/`scope` and supply no `NODE_AUTH_TOKEN`, so any
+   repo that adds an `@jrmoulckers/*` dependency 401s during install.
+2. `jrmoulckers/engineering` is private, so `GITHUB_TOKEN` alone will not read the packages even
+   after (1). libro needs an explicit package read grant or a `read:packages` secret.
+
+Until then, do not add an `@jrmoulckers/*` dependency and do not point `.npmrc` at GitHub
+Packages — a lockfile that cannot be resolved in CI is worse than a local config. Unlike
+`@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
+
+When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
+lint rules belong in `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo
+belongs upstream.
 
 ## Deviations from the shared principles
 
@@ -241,11 +307,23 @@ pure-client product that has no server database. Inheriting a legacy realm's fra
 false exemption gets written down, and a false exemption is most dangerous for a component that
 does not exist yet, because nothing contradicts it until the design is already settled.
 
+`jrmoulckers/engineering` is consumed in three layers, all pinned at `v0.1.0`:
+
+| Layer | What it gives libro | How it arrives |
+| --- | --- | --- |
+| [`principles/`](https://github.com/jrmoulckers/engineering/blob/main/principles/README.md) | 66 ratified `ENG-*` rules | cited by ID; resolve via [`principles/index.json`](https://github.com/jrmoulckers/engineering/blob/main/principles/index.json) |
+| [`practices/`](https://github.com/jrmoulckers/engineering/blob/main/practices/README.md) | technique for satisfying them | linked by URL |
+| `packages/` | executable enforcement | GitHub Packages — **not adopted yet**, see [Shared engineering configuration](#shared-engineering-configuration--not-adopted-yet) |
+
+Practices state no new rules — every normative sentence in one cites the `ENG-*` ID it derives
+from, so cite the principle, not the practice, when you need an obligation.
+
 ## Not built yet
 
-Routing, the IndexedDB library index, EPUB rendering, audio playback and position sync, PWA
-service worker and offline strategy, and file/OPDS import. The current `src/` tree is a
-minimal skeleton that exists so the CI gates are real.
+Routing and a UI shell beyond the current single-view `App.svelte`. The EPUB reader, audio
+player, provider adapters (OPDS, Audiobookshelf), metadata enrichment, plugin engine, the
+IndexedDB stores, the sync lanes, and the PWA service worker all exist under `src/lib/` with
+colocated tests.
 
 <!-- studio:base:start -->
 <!-- synced from jrmoulckers/.github — canonical source; do not edit here -->
