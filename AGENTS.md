@@ -142,19 +142,41 @@ introduce placeholder color/spacing literals "for now" — they become permanent
 
 ## Deviations from the shared principles
 
-Recorded explicitly so reviewers and agents don't treat them as oversights:
+Recorded explicitly so reviewers and agents don't treat them as oversights. Each exception
+cites the obligation it is an exception to, by stable ID, in the authority that owns it —
+the legacy `principles/<realm>.md` files these bullets used to name were deleted from
+`jrmoulckers/studio` when its 192 legacy principles were redistributed, so those citations no
+longer resolve. Successors below come from `principles/migration-ledger.json` in
+`jrmoulckers/studio`.
 
-- **`principles/backend.md` and `principles/middleware.md` do not apply.** libro has no
-  server, no database, and no service boundary. Persistence is browser storage.
-- **`principles/frontend.md` §6, "prefer server rendering / static where the framework
-  allows"** — libro is a static client-rendered SPA. The "static" half applies (the build is
-  fully static); SSR does not exist here. Judge LCP against the SPA shell, not an SSR baseline.
-- **`principles/security.md` browser posture applies in full, but its server-side controls do
-  not.** The entire threat surface is the client bundle and device storage.
+- **`ENG-API-001`–`ENG-API-004` and `ENG-DATA-001`/`ENG-DATA-003` are vacuous here.** libro has
+  no server, no database, and no owned API, so there is no request to parse into a typed
+  contract, no schema migration path, no server-side authorization decision, and no service
+  dependency to bound. Persistence is browser storage, governed instead by `ENG-LOCAL-001`.
+- **`ENG-INT-001`–`ENG-INT-005` have no boundary to govern.** libro owns no service seam. If a
+  third-party integration is ever added it must satisfy `ENG-INT-001`–`ENG-INT-004` in the
+  client; `ENG-INT-005` (third-party credentials behind a server-side proxy) is unsatisfiable
+  by construction, which is exactly why a feature needing a private API key is out of scope.
+- **`ENG-WEB-003` applies in full; its legacy SSR guidance does not survive.** The old
+  `principles/frontend.md` §6 was carried forward as `ENG-WEB-003` (delivery and runtime
+  budgets) by ledger entry `studio-legacy:frontend:6`, disposition `reference`. The "prefer
+  server rendering / static where the framework allows" line was an in-practice note under
+  that heading and has **no successor** — no ratified Engineering principle mentions server
+  rendering. So there is nothing left to deviate from: libro is a static client-rendered SPA,
+  and LCP is judged against the SPA shell, not an SSR baseline. The budget obligation itself
+  (`ENG-WEB-003`, plus `ENG-PERF-003` on dependency cost) binds us normally.
+- **`ENG-SEC-001`, `ENG-SEC-002`, `ENG-SEC-005`, `ENG-SEC-006`, `ENG-SEC-008` bind in full;
+  `ENG-SEC-003`, `ENG-SEC-004`, `ENG-SEC-007` have a client-only reading.** The entire threat
+  surface is the client bundle and device storage, so there is no server-side default-deny
+  decision, no fail-closed service configuration, and the only trust boundary to model is
+  untrusted file/network input reaching the browser. `ENG-SEC-001` is stricter here, not
+  looser: with no server tier there is nowhere to inject a secret at runtime.
 - **`reusable-perf-budget`'s Lighthouse assertions are deliberately deferred**, not overlooked.
   `url: ''` makes the workflow self-skip Lighthouse; the bundle-size budget (2048 KB) still runs
-  on every push and PR. This is a **known gap pending a hosted preview URL** — set `url:` in
-  `.github/workflows/ci.yml` once a host is chosen, and `lhci-min-performance` /
+  on every push and PR. This is a **known gap against `ENG-PERF-002`** (budgets must be
+  versioned, owned, and method-specific) and against `ENG-PERF-001` (claims need a reproducible
+  measurement): the size half is enforced, the field-metric half is not yet measurable. Set
+  `url:` in `.github/workflows/ci.yml` once a host is chosen, and `lhci-min-performance` /
   `lhci-min-accessibility` then default to 90 / 95.
 - **Deploy previews use the `artifact` provider**, not a hosting provider, for the same reason.
 
@@ -174,6 +196,22 @@ local copies.
 
 `.github/workflows/ci.yml` is the opposite case: reusable workflows are native, so the engine
 reports them but never writes them. That file is ours to own and edit.
+
+## Authorities
+
+Product obligations and outcomes are defined in
+[`jrmoulckers/product`](https://github.com/jrmoulckers/product) and consumed **by reference,
+never by copy**. Cite an obligation by its stable ID (for example `PROD-REL-001`), and pin to a
+commit SHA when the exact wording matters. Roadmaps, metrics, experiments, and compliance
+evidence live here in libro and cite the obligation they satisfy.
+
+The other three authorities work the same way: engineering mechanisms and evidence in
+[`jrmoulckers/engineering`](https://github.com/jrmoulckers/engineering) (`ENG-*`), design and
+interface in [`jrmoulckers/studio`](https://github.com/jrmoulckers/studio) (`STUDIO-*`), and
+governance, automation, and shared agent assets in
+[`jrmoulckers/.github`](https://github.com/jrmoulckers/.github) (`GH-*`). Never copy principle
+text into this repository — cite the ID. Where libro cannot satisfy an obligation, record it
+under [Deviations](#deviations-from-the-shared-principles) with the ID it excepts.
 
 ## Not built yet
 
