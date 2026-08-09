@@ -68,7 +68,7 @@ describe('aggregateLibrary', () => {
     ]);
 
     expect(result.books).toHaveLength(1);
-    expect(result.books[0].sourceProviderId).toBe('good');
+    expect(result.books[0]!.sourceProviderId).toBe('good');
     expect(result.errors).toEqual([{ providerId: 'bad', error: boom }]);
   });
 
@@ -79,7 +79,7 @@ describe('aggregateLibrary', () => {
     ]);
 
     expect(result.books).toHaveLength(1);
-    expect(result.books[0].sourceProviderId).toBe('abs');
+    expect(result.books[0]!.sourceProviderId).toBe('abs');
   });
 
   it('accepts a registry as its source', async () => {

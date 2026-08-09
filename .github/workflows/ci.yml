@@ -26,7 +26,7 @@ permissions: {}
 jobs:
   lint:
     name: Lint
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
     permissions:
       contents: read
       pull-requests: read
@@ -39,7 +39,7 @@ jobs:
 
   web:
     name: Web CI
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
     permissions:
       contents: read
     with:
@@ -54,7 +54,7 @@ jobs:
 
   security:
     name: Security CI
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
     permissions:
       contents: read
     with:
@@ -70,7 +70,7 @@ jobs:
     name: Preview Artifact
     if: github.event_name == 'pull_request'
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
     permissions:
       contents: read
     with:
@@ -83,7 +83,7 @@ jobs:
   perf:
     name: Performance Budget
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
     permissions:
       contents: read
     with:

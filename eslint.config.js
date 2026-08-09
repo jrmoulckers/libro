@@ -1,22 +1,9 @@
-import js from '@eslint/js';
-import ts from 'typescript-eslint';
-import svelte from 'eslint-plugin-svelte';
-import globals from 'globals';
+// Engineering-owned Svelte preset. Rules, ignores, and the Prettier
+// reconciliation live in @jrmoulckers/eslint-config; see
+// https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md
+//
+// Nothing is extended locally: libro's previous configuration was a strict
+// subset of this preset, so adopting it loses no rule.
+import { svelteConfig } from '@jrmoulckers/eslint-config/svelte';
 
-export default ts.config(
-  { ignores: ['dist/', 'node_modules/', 'vendor/', 'coverage/'] },
-  js.configs.recommended,
-  ...ts.configs.recommended,
-  ...svelte.configs.recommended,
-  {
-    languageOptions: {
-      globals: { ...globals.browser, ...globals.node },
-    },
-  },
-  {
-    files: ['**/*.svelte', '**/*.svelte.ts'],
-    languageOptions: {
-      parserOptions: { parser: ts.parser },
-    },
-  },
-);
+export default svelteConfig();

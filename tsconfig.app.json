@@ -1,20 +1,9 @@
 {
-  "extends": "@tsconfig/svelte/tsconfig.json",
+  "extends": "@jrmoulckers/tsconfig/vite-app.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "allowJs": true,
-    "checkJs": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "types": ["vite/client"]
+    // Places Svelte compiler diagnostics at the correct source position.
+    "sourceMap": true,
+    "esModuleInterop": true
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
 }

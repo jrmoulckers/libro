@@ -35,7 +35,7 @@ import type { PlaybackSource } from './source';
 export class AbsPlaybackError extends Error {
   constructor(
     message: string,
-    readonly cause?: unknown,
+    override readonly cause?: unknown,
   ) {
     super(message);
     this.name = 'AbsPlaybackError';

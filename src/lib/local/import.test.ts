@@ -75,7 +75,7 @@ describe('importEpubFiles', () => {
 
     expect(errors).toEqual([]);
     expect(imported).toHaveLength(1);
-    const id = imported[0].id;
+    const id = imported[0]!.id;
     expect(await store.getFile(id)).toBe(file);
     expect(await store.getCover(id)).toBeInstanceOf(Blob);
     expect((await store.listBooks()).map((b) => b.title)).toEqual(['Effective Java']);

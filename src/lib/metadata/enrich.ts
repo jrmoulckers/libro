@@ -68,7 +68,9 @@ async function mapPool<T>(items: readonly T[], limit: number, fn: (item: T) => P
   const worker = async (): Promise<void> => {
     while (cursor < items.length) {
       const index = cursor++;
-      await fn(items[index]);
+      const item = items[index];
+      if (item === undefined) continue;
+      await fn(item);
     }
   };
   await Promise.all(Array.from({ length: size }, worker));

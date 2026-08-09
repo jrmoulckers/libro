@@ -58,7 +58,7 @@ export class PluginError extends Error {
   constructor(
     readonly kind: PluginErrorKind,
     message: string,
-    readonly cause?: unknown,
+    override readonly cause?: unknown,
   ) {
     super(message);
     this.name = 'PluginError';

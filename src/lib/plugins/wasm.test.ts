@@ -66,9 +66,9 @@ describe('mapWasmBooks', () => {
     );
     const books = mapWasmBooks('p', 'ebook', json);
     expect(books).toHaveLength(1);
-    expect(books[0].mediaType).toBe('audiobook');
-    expect(books[0].identifiers).toEqual({ asin: 'B000' });
-    expect(books[0].sourceProviderId).toBe('p');
+    expect(books[0]!.mediaType).toBe('audiobook');
+    expect(books[0]!.identifiers).toEqual({ asin: 'B000' });
+    expect(books[0]!.sourceProviderId).toBe('p');
   });
 
   it('throws a typed error on non-JSON output', () => {
@@ -98,11 +98,11 @@ describe('runWasmCatalog against the committed fixture', () => {
     });
 
     expect(books).toHaveLength(2);
-    expect(books[0].id).toBe('a1');
-    expect(books[0].title).toBe('Wasm and Order');
-    expect(books[0].authors).toEqual(['G. Guest']);
-    expect(books[0].sourceProviderId).toBe('example-wasm-catalog');
-    expect(books[0].identifiers).toEqual({ isbn: '9780000000009' });
+    expect(books[0]!.id).toBe('a1');
+    expect(books[0]!.title).toBe('Wasm and Order');
+    expect(books[0]!.authors).toEqual(['G. Guest']);
+    expect(books[0]!.sourceProviderId).toBe('example-wasm-catalog');
+    expect(books[0]!.identifiers).toEqual({ isbn: '9780000000009' });
     // The guest built the URL from base_url and the host performed the fetch.
     expect(http.seen).toEqual(['https://api.wasm-books.test/api/books']);
   });

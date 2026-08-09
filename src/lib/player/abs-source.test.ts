@@ -45,10 +45,10 @@ describe('mapAbsPlaybackSession', () => {
 
   it('resolves track URLs with the token and lays out the timeline', () => {
     expect(manifest.tracks).toHaveLength(2);
-    expect(manifest.tracks[0].url).toBe('https://abs.test/s/item/li_1/file/aaa.mp3?token=abc');
-    expect(manifest.tracks[1].url).toBe('https://cdn.example.com/bbb.mp3?x=1&token=abc');
+    expect(manifest.tracks[0]!.url).toBe('https://abs.test/s/item/li_1/file/aaa.mp3?token=abc');
+    expect(manifest.tracks[1]!.url).toBe('https://cdn.example.com/bbb.mp3?x=1&token=abc');
     expect(manifest.tracks.map((t) => t.durationSeconds)).toEqual([300, 200]);
-    expect(manifest.tracks[0].mimeType).toBe('audio/mpeg');
+    expect(manifest.tracks[0]!.mimeType).toBe('audio/mpeg');
     // Offsets are derived by assembleTimeline, not carried on the raw manifest.
     const timeline = assembleTimeline(manifest.tracks, manifest.chapters);
     expect(timeline.tracks.map((t) => t.startOffset)).toEqual([0, 300]);
@@ -58,8 +58,8 @@ describe('mapAbsPlaybackSession', () => {
   it('maps chapters, defaults blank titles, and skips malformed ones', () => {
     expect(manifest.chapters).toHaveLength(3);
     expect(manifest.chapters[0]).toEqual({ title: 'Opening', startAbsolute: 0, endAbsolute: 250 });
-    expect(manifest.chapters[1].title).toBe('Chapter 2'); // blank title defaulted
-    expect(manifest.chapters[2].title).toBe('Chapter 3');
+    expect(manifest.chapters[1]!.title).toBe('Chapter 2'); // blank title defaulted
+    expect(manifest.chapters[2]!.title).toBe('Chapter 3');
   });
 
   it('throws AbsPlaybackError when there are no audio tracks', () => {

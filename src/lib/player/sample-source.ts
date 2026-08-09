@@ -90,7 +90,6 @@ export function encodeToneWav(seconds: number, frequencyHz: number, sampleRate =
 export function createSamplePlaybackSource(): PlaybackSource {
   return {
     id: SAMPLE_SOURCE_ID,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async resolve(_book: Book): Promise<PlaybackManifest> {
       const layout = sampleManifestLayout();
       const tracks = layout.tracks.map((spec) => {
