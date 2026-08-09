@@ -159,6 +159,19 @@ longer resolve. Successors below come from `principles/migration-ledger.json` in
   collection; implement retention, export, and erasure) likewise applies to on-device library
   data. Device persistence is additionally governed by `ENG-LOCAL-001`, which makes the
   device's durable store the system of record and requires portable data stay exportable.
+
+  `ENG-DATA-003` admits those mechanisms **"only from an explicit authorized obligation"** —
+  Engineering will not let a retention or erasure mechanism exist without a Product obligation
+  behind it. Nothing attaches yet, because the store does not exist. **When the IndexedDB index
+  is built**, its retention and terminal-disposition behavior must trace to `PROD-COMP-005`
+  (purpose-linked retention period, start trigger, terminal disposition, and the consequence of
+  deletion or consent withdrawal), and any export or erasure surface must trace to
+  `PROD-COMP-003` (promised access, correction, export, deletion, and opt-out behavior per data
+  category). Build the store without those citations and the mechanism is unauthorized, not
+  merely undocumented.
+
+  `ENG-SEC-008` is complementary, not redundant: `ENG-DATA-003` obligates the *mechanism*,
+  `ENG-SEC-008` obligates the *auditable lifecycle evidence* that the mechanism ran. Cite both.
 - **`ENG-INT-001`–`ENG-INT-005` have no boundary to govern.** libro owns no service seam. If a
   third-party integration is ever added it must satisfy `ENG-INT-001`–`ENG-INT-004` in the
   client; `ENG-INT-005` (third-party credentials behind a server-side proxy) is unsatisfiable
@@ -218,6 +231,15 @@ governance, automation, and shared agent assets in
 [`jrmoulckers/.github`](https://github.com/jrmoulckers/.github) (`GH-*`). Never copy principle
 text into this repository — cite the ID. Where libro cannot satisfy an obligation, record it
 under [Deviations](#deviations-from-the-shared-principles) with the ID it excepts.
+
+**Read the principle before claiming it does not apply.** Citing an ID needs only the ID;
+asserting that an obligation is *vacuous* here is a stronger claim and needs its text. The
+legacy→successor ledger in `jrmoulckers/studio` tells you which principle succeeded a legacy
+one — it does not tell you the successor's scope, and the realms were re-cut during the
+migration. `ENG-DATA-*`, for instance, is scoped by durability, not by tier, so it binds a
+pure-client product that has no server database. Inheriting a legacy realm's framing is how a
+false exemption gets written down, and a false exemption is most dangerous for a component that
+does not exist yet, because nothing contradicts it until the design is already settled.
 
 ## Not built yet
 
