@@ -149,10 +149,16 @@ the legacy `principles/<realm>.md` files these bullets used to name were deleted
 longer resolve. Successors below come from `principles/migration-ledger.json` in
 `jrmoulckers/studio`.
 
-- **`ENG-API-001`–`ENG-API-004` and `ENG-DATA-001`/`ENG-DATA-003` are vacuous here.** libro has
-  no server, no database, and no owned API, so there is no request to parse into a typed
-  contract, no schema migration path, no server-side authorization decision, and no service
-  dependency to bound. Persistence is browser storage, governed instead by `ENG-LOCAL-001`.
+- **`ENG-API-001`–`ENG-API-004` are vacuous here.** libro has no server and no owned API, so
+  there is no request to parse into a typed contract, no server-side authorization decision,
+  and no service dependency to bound.
+- **`ENG-DATA-001` and `ENG-DATA-003` bind, and are not deviations.** libro has no *server*
+  database, but `ENG-DATA-001` governs any durable store and schema — the planned IndexedDB
+  library index is exactly that, so it needs one owner, invariants enforced in the data model,
+  and reviewed forward-safe migrations between versions. `ENG-DATA-003` (minimize at
+  collection; implement retention, export, and erasure) likewise applies to on-device library
+  data. Device persistence is additionally governed by `ENG-LOCAL-001`, which makes the
+  device's durable store the system of record and requires portable data stay exportable.
 - **`ENG-INT-001`–`ENG-INT-005` have no boundary to govern.** libro owns no service seam. If a
   third-party integration is ever added it must satisfy `ENG-INT-001`–`ENG-INT-004` in the
   client; `ENG-INT-005` (third-party credentials behind a server-side proxy) is unsatisfiable
