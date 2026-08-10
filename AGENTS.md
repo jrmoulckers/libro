@@ -67,6 +67,7 @@ These are exactly the commands `.github/workflows/ci.yml` runs.
 │   ├── App.svelte
 │   ├── app.css              # global stylesheet; token import lives here
 │   └── lib/                 # domain logic + colocated *.test.ts
+├── docs/architecture/       # ADRs — required by ENG-ARCH-003 before a tradeoff is durable
 ├── vendor/@jrm/tokens/      # SYNC-OWNED, arrives via chore(sync) PR — never hand-write
 ├── .github/workflows/ci.yml # product-owned; calls the backbone reusable workflows
 └── dist/                    # build output (git-ignored)
@@ -128,9 +129,10 @@ Resolve any `ENG-*` ID through
 [`principles/index.json`](https://github.com/jrmoulckers/engineering/blob/main/principles/index.json).
 
 1. **No server tier, ever.** Do not add an API route, a Node server, SSR, or a
-   backend-for-frontend. If a feature seems to need one, it needs a different design. This is a
-   durable constraint recorded here under
-   [`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md).
+   backend-for-frontend. If a feature seems to need one, it needs a different design. Recorded as
+   [ADR-0001](docs/architecture/0001-pure-client-architecture.md), which is what
+   [`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+   requires before a tradeoff may be treated as a durable constraint.
 2. **No secrets in the repo or the bundle.**
    [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
    already forbids secrets in source, artifacts, logs, and clients, and
@@ -206,9 +208,18 @@ Two things remain before the dependencies can be added:
    from whatever registry the `@jrmoulckers` scope is routed to, so it will 401 once an
    `@jrmoulckers/*` dependency lands even though nothing is installed.
 
-Until both clear, do not add an `@jrmoulckers/*` dependency and do not commit an `.npmrc`
-routing the scope — a lockfile that cannot be resolved in CI is worse than a local config, and
-a committed project-level `.npmrc` outranks the user-level one `setup-node` writes. Unlike
+When adoption does happen, pin `@jrmoulckers/eslint-config` at `^0.2.1` or later — `0.1.0`
+declares `eslint-plugin-svelte: ^2.46.0` only, which libro's v3 does not satisfy. Note also that
+libro's toolchain currently runs ahead of several declared peer ranges (ESLint 10 vs `^9.0.0`,
+`prettier-plugin-svelte` 4 vs `^3.2.0`, TypeScript 6 vs `^5.5.0`). The presets were verified to
+work correctly under all three, so these are stale declarations rather than real
+incompatibilities — but they must be widened upstream, not overridden here.
+
+Until both blockers clear, do not add an `@jrmoulckers/*` dependency and do not commit an
+`.npmrc` routing the scope — a lockfile that cannot be resolved in CI is worse than a local
+config, and a committed project-level `.npmrc` outranks the user-level one `setup-node` writes.
+pnpm additionally ignores credentials in a project-level `.npmrc` by design, so a token belongs
+in the user-level config or in `NODE_AUTH_TOKEN`, never in a committed file. Unlike
 `@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
 
 When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
