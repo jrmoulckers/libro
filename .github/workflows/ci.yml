@@ -26,9 +26,10 @@ permissions: {}
 jobs:
   lint:
     name: Lint
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     permissions:
       contents: read
+      packages: read
       pull-requests: read
     with:
       node-version: '22'
@@ -36,12 +37,17 @@ jobs:
       lint-command: pnpm lint
       format-check-command: pnpm format:check
       semantic-pr-title: true
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   web:
     name: Web CI
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     permissions:
       contents: read
+      packages: read
     with:
       node-version: '22'
       package-manager: pnpm
@@ -51,10 +57,19 @@ jobs:
       artifact-name: libro-web-build
       artifact-path: dist
       artifact-retention-days: 7
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   security:
     name: Security CI
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
+    # NOTE: reusable-security-ci does not yet accept registry-url / registry-scope
+    # or a NODE_AUTH_TOKEN secret. Its `pnpm audit` resolves advisory metadata from
+    # whatever registry the @jrmoulckers scope is routed to, so it will 401 once
+    # an @jrmoulckers/* dependency enters package.json. Harmless today because
+    # libro has no such dependency. Blocks part two — see issue #25.
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     permissions:
       contents: read
     with:
@@ -70,22 +85,28 @@ jobs:
     name: Preview Artifact
     if: github.event_name == 'pull_request'
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     permissions:
       contents: read
+      packages: read
     with:
       node-version: '22'
       package-manager: pnpm
       build-command: pnpm build
       output-dir: dist
       artifact-name: ${{ needs.web.outputs.artifact-name }}
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   perf:
     name: Performance Budget
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@97ff60ec21321563fa0fc7ba80015261e7dcd6fa # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     permissions:
       contents: read
+      packages: read
     with:
       node-version: '22'
       package-manager: pnpm
@@ -93,6 +114,8 @@ jobs:
       output-dir: dist
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       bundle-budget-kb: 2048
+      registry-url: https://npm.pkg.github.com
+      registry-scope: '@jrmoulckers'
       # Lighthouse is skipped while `url` is empty. Set it once a stable preview
       # or production URL exists; lhci-min-performance / lhci-min-accessibility
       # then default to 90 / 95.
@@ -100,3 +123,5 @@ jobs:
       lhci-min-performance: 90
       lhci-min-accessibility: 95
       lighthouse-public-upload: false
+    secrets:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

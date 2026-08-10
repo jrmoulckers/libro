@@ -187,20 +187,33 @@ type). See
 Lint, format, and TypeScript settings are still authored locally in `eslint.config.js`,
 `.prettierrc.json`, and `tsconfig.*.json`. They are **intended** to come from
 `@jrmoulckers/eslint-config`, `@jrmoulckers/prettier-config`, and `@jrmoulckers/tsconfig`
-(published to GitHub Packages at `v0.1.0`), but that adoption is blocked — see the tracking
+(published to GitHub Packages at `v0.1.0`), but adoption is not complete — see the tracking
 issue and [docs/adopting.md](https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md).
 
-Two things must land upstream first:
+CI is already wired for it. `.github/workflows/ci.yml` passes `registry-url`,
+`registry-scope`, and `NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` to every install-bearing
+reusable workflow, and grants each caller job `packages: read`. **That permission is
+mandatory** — GitHub Packages authenticates every read, including of a public package, and a
+`GITHUB_TOKEN` minted without package scope 401s exactly like no token at all. Check it first
+if a 401 appears.
 
-1. The backbone's install-bearing reusable workflows must learn registry auth. They call
-   `actions/setup-node` without `registry-url`/`scope` and supply no `NODE_AUTH_TOKEN`, so any
-   repo that adds an `@jrmoulckers/*` dependency 401s during install.
-2. `jrmoulckers/engineering` is private, so `GITHUB_TOKEN` alone will not read the packages even
-   after (1). libro needs an explicit package read grant or a `read:packages` secret.
+Two things remain before the dependencies can be added:
 
-Until then, do not add an `@jrmoulckers/*` dependency and do not point `.npmrc` at GitHub
-Packages — a lockfile that cannot be resolved in CI is worse than a local config. Unlike
+1. The three packages are still **private**. `jrmoulckers/engineering` itself is public now, so
+   any authenticated token may read them once visibility flips, but until it does every install
+   401s regardless of wiring.
+2. `reusable-security-ci` has no registry inputs. Its `pnpm audit` resolves advisory metadata
+   from whatever registry the `@jrmoulckers` scope is routed to, so it will 401 once an
+   `@jrmoulckers/*` dependency lands even though nothing is installed.
+
+Until both clear, do not add an `@jrmoulckers/*` dependency and do not commit an `.npmrc`
+routing the scope — a lockfile that cannot be resolved in CI is worse than a local config, and
+a committed project-level `.npmrc` outranks the user-level one `setup-node` writes. Unlike
 `@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
+
+When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
+lint rules belong in `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo
+belongs upstream.
 
 When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
 lint rules belong in `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo
