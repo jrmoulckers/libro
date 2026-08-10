@@ -129,10 +129,10 @@ Resolve any `ENG-*` ID through
 [`principles/index.json`](https://github.com/jrmoulckers/engineering/blob/main/principles/index.json).
 
 1. **No server tier, ever.** Do not add an API route, a Node server, SSR, or a
-   backend-for-frontend. If a feature seems to need one, it needs a different design. Recorded as
-   [ADR-0001](docs/architecture/0001-pure-client-architecture.md), which is what
-   [`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
-   requires before a tradeoff may be treated as a durable constraint.
+   backend-for-frontend. If a feature seems to need one, it needs a different design. No ratified
+   principle forbids a server tier — this constraint is libro's own, and it is recorded as
+   [ADR-0001](docs/architecture/0001-pure-client-architecture.md) because
+   [`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md) *Durable decisions* requires an ADR before a tradeoff may be treated as a durable constraint.
 2. **No secrets in the repo or the bundle.**
    [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
    already forbids secrets in source, artifacts, logs, and clients, and
@@ -167,13 +167,15 @@ Resolve any `ENG-*` ID through
    loading states don't cause CLS.
 6. **Accessibility is a gate.** WCAG 2.2 AA. Native elements first; media players need full
    keyboard control and correctly labelled transport controls. Honor `prefers-reduced-motion`
-   — the tokens already zero durations; don't reintroduce motion that bypasses that.
-   [`ENG-PERF-009`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
-   additionally forbids trading accessibility away for performance.
-7. **Colocate tests.** `src/lib/foo.ts` → `src/lib/foo.test.ts`. A libro convention; the
-   obligation it serves is
-   [`ENG-TEST-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md)
-   (regress at the narrowest authoritative boundary).
+   — the tokens already zero durations; don't reintroduce motion that bypasses that. No ratified
+   principle sets an accessibility bar, so WCAG 2.2 AA is libro's own standard. Engineering
+   constrains only the tradeoff:
+   [`ENG-PERF-009`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md) *Assurance precedence* forbids accepting a performance change that weakens accessibility.
+7. **Colocate tests.** `src/lib/foo.ts` → `src/lib/foo.test.ts`. Where the file sits is a libro
+   convention; no ratified principle governs test placement. The separate ratified obligation is
+   [`ENG-TEST-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md) *Regression boundaries* — a failing regression test at the narrowest authoritative
+   boundary for every new behavior, corrected defect, or changed shared contract. Colocation is
+   merely where libro keeps such a test, not what satisfies the obligation.
 8. **Domain logic stays framework-free, and the dependency direction is one-way.** No `.ts`
    module under `src/lib/` imports from `svelte` or from a component — the framework edge is the
    `.svelte` files (including the two colocated at `src/lib/player/Player.svelte` and

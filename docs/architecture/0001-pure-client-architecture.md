@@ -12,12 +12,11 @@ and most other product rules depend on it: the secrets rule, the on-device data 
 offline rule, and the entire `ENG-INT-*` deviation all follow from having no server.
 
 That assertion was never recorded as an architectural decision.
-[`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
-requires that consequential architectural tradeoffs be recorded as ADRs **before** they are
-treated as durable constraints. libro was treating this one as durable — declining features on
-the strength of it — while citing the principle that demands the record. Citing an obligation a
-repository does not satisfy is worse than not citing it, because the citation makes the gap look
-closed.
+[`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md) _Durable decisions_ requires that consequential architectural tradeoffs be recorded as ADRs
+**before** they are treated as durable constraints. libro was treating this one as durable —
+declining features on the strength of it — while citing the principle that demands the record.
+Citing an obligation a repository does not satisfy is worse than not citing it, because the
+citation makes the gap look closed.
 
 This ADR supplies the missing record. It introduces no new constraint and changes no behavior;
 it makes an existing constraint auditable and states the tradeoff that was accepted.
