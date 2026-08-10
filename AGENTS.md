@@ -199,27 +199,33 @@ mandatory** — GitHub Packages authenticates every read, including of a public 
 `GITHUB_TOKEN` minted without package scope 401s exactly like no token at all. Check it first
 if a 401 appears.
 
-Two things remain before the dependencies can be added:
+One thing remains before the dependencies can be added: the three packages are still
+**private**. `jrmoulckers/engineering` itself is public now, so any authenticated token may read
+them once the per-package visibility flip lands, but until it does every install fails — first
+`401`, then `403 permission_denied: read_package` once auth succeeds and only authorization is
+missing. That flip is owner-only and cannot be worked around here.
 
-1. The three packages are still **private**. `jrmoulckers/engineering` itself is public now, so
-   any authenticated token may read them once visibility flips, but until it does every install
-   401s regardless of wiring.
-2. `reusable-security-ci` has no registry inputs. Its `pnpm audit` resolves advisory metadata
-   from whatever registry the `@jrmoulckers` scope is routed to, so it will 401 once an
-   `@jrmoulckers/*` dependency lands even though nothing is installed.
+`reusable-security-ci` needs no registry wiring, despite appearances. It has no install step —
+only checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the
+default registry rather than the `@jrmoulckers`-scoped one. Do not add `registry-url` or
+`packages: read` to that call site.
 
 When adoption does happen, pin `@jrmoulckers/eslint-config` at `^0.2.1` or later — `0.1.0`
 declares `eslint-plugin-svelte: ^2.46.0` only, which libro's v3 does not satisfy. Note also that
 libro's toolchain currently runs ahead of several declared peer ranges (ESLint 10 vs `^9.0.0`,
 `prettier-plugin-svelte` 4 vs `^3.2.0`, TypeScript 6 vs `^5.5.0`). The presets were verified to
 work correctly under all three, so these are stale declarations rather than real
-incompatibilities — but they must be widened upstream, not overridden here.
+incompatibilities — but they must be widened upstream, not overridden here. Package versions
+also track independently of the engineering repo's own tags: repo tag `v0.2.5` still ships
+`eslint-config` 0.2.1, `prettier-config` 0.1.0, and `tsconfig` 0.2.0.
 
-Until both blockers clear, do not add an `@jrmoulckers/*` dependency and do not commit an
+Until the visibility flip, do not add an `@jrmoulckers/*` dependency and do not commit an
 `.npmrc` routing the scope — a lockfile that cannot be resolved in CI is worse than a local
 config, and a committed project-level `.npmrc` outranks the user-level one `setup-node` writes.
-pnpm additionally ignores credentials in a project-level `.npmrc` by design, so a token belongs
-in the user-level config or in `NODE_AUTH_TOKEN`, never in a committed file. Unlike
+Because the token is bound to `npm.pkg.github.com`, a project-level `.npmrc` routing the scope
+elsewhere means the credential is never sent, producing a 401 that looks like the CI wiring
+failed. pnpm additionally discards credentials in a project-level `.npmrc` by design, so a token
+belongs in the user-level config or in `NODE_AUTH_TOKEN`, never in a committed file. Unlike
 `@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
 
 When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
