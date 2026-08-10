@@ -203,12 +203,18 @@ Lint, format, and TypeScript settings are still authored locally in `eslint.conf
 (published to GitHub Packages at `v0.1.0`), but adoption is not complete — see the tracking
 issue and [docs/adopting.md](https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md).
 
-CI is already wired for it. `.github/workflows/ci.yml` passes `registry-url`,
-`registry-scope`, and `NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` to every install-bearing
-reusable workflow, and grants each caller job `packages: read`. **That permission is
-mandatory** — GitHub Packages authenticates every read, including of a public package, and a
-`GITHUB_TOKEN` minted without package scope 401s exactly like no token at all. Check it first
-if a 401 appears.
+CI is already wired for it. `.github/workflows/ci.yml` passes `registry-url` and
+`registry-scope` to every install-bearing reusable workflow, and grants each caller job
+`packages: read`. It deliberately passes **no `NODE_AUTH_TOKEN`**: at the pinned SHA the
+workflows resolve the token as
+`inputs.registry-url != '' && (secrets.NODE_AUTH_TOKEN || github.token) || ''`, so `GITHUB_TOKEN`
+is supplied automatically, and only on runs that opted into a registry. Passing the secret
+explicitly still works — it is declared and optional — but it is redundant, so don't.
+**`packages: read` is mandatory** — GitHub Packages authenticates every read, including of a
+public package, and a `GITHUB_TOKEN` minted without package scope 401s exactly like no token at
+all. A caller `permissions:` block replaces the defaults rather than adding to them, and a called
+workflow can never hold a scope its caller lacks, so omitting it fails the run at
+`startup_failure` with no readable log. Check it first if a re-pinned workflow goes strange.
 
 One thing remains before the dependencies can be added: the three packages are still
 **private**. `jrmoulckers/engineering` itself is public now, so any authenticated token may read
@@ -227,8 +233,9 @@ libro's toolchain currently runs ahead of several declared peer ranges (ESLint 1
 `prettier-plugin-svelte` 4 vs `^3.2.0`, TypeScript 6 vs `^5.5.0`). The presets were verified to
 work correctly under all three, so these are stale declarations rather than real
 incompatibilities — but they must be widened upstream, not overridden here. Package versions
-also track independently of the engineering repo's own tags: repo tag `v0.2.5` still ships
-`eslint-config` 0.2.1, `prettier-config` 0.1.0, and `tsconfig` 0.2.0.
+also track independently of the engineering repo's own tags: repo tag `v0.2.8` still ships
+`eslint-config` 0.2.1, `prettier-config` 0.1.0, and `tsconfig` 0.2.0, so a repo tag is never an
+actionable npm specifier.
 
 Until the visibility flip, do not add an `@jrmoulckers/*` dependency and do not commit an
 `.npmrc` routing the scope — a lockfile that cannot be resolved in CI is worse than a local
@@ -236,8 +243,23 @@ config, and a committed project-level `.npmrc` outranks the user-level one `setu
 Because the token is bound to `npm.pkg.github.com`, a project-level `.npmrc` routing the scope
 elsewhere means the credential is never sent, producing a 401 that looks like the CI wiring
 failed. pnpm additionally discards credentials in a project-level `.npmrc` by design, so a token
-belongs in the user-level config or in `NODE_AUTH_TOKEN`, never in a committed file. Unlike
-`@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
+belongs in the user-level config or in `NODE_AUTH_TOKEN`, never in a committed file.
+
+When the `.npmrc` is finally added, it must map **only the scope**:
+
+```ini
+@jrmoulckers:registry=https://npm.pkg.github.com
+```
+
+Never replace the default registry wholesale (`registry=https://npm.pkg.github.com/`). Doing so
+breaks `pnpm audit` with `ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS`, because GitHub Packages implements
+no audit endpoint and `@npmcli/arborist` resolves the advisory endpoint as
+`auditRegistry || registry` — so audit never consults the scoped registry at all and **no token
+fixes it**. That would break the `security` job, which is otherwise unaffected by any of this.
+Relatedly, `npm audit` transmits package names and versions to `registry.npmjs.org`, including
+`@jrmoulckers/*` ones; that is inherent npm behavior, not something this repo configures.
+
+Unlike `@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
 
 When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
 lint rules belong in `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo

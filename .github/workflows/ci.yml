@@ -26,7 +26,7 @@ permissions: {}
 jobs:
   lint:
     name: Lint
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     permissions:
       contents: read
       packages: read
@@ -39,12 +39,10 @@ jobs:
       semantic-pr-title: true
       registry-url: https://npm.pkg.github.com
       registry-scope: '@jrmoulckers'
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   web:
     name: Web CI
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     permissions:
       contents: read
       packages: read
@@ -59,8 +57,6 @@ jobs:
       artifact-retention-days: 7
       registry-url: https://npm.pkg.github.com
       registry-scope: '@jrmoulckers'
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   security:
     name: Security CI
@@ -69,7 +65,7 @@ jobs:
     # data from the default registry rather than the @jrmoulckers-scoped one, so it
     # stays green once scoped dependencies land. Verified against the workflow source
     # at the pinned SHA. Do not add registry-url/packages: read here.
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     permissions:
       contents: read
     with:
@@ -85,7 +81,7 @@ jobs:
     name: Preview Artifact
     if: github.event_name == 'pull_request'
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     permissions:
       contents: read
       packages: read
@@ -97,13 +93,11 @@ jobs:
       artifact-name: ${{ needs.web.outputs.artifact-name }}
       registry-url: https://npm.pkg.github.com
       registry-scope: '@jrmoulckers'
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   perf:
     name: Performance Budget
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
     permissions:
       contents: read
       packages: read
@@ -123,5 +117,3 @@ jobs:
       lhci-min-performance: 90
       lhci-min-accessibility: 95
       lighthouse-public-upload: false
-    secrets:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
