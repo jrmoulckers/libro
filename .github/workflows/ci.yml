@@ -64,11 +64,11 @@ jobs:
 
   security:
     name: Security CI
-    # NOTE: reusable-security-ci does not yet accept registry-url / registry-scope
-    # or a NODE_AUTH_TOKEN secret. Its `pnpm audit` resolves advisory metadata from
-    # whatever registry the @jrmoulckers scope is routed to, so it will 401 once
-    # an @jrmoulckers/* dependency enters package.json. Harmless today because
-    # libro has no such dependency. Blocks part two — see issue #25.
+    # reusable-security-ci intentionally takes no registry inputs: it has no install
+    # step. It runs checkout + setup-node + `pnpm audit`, and audit resolves advisory
+    # data from the default registry rather than the @jrmoulckers-scoped one, so it
+    # stays green once scoped dependencies land. Verified against the workflow source
+    # at the pinned SHA. Do not add registry-url/packages: read here.
     uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@3b2d5cbb2cd619aca8e7cb1ac794086976033ace # main
     permissions:
       contents: read
