@@ -202,7 +202,8 @@ type). See
 Lint, format, and TypeScript settings are still authored locally in `eslint.config.js`,
 `.prettierrc.json`, and `tsconfig.*.json`. They are **intended** to come from
 `@jrmoulckers/eslint-config`, `@jrmoulckers/prettier-config`, and `@jrmoulckers/tsconfig`
-(published to GitHub Packages at `v0.1.0`), but adoption is not complete — see the tracking
+(published to GitHub Packages — currently 0.2.1, 0.1.0, and 0.2.0 respectively), but adoption is
+not complete — see the tracking
 issue and [docs/adopting.md](https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md).
 
 CI is already wired for it. `.github/workflows/ci.yml` passes `registry-url` and
@@ -384,13 +385,15 @@ pure-client product that has no server database. Inheriting a legacy realm's fra
 false exemption gets written down, and a false exemption is most dangerous for a component that
 does not exist yet, because nothing contradicts it until the design is already settled.
 
-`jrmoulckers/engineering` is consumed in three layers, all pinned at `v0.1.0`:
+`jrmoulckers/engineering` is consumed in three layers. The first two are read from the repository
+and move with its tags; the third is npm packages whose versions track **independently** of those
+tags, so an engineering repo tag is never an actionable npm specifier:
 
 | Layer | What it gives libro | How it arrives |
 | --- | --- | --- |
 | [`principles/`](https://github.com/jrmoulckers/engineering/blob/main/principles/README.md) | 66 ratified `ENG-*` rules | cited by ID; resolve via [`principles/index.json`](https://github.com/jrmoulckers/engineering/blob/main/principles/index.json) |
 | [`practices/`](https://github.com/jrmoulckers/engineering/blob/main/practices/README.md) | technique for satisfying them | linked by URL |
-| `packages/` | executable enforcement | GitHub Packages — **not adopted yet**, see [Shared engineering configuration](#shared-engineering-configuration--not-adopted-yet) |
+| `packages/` | executable enforcement | GitHub Packages, versioned per package — **not adopted yet**, see [Shared engineering configuration](#shared-engineering-configuration--not-adopted-yet) |
 
 Practices state no new rules — every normative sentence in one cites the `ENG-*` ID it derives
 from, so cite the principle, not the practice, when you need an obligation.
