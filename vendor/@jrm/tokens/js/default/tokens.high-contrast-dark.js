@@ -49,7 +49,7 @@ export const tokens = {
     "soft-lift-light": "0 10px 30px rgba(60, 50, 120, 0.12)",
     "inset-hairline": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)",
     "none": "none",
-    "lift": "0 10px 30px rgba(60, 50, 120, 0.12)",
+    "lift": "0 10px 30px rgba(0, 0, 0, 0.45)",
     "hairline": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)"
   },
   "spacing": {
@@ -248,65 +248,49 @@ export const tokens = {
       "10": "#22d3ee",
       "11": "#e879f9",
       "12": "#facc15"
-    },
-    "bg": "#f4f4fb",
-    "surface": "#ffffff",
-    "surface-2": "#f1f1f9",
-    "surface-3": "#e7e7f4",
-    "border": "#dcdcea",
-    "text": "#1c1d2e",
-    "text-muted": "#5b5e7e",
-    "primary": "#7c5cff",
-    "primary-strong": "#6b46f0",
-    "on-primary": "#ffffff",
-    "accent": "#ffd166",
-    "accent-ink": "#806600",
-    "success": "oklch(0.47 0.10 165)",
-    "danger": "oklch(0.50 0.13 25)",
-    "warning": "oklch(0.41 0.08 80)",
-    "focus-ring": "#7c5cff"
+    }
   },
   "semantic": {
     "background": {
-      "primary": "#f4f4fb",
-      "secondary": "#f1f1f9",
-      "elevated": "#ffffff",
-      "raised": "#e7e7f4"
+      "primary": "#000000",
+      "secondary": "#0f1020",
+      "elevated": "#1a1b2e",
+      "raised": "#24263f"
     },
     "text": {
-      "primary": "#1c1d2e",
-      "secondary": "#5b5e7e",
-      "disabled": "#dcdcea",
-      "inverse": "#ffffff"
+      "primary": "#ffffff",
+      "secondary": "#e9e9f4",
+      "disabled": "#a3a6cb",
+      "inverse": "#000000"
     },
     "border": {
-      "default": "#dcdcea",
-      "focus": "#7c5cff",
-      "error": "#f87171"
+      "default": "#a3a6cb",
+      "focus": "oklch(0.83 0.10 285)",
+      "error": "oklch(0.88 0.09 25)"
     },
     "interactive": {
-      "default": "#7c5cff",
-      "hover": "#6b46f0",
-      "pressed": "oklch(0.38 0.14 285)",
-      "disabled": "#e7e7f4"
+      "default": "oklch(0.83 0.10 285)",
+      "hover": "oklch(0.94 0.04 285)",
+      "pressed": "oklch(0.94 0.04 285)",
+      "disabled": "#2c2e4d"
     },
     "accent": {
-      "default": "#ffd166",
-      "ink": "#806600"
+      "default": "oklch(0.84 0.14 90)",
+      "ink": "oklch(0.84 0.14 90)"
     },
     "status": {
-      "positive": "oklch(0.47 0.10 165)",
-      "negative": "oklch(0.50 0.13 25)",
-      "warning": "oklch(0.41 0.08 80)",
-      "info": "oklch(0.42 0.10 230)",
-      "pending": "oklch(0.50 0.09 195)",
-      "neutral": "#5b5e7e",
-      "positiveSubtle": "oklch(0.98 0.015 165)",
-      "negativeSubtle": "oklch(0.98 0.012 25)",
-      "warningSubtle": "oklch(0.98 0.015 80)",
-      "infoSubtle": "oklch(0.98 0.01 230)",
-      "pendingSubtle": "oklch(0.98 0.012 195)",
-      "neutralSubtle": "#dcdcea"
+      "positive": "oklch(0.78 0.15 165)",
+      "negative": "oklch(0.88 0.09 25)",
+      "warning": "oklch(0.83 0.16 80)",
+      "info": "oklch(0.88 0.07 230)",
+      "pending": "oklch(0.88 0.08 195)",
+      "neutral": "#e9e9f4",
+      "positiveSubtle": "oklch(0.47 0.10 165)",
+      "negativeSubtle": "oklch(0.50 0.13 25)",
+      "warningSubtle": "oklch(0.53 0.11 80)",
+      "infoSubtle": "oklch(0.52 0.12 230)",
+      "pendingSubtle": "oklch(0.50 0.09 195)",
+      "neutralSubtle": "#313357"
     }
   },
   "text": {
@@ -476,11 +460,11 @@ export const tokens = {
   "elevation": {
     "flat": "none",
     "hairline": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)",
-    "raised": "0 10px 30px rgba(60, 50, 120, 0.12)"
+    "raised": "0 10px 30px rgba(0, 0, 0, 0.45)"
   },
   "avatar": {
     "bg": "#7c5cff",
-    "text": "#ffffff",
+    "text": "#000000",
     "ring": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)",
     "weight": 700,
     "size": "28px",
@@ -488,20 +472,20 @@ export const tokens = {
   },
   "button": {
     "primary": {
-      "bg": "#7c5cff",
-      "text": "#ffffff",
-      "border": "#6b46f0",
-      "hover-bg": "#6b46f0",
+      "bg": "oklch(0.83 0.10 285)",
+      "text": "#000000",
+      "border": "oklch(0.94 0.04 285)",
+      "hover-bg": "oklch(0.94 0.04 285)",
       "radius": "9px",
       "min-height": "46px",
       "padding-x": "18px",
       "padding-y": "12px"
     },
     "default": {
-      "bg": "#f1f1f9",
-      "text": "#1c1d2e",
-      "border": "#dcdcea",
-      "hover-bg": "#e7e7f4",
+      "bg": "#0f1020",
+      "text": "#ffffff",
+      "border": "#a3a6cb",
+      "hover-bg": "#24263f",
       "radius": "9px",
       "min-height": "46px",
       "padding-x": "18px",
@@ -509,65 +493,65 @@ export const tokens = {
     },
     "ghost": {
       "bg": "transparent",
-      "text": "#1c1d2e"
+      "text": "#ffffff"
     },
     "danger": {
       "bg": "transparent",
-      "text": "oklch(0.50 0.13 25)",
-      "border": "oklch(0.50 0.13 25)"
+      "text": "oklch(0.88 0.09 25)",
+      "border": "oklch(0.88 0.09 25)"
     }
   },
   "card": {
-    "bg": "#ffffff",
-    "text": "#1c1d2e",
-    "border": "#dcdcea",
+    "bg": "#1a1b2e",
+    "text": "#ffffff",
+    "border": "#a3a6cb",
     "radius": "14px",
     "padding": "16px",
-    "shadow": "0 10px 30px rgba(60, 50, 120, 0.12)"
+    "shadow": "0 10px 30px rgba(0, 0, 0, 0.45)"
   },
   "tile": {
-    "bg": "#ffffff",
-    "text": "#1c1d2e",
-    "border": "#dcdcea",
-    "hover-border": "#7c5cff",
+    "bg": "#1a1b2e",
+    "text": "#ffffff",
+    "border": "#a3a6cb",
+    "hover-border": "oklch(0.83 0.10 285)",
     "radius": "14px",
     "padding": "16px",
-    "shadow": "0 10px 30px rgba(60, 50, 120, 0.12)"
+    "shadow": "0 10px 30px rgba(0, 0, 0, 0.45)"
   },
   "chart": {
-    "bg": "#f4f4fb",
+    "bg": "#000000",
     "radius": "14px",
     "padding": "14px",
-    "axis": "#dcdcea",
-    "grid": "#dcdcea",
-    "axis-label": "#5b5e7e",
-    "legend-label": "#5b5e7e",
+    "axis": "#a3a6cb",
+    "grid": "#a3a6cb",
+    "axis-label": "#e9e9f4",
+    "legend-label": "#e9e9f4",
     "legend-gap": "14px",
     "swatch-radius": "9px",
-    "tooltip-bg": "#ffffff",
-    "tooltip-text": "#1c1d2e",
-    "tooltip-border": "#dcdcea",
+    "tooltip-bg": "#1a1b2e",
+    "tooltip-text": "#ffffff",
+    "tooltip-border": "#a3a6cb",
     "tooltip-radius": "9px",
     "tooltip-padding-x": "10px",
     "tooltip-padding-y": "6px",
-    "tooltip-shadow": "0 10px 30px rgba(60, 50, 120, 0.12)",
+    "tooltip-shadow": "0 10px 30px rgba(0, 0, 0, 0.45)",
     "bar-radius": "9px",
     "bar-gap": "6px",
-    "slice-stroke": "#f4f4fb",
+    "slice-stroke": "#000000",
     "series-1": "#648fff",
     "series-2": "#785ef0",
     "series-3": "#dc267f",
     "series-4": "#fe6100",
     "series-5": "#ffb000",
     "series-6": "#009e73",
-    "series-other": "#5b5e7e"
+    "series-other": "#e9e9f4"
   },
   "input": {
-    "bg": "#ffffff",
-    "text": "#1c1d2e",
-    "border": "#dcdcea",
-    "placeholder": "#5b5e7e",
-    "focus-ring": "#7c5cff",
+    "bg": "#1a1b2e",
+    "text": "#ffffff",
+    "border": "#a3a6cb",
+    "placeholder": "#e9e9f4",
+    "focus-ring": "oklch(0.83 0.10 285)",
     "radius": "9px",
     "min-height": "46px",
     "padding-x": "14px",
@@ -575,47 +559,47 @@ export const tokens = {
   },
   "nav": {
     "tabbar": {
-      "bg": "#ffffff",
-      "border": "#dcdcea",
+      "bg": "#1a1b2e",
+      "border": "#a3a6cb",
       "radius": "14px"
     },
     "tab": {
-      "text": "#5b5e7e",
-      "active-text": "#1c1d2e",
-      "active-bg": "#f1f1f9",
+      "text": "#e9e9f4",
+      "active-text": "#ffffff",
+      "active-bg": "#0f1020",
       "radius": "10px"
     },
     "iconbtn": {
-      "bg": "#f1f1f9",
-      "text": "#1c1d2e",
+      "bg": "#0f1020",
+      "text": "#ffffff",
       "size": "46px",
       "radius": "10px"
     }
   },
   "pill": {
-    "bg": "#f1f1f9",
-    "text": "#5b5e7e",
-    "border": "#dcdcea",
+    "bg": "#0f1020",
+    "text": "#e9e9f4",
+    "border": "#a3a6cb",
     "radius": "999px",
     "padding-x": "10px",
     "padding-y": "3px"
   },
   "progress": {
-    "track": "#f1f1f9",
-    "fill": "#7c5cff",
+    "track": "#0f1020",
+    "fill": "oklch(0.83 0.10 285)",
     "height": "10px",
     "height-lg": "14px",
     "radius": "999px",
     "stroke": "10px",
     "duration": "150ms",
     "easing": "ease",
-    "label": "#1c1d2e",
-    "label-muted": "#5b5e7e",
-    "on-track": "oklch(0.47 0.10 165)",
-    "at-risk": "oklch(0.41 0.08 80)",
-    "exceeded": "oklch(0.50 0.13 25)",
-    "pending": "oklch(0.50 0.09 195)",
-    "complete": "oklch(0.47 0.10 165)"
+    "label": "#ffffff",
+    "label-muted": "#e9e9f4",
+    "on-track": "oklch(0.78 0.15 165)",
+    "at-risk": "oklch(0.83 0.16 80)",
+    "exceeded": "oklch(0.88 0.09 25)",
+    "pending": "oklch(0.88 0.08 195)",
+    "complete": "oklch(0.78 0.15 165)"
   }
 };
 export default tokens;

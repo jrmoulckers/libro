@@ -12,16 +12,31 @@ export const tokens = {
     "borderWidth": "2px",
     "maxChoicesPerGroup": 5
   },
+  "focus": {
+    "ring": {
+      "width": "2px",
+      "offset": "2px"
+    }
+  },
   "duration": {
     "instant": "0ms",
     "press": "50ms",
     "state": "150ms",
     "tile": "120ms",
-    "reduced": "0ms"
+    "reduced": "1ms"
   },
   "easing": {
     "standard": "ease",
     "linear": "linear"
+  },
+  "opacity": {
+    "none": 0,
+    "subtle": 0.04,
+    "soft": 0.08,
+    "medium": 0.12,
+    "strong": 0.24,
+    "disabled": 0.38,
+    "full": 1
   },
   "radius": {
     "sm": "9px",
@@ -45,6 +60,11 @@ export const tokens = {
     "xl": "20px",
     "2xl": "24px",
     "3xl": "32px"
+  },
+  "target": {
+    "min": "46px",
+    "compact": "32px",
+    "spacious": "56px"
   },
   "font": {
     "family": {
@@ -81,6 +101,15 @@ export const tokens = {
       "wide": "0.08em"
     }
   },
+  "zIndex": {
+    "base": 0,
+    "raised": 10,
+    "sticky": 100,
+    "overlay": 500,
+    "modal": 1000,
+    "toast": 2000,
+    "tooltip": 3000
+  },
   "color": {
     "royal-violet": {
       "200": "oklch(0.94 0.04 285)",
@@ -104,6 +133,8 @@ export const tokens = {
       "ink-light": "#806600"
     },
     "win": {
+      "50": "oklch(0.98 0.015 165)",
+      "100": "oklch(0.97 0.03 165)",
       "200": "oklch(0.95 0.05 165)",
       "300": "oklch(0.87 0.10 165)",
       "400": "oklch(0.78 0.15 165)",
@@ -114,6 +145,8 @@ export const tokens = {
       "900": "oklch(0.25 0.05 165)"
     },
     "loss": {
+      "50": "oklch(0.98 0.012 25)",
+      "100": "oklch(0.97 0.025 25)",
       "200": "oklch(0.95 0.04 25)",
       "300": "oklch(0.88 0.09 25)",
       "400": "oklch(0.79 0.14 25)",
@@ -124,6 +157,8 @@ export const tokens = {
       "900": "oklch(0.28 0.06 25)"
     },
     "caution": {
+      "50": "oklch(0.98 0.015 80)",
+      "100": "oklch(0.97 0.03 80)",
       "200": "oklch(0.96 0.05 80)",
       "300": "oklch(0.90 0.11 80)",
       "400": "oklch(0.83 0.16 80)",
@@ -134,6 +169,8 @@ export const tokens = {
       "900": "oklch(0.29 0.05 80)"
     },
     "info": {
+      "50": "oklch(0.98 0.01 230)",
+      "100": "oklch(0.97 0.02 230)",
       "200": "oklch(0.95 0.03 230)",
       "300": "oklch(0.88 0.07 230)",
       "400": "oklch(0.80 0.11 230)",
@@ -142,6 +179,18 @@ export const tokens = {
       "700": "oklch(0.52 0.12 230)",
       "800": "oklch(0.42 0.10 230)",
       "900": "oklch(0.30 0.07 230)"
+    },
+    "pending": {
+      "50": "oklch(0.98 0.012 195)",
+      "100": "oklch(0.97 0.025 195)",
+      "200": "oklch(0.95 0.04 195)",
+      "300": "oklch(0.88 0.08 195)",
+      "400": "oklch(0.80 0.11 195)",
+      "500": "oklch(0.72 0.12 195)",
+      "600": "oklch(0.61 0.11 195)",
+      "700": "oklch(0.50 0.09 195)",
+      "800": "oklch(0.40 0.07 195)",
+      "900": "oklch(0.28 0.05 195)"
     },
     "ink": {
       "midnight": "#0f1020",
@@ -232,8 +281,16 @@ export const tokens = {
     "status": {
       "positive": "oklch(0.47 0.10 165)",
       "negative": "oklch(0.50 0.13 25)",
-      "warning": "oklch(0.53 0.11 80)",
-      "info": "oklch(0.52 0.12 230)"
+      "warning": "oklch(0.41 0.08 80)",
+      "info": "oklch(0.42 0.10 230)",
+      "pending": "oklch(0.40 0.07 195)",
+      "neutral": "#0f1020",
+      "positiveSubtle": "oklch(0.98 0.015 165)",
+      "negativeSubtle": "oklch(0.98 0.012 25)",
+      "warningSubtle": "oklch(0.98 0.015 80)",
+      "infoSubtle": "oklch(0.98 0.01 230)",
+      "pendingSubtle": "oklch(0.98 0.012 195)",
+      "neutralSubtle": "#dcdcea"
     }
   },
   "text": {
@@ -323,7 +380,7 @@ export const tokens = {
       "easing": "ease"
     },
     "reduced": {
-      "duration": "0ms",
+      "duration": "1ms",
       "easing": "linear"
     }
   },
@@ -365,9 +422,44 @@ export const tokens = {
     "width": "3px",
     "offset": "3px"
   },
+  "cognitiveTarget": {
+    "min": "56px"
+  },
   "cognitiveElevation": {
     "none": "none",
     "low": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)",
+    "raised": "0 10px 30px rgba(60, 50, 120, 0.12)"
+  },
+  "layer": {
+    "content": 0,
+    "raised": 10,
+    "nav": 100,
+    "scrim": 500,
+    "dialog": 1000,
+    "toast": 2000,
+    "tooltip": 3000
+  },
+  "state": {
+    "hover": {
+      "overlay": 0.08,
+      "surface-overlay": 0.04
+    },
+    "pressed": {
+      "overlay": 0.12
+    },
+    "selected": {
+      "overlay": 0.12
+    },
+    "disabled": {
+      "opacity": 0.38
+    },
+    "scrim": {
+      "opacity": 0.24
+    }
+  },
+  "elevation": {
+    "flat": "none",
+    "hairline": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)",
     "raised": "0 10px 30px rgba(60, 50, 120, 0.12)"
   },
   "avatar": {
@@ -426,6 +518,34 @@ export const tokens = {
     "padding": "16px",
     "shadow": "0 10px 30px rgba(60, 50, 120, 0.12)"
   },
+  "chart": {
+    "bg": "#ffffff",
+    "radius": "14px",
+    "padding": "14px",
+    "axis": "#000000",
+    "grid": "#000000",
+    "axis-label": "#1c1d2e",
+    "legend-label": "#1c1d2e",
+    "legend-gap": "14px",
+    "swatch-radius": "9px",
+    "tooltip-bg": "#ffffff",
+    "tooltip-text": "#000000",
+    "tooltip-border": "#000000",
+    "tooltip-radius": "9px",
+    "tooltip-padding-x": "10px",
+    "tooltip-padding-y": "6px",
+    "tooltip-shadow": "0 10px 30px rgba(60, 50, 120, 0.12)",
+    "bar-radius": "9px",
+    "bar-gap": "6px",
+    "slice-stroke": "#ffffff",
+    "series-1": "#648fff",
+    "series-2": "#785ef0",
+    "series-3": "#dc267f",
+    "series-4": "#fe6100",
+    "series-5": "#ffb000",
+    "series-6": "#009e73",
+    "series-other": "#0f1020"
+  },
   "input": {
     "bg": "#ffffff",
     "text": "#000000",
@@ -463,6 +583,23 @@ export const tokens = {
     "radius": "999px",
     "padding-x": "10px",
     "padding-y": "3px"
+  },
+  "progress": {
+    "track": "#f1f1f9",
+    "fill": "oklch(0.38 0.14 285)",
+    "height": "10px",
+    "height-lg": "14px",
+    "radius": "999px",
+    "stroke": "10px",
+    "duration": "150ms",
+    "easing": "ease",
+    "label": "#000000",
+    "label-muted": "#1c1d2e",
+    "on-track": "oklch(0.47 0.10 165)",
+    "at-risk": "oklch(0.41 0.08 80)",
+    "exceeded": "oklch(0.50 0.13 25)",
+    "pending": "oklch(0.40 0.07 195)",
+    "complete": "oklch(0.47 0.10 165)"
   }
 };
 export default tokens;
