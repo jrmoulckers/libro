@@ -202,7 +202,7 @@ type). See
 Lint, format, and TypeScript settings are still authored locally in `eslint.config.js`,
 `.prettierrc.json`, and `tsconfig.*.json`. They are **intended** to come from
 `@jrmoulckers/eslint-config`, `@jrmoulckers/prettier-config`, and `@jrmoulckers/tsconfig`
-(published to GitHub Packages — currently 0.2.1, 0.1.0, and 0.2.0 respectively), but adoption is
+(published to GitHub Packages — currently 0.3.0, 0.2.0, and 0.3.0 respectively), but adoption is
 not complete — see the tracking
 issue and [docs/adopting.md](https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md).
 
@@ -230,15 +230,30 @@ only checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory da
 default registry rather than the `@jrmoulckers`-scoped one. Do not add `registry-url` or
 `packages: read` to that call site.
 
-When adoption does happen, pin `@jrmoulckers/eslint-config` at `^0.2.1` or later — `0.1.0`
-declares `eslint-plugin-svelte: ^2.46.0` only, which libro's v3 does not satisfy. Note also that
-libro's toolchain currently runs ahead of several declared peer ranges (ESLint 10 vs `^9.0.0`,
-`prettier-plugin-svelte` 4 vs `^3.2.0`, TypeScript 6 vs `^5.5.0`). The presets were verified to
-work correctly under all three, so these are stale declarations rather than real
-incompatibilities — but they must be widened upstream, not overridden here. Package versions
-also track independently of the engineering repo's own tags: repo tag `v0.2.8` still ships
-`eslint-config` 0.2.1, `prettier-config` 0.1.0, and `tsconfig` 0.2.0, so a repo tag is never an
-actionable npm specifier.
+When adoption does happen, pin `@jrmoulckers/eslint-config` and `@jrmoulckers/tsconfig` at
+`^0.3.0`, and `@jrmoulckers/prettier-config` at `^0.2.0`. Those floors are not cosmetic: **on a
+`0.x` package a caret permits patch updates only**, so `^0.2.0` resolves to `>=0.2.0 <0.3.0` and
+can never reach 0.3.0. A too-low floor is also the one mistake this repo cannot catch by testing,
+because verifying a preset through a `file:` or `link:` dependency resolves current source and
+never consults the declared range at all — only lockfile generation, the step still blocked, would
+surface it. Verify by staging the exact published version instead.
+
+Two peer ranges are still narrower than libro's toolchain: `eslint: ^9.0.0` against our 10.8.0, and
+`prettier-plugin-svelte: ^3.2.0` against our 4.1.1. Both presets were run against the real
+toolchain at 0.3.0 — lint, format check, and both typecheck projects pass — so these are stale
+declarations rather than real incompatibilities, and they must be widened upstream, never
+overridden here. pnpm only warns on an unmet peer; npm and `strict-peer-dependencies` hard-fail.
+
+The `typescript` peers, by contrast, are **deliberately different between the two packages — do not
+align them.** `@jrmoulckers/tsconfig` declares `^5.5.0 || ^6.0.0 || ^7.0.0`, while
+`@jrmoulckers/eslint-config` declares `>=5.5.0 <6.1.0`, because it depends on `typescript-eslint`,
+whose own peer stops below 6.1. libro runs TypeScript 6.0.3, which satisfies both, so the split
+does not bite here yet — but a future move to TypeScript 7 means adopting `tsconfig` and holding
+`eslint-config` back, not widening either.
+
+Package versions also track independently of the engineering repo's own tags: repo tag `v0.4.0`
+ships `eslint-config` 0.3.0, `prettier-config` 0.2.0, and `tsconfig` 0.3.0, so a repo tag is never
+an actionable npm specifier.
 
 Until the visibility flip, do not add an `@jrmoulckers/*` dependency and do not commit an
 `.npmrc` routing the scope — a lockfile that cannot be resolved in CI is worse than a local
@@ -263,10 +278,6 @@ Relatedly, `npm audit` transmits package names and versions to `registry.npmjs.o
 `@jrmoulckers/*` ones; that is inherent npm behavior, not something this repo configures.
 
 Unlike `@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
-
-When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
-lint rules belong in `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo
-belongs upstream.
 
 When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
 lint rules belong in `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo
