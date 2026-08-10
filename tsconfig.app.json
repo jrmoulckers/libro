@@ -1,8 +1,6 @@
 {
   "extends": "@jrmoulckers/tsconfig/vite-app.json",
   "compilerOptions": {
-    // Places Svelte compiler diagnostics at the correct source position.
-    "sourceMap": true,
     "esModuleInterop": true
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
