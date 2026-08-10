@@ -174,6 +174,17 @@ Resolve any `ENG-*` ID through
    obligation it serves is
    [`ENG-TEST-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md)
    (regress at the narrowest authoritative boundary).
+8. **Domain logic stays framework-free, and the dependency direction is one-way.** No `.ts`
+   module under `src/lib/` imports from `svelte` or from a component — the framework edge is the
+   `.svelte` files (including the two colocated at `src/lib/player/Player.svelte` and
+   `src/lib/reader/Reader.svelte`), which may consume `src/lib/` but must not be the place logic
+   lives. The framework-isolation half of
+   [`ENG-INT-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+   obligates the first part, and
+   [`ENG-ARCH-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+   (smallest explicit boundary, dependencies acyclic, each fact in one authoritative home)
+   obligates the second. The specific `component → store → lib` shape libro uses is a libro
+   choice, not an Engineering rule — cite these two for the *direction*, not for the tiering.
 
 Sync behaviour in `src/lib/sync/` is governed by
 [`ENG-LOCAL-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
@@ -268,10 +279,22 @@ longer resolve. Successors below come from `principles/migration-ledger.json` in
 
   `ENG-SEC-008` is complementary, not redundant: `ENG-DATA-003` obligates the *mechanism*,
   `ENG-SEC-008` obligates the *auditable lifecycle evidence* that the mechanism ran. Cite both.
-- **`ENG-INT-001`–`ENG-INT-005` have no boundary to govern.** libro owns no service seam. If a
-  third-party integration is ever added it must satisfy `ENG-INT-001`–`ENG-INT-004` in the
-  client; `ENG-INT-005` (third-party credentials behind a server-side proxy) is unsatisfiable
-  by construction, which is exactly why a feature needing a private API key is out of scope.
+- **Only `ENG-INT-005` is a deviation; `ENG-INT-001`–`ENG-INT-004` bind today.** An earlier
+  version of this file claimed the whole `ENG-INT-*` family had "no boundary to govern" because
+  libro owns no service seam. That was a false exemption, produced by reading the realm's name
+  instead of the principles' text.
+  [`ENG-INT-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+  governs *external input* and *framework* behaviour, not just service seams: libro parses EPUB
+  containers, OPF metadata, and OPDS feeds, and isolates framework behaviour by keeping every
+  `.ts` module in `src/lib/` free of `svelte` imports. `ENG-INT-002` (explicit, keyed, bounded, invalidatable
+  caches that never become the source of truth) governs `src/lib/metadata/cache.ts`.
+  `ENG-INT-003` (typed errors, idempotent retries, explicit degraded results) governs
+  `src/lib/providers/registry.ts`. `ENG-INT-004` (observe seam latency and outcome without
+  recording secrets or sensitive payloads) binds in its client-only reading and reinforces
+  rule 3 — never log titles or filenames. Only
+  [`ENG-INT-005`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+  (third-party credentials behind a server-side proxy) is genuinely unsatisfiable, by
+  construction, which is exactly why a feature needing a private API key is out of scope.
 - **`ENG-WEB-003` applies in full; its legacy SSR guidance does not survive.** The old
   `principles/frontend.md` §6 was carried forward as `ENG-WEB-003` (delivery and runtime
   budgets) by ledger entry `studio-legacy:frontend:6`, disposition `reference`. The "prefer
