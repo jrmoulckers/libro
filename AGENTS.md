@@ -268,6 +268,20 @@ reports the source tree at that moment and is what has repeatedly caused repos t
 already-fixed defects. Note that for a **vendored** package its `range` field is not actionable:
 there is no dependency to pin, only a ref, so read `version` and ignore `range`.
 
+The second command above is the same file those repos misread, and it is correct here only
+because it answers a different question. `versions.json` answers *"what is published"*;
+`packages/<name>/package.json` at a ref answers *"what was the source tree at that ref"* — which
+is precisely the vendored-payload question, since the payload is fetched from the ref. Use it to
+compare two refs you are choosing between. Never quote it as a published version.
+
+**If `versions.json` is absent from the ref you are reading, that absence is the finding.** It
+first appears at `v0.18.0`, which is exactly libro's pinned ref, so libro sits on the boundary:
+any ref below it has no `versions.json` at all, and the only version-shaped file in the tree is
+the `package.json` that must not be quoted. This compounds with the direction rule above — a
+backwards re-pin does not merely revert workflow content, it can remove the file that exists to
+prevent the version error, leaving the misleading answer as the only available one. Resolve a
+newer ref before reporting anything about versions.
+
 Because the bytes are hashed, **`config/engineering/` is Prettier-ignored**. Reformatting a
 vendored file would change its bytes and break the hash, converting a real upstream-drift signal
 into an apparent local edit. That the files happen to be Prettier-clean today is luck, not a
