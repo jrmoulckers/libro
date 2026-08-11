@@ -201,7 +201,7 @@ a `read:packages` credential out of band. See
 Do not restate a shared rule in a local override. Genuinely libro-specific lint rules belong in
 `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo belongs upstream.
 
-Floors are `eslint-config@^0.6.0`, `tsconfig@^0.3.0`, `prettier-config@^0.2.0`. **On a `0.x`
+Floors are `eslint-config@^0.8.0`, `tsconfig@^0.3.0`, `prettier-config@^0.2.0`. **On a `0.x`
 package a caret permits patch updates only**, so `^0.2.0` resolves to `>=0.2.0 <0.3.0` and can
 never reach 0.3.0 — a too-low floor is a silent install-time failure, not a lint-time one. The
 `eslint-config` floor is specifically install-time here: libro runs ESLint 10.8.0, and the peer
@@ -226,6 +226,20 @@ almost all discipline rather than soundness — 27 `require-await`, 20
 `prefer-promise-reject-errors`, and **zero** `no-floating-promises`. Adopting it is a deliberate
 future change with a real remediation cost, not a free upgrade, and it additionally needs an
 upstream fix (see below) before it will run at all here.
+
+### Config files are not type-checked, and that is currently forced
+
+`eslint-config` ships type declarations from 0.8.0, so `svelteConfig()`'s options would be
+option-checked if `tsconfig.node.json` enabled `allowJs` + `checkJs`. Both were measured as
+working — a valid config compiles clean, and `svelteConfig({ env: 'nonsense' })` is correctly
+rejected. libro does **not** enable them, because `@jrmoulckers/prettier-config` ships no
+declarations, so `prettier.config.js` fails with `TS7016` under `checkJs`. Dropping that one file
+from `include` to buy the check would leave it unchecked by *both* `tsc` projects, which is a
+worse trade than not opting in. Revisit once `prettier-config` ships types; do not paper over it
+with a local `declare module` shim, which would assert a contract libro does not own.
+
+Note the failure is silent today: `tsconfig.node.json` lists the three `.js` config files in
+`include`, but with `allowJs` off `tsc` skips them without a word. Verified with `--listFiles`.
 
 ## Deviations from the shared principles
 
