@@ -418,15 +418,20 @@ CI is already wired for the registry half. `.github/workflows/ci.yml` passes `re
 `inputs.registry-url != '' && (secrets.NODE_AUTH_TOKEN || github.token) || ''`, so `GITHUB_TOKEN` is
 supplied automatically and only on runs that opted into a registry.
 
-**Before re-pinning on advice, compare the callees' blob SHAs, not the commit distance.** The five
-call sites sit at `f145727`, which is behind current `main` by several commits — and all five called
-workflows are **byte-identical** at both refs, because the intervening commits touch the sync
-engine, docs, and a smoke-test workflow libro does not call. A pin exists to freeze *content*, so
-"behind by
-commits" and "behind by content" are different questions and only the second one matters. Ask the
+**Before re-pinning on advice, compare the callees' blob SHAs, not the commit distance.** A pin
+exists to freeze *content*, so "behind by commits" and "behind by content" are different questions
+and only the second one matters. The five call sites were held at `f145727` through a stretch where
+that ref was 157 commits behind `main` and every called workflow was still byte-identical, because
+the intervening commits touched the sync engine, docs, and workflows libro does not call. Ask the
 contents API for each callee's `sha` at both refs; a bare `compare` file list answers it too, but
 only if you check it against the call sites rather than skimming it. Re-pinning to a ref whose
 callees are identical is churn that can only introduce error.
+
+The current pin is `974154d`, taken when `reusable-perf-budget` gained an `exclude-glob` input;
+the other four callees were byte-identical to `f145727` at that point. That input defaults to `''`,
+which measures the whole output directory exactly as before, and libro emits no source maps into
+`dist/`, so it is deliberately left unset — set it to `'*.map'` only if a build starts emitting
+them, or the budget will be spent on bytes no user downloads.
 
 **`packages: read` is mandatory on the caller**, and it tracks what the callee *declares*, not
 whether it installs — `reusable-perf-budget` runs no install and still needs the grant. A caller
@@ -434,6 +439,16 @@ whether it installs — `reusable-perf-budget` runs no install and still needs t
 never hold a scope its caller lacks, so omitting one fails the run at `startup_failure` with no
 readable log. `reusable-ci-lint` additionally needs `pull-requests: read`. `actionlint` does not
 model this ceiling, so a green lint is not evidence.
+
+**The blast radius of that failure is the whole file, not the offending job.** Permission
+resolution runs before any job is created, so one caller job missing a scope its callee declares
+takes down every other job in the same workflow file — including jobs that delegate elsewhere and
+are individually correct. libro's `ci.yml` fans out to five reusable workflows, so the failure mode
+is all five vanishing at once with no check run and no log. Nothing written inside the file can
+detect it, and **a green history is not protection**: the ceiling only binds once the pin moves to
+a ref whose callee declares the scope, so a run that has passed for months can go dark on a re-pin
+that changed nothing else. Re-pin and re-verify every caller/callee pair **in the same commit**,
+by reading each callee's declared `permissions:` at the *target* ref — not the current one.
 
 `reusable-security-ci` needs no registry wiring, despite appearances. It has no install step — only
 checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the default

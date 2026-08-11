@@ -26,7 +26,7 @@ permissions: {}
 jobs:
   lint:
     name: Lint
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-lint.yml@974154df3d0200a2508651fc8e67e56d74cd4519 # main
     permissions:
       contents: read
       packages: read
@@ -42,7 +42,7 @@ jobs:
 
   web:
     name: Web CI
-    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-ci-web.yml@974154df3d0200a2508651fc8e67e56d74cd4519 # main
     permissions:
       contents: read
       packages: read
@@ -65,7 +65,7 @@ jobs:
     # data from the default registry rather than the @jrmoulckers-scoped one, so it
     # stays green once scoped dependencies land. Verified against the workflow source
     # at the pinned SHA. Do not add registry-url/packages: read here.
-    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-security-ci.yml@974154df3d0200a2508651fc8e67e56d74cd4519 # main
     permissions:
       contents: read
     with:
@@ -81,7 +81,7 @@ jobs:
     name: Preview Artifact
     if: github.event_name == 'pull_request'
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-deploy-preview.yml@974154df3d0200a2508651fc8e67e56d74cd4519 # main
     permissions:
       contents: read
       packages: read
@@ -97,7 +97,7 @@ jobs:
   perf:
     name: Performance Budget
     needs: web
-    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@f1457271427fcde18a62b07c53a1ea75e14cd644 # main
+    uses: jrmoulckers/.github/.github/workflows/reusable-perf-budget.yml@974154df3d0200a2508651fc8e67e56d74cd4519 # main
     permissions:
       contents: read
       packages: read
