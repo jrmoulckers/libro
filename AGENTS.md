@@ -372,8 +372,8 @@ and answers the wrong question.
 One known defect to avoid on adoption: **do not pass `strictTypeChecked: true` to
 `svelteConfig()`.** It aborts the entire ESLint run on the first `.svelte` file — the type-checked
 rule sets apply unscoped, while the re-disable blocks that rescue `.ts`/`.js` match neither
-`.svelte` nor its variants. Still present as of `v0.16.0`. Reported upstream; a consumer can
-self-rescue through `extend`, but the plain default is unaffected, so leave it alone.
+`.svelte` nor its variants. Re-verified still present at `v0.17.0`. Reported upstream; a consumer
+can self-rescue through `extend`, but the plain default is unaffected, so leave it alone.
 
 Do not add the dependency or an `.npmrc` before then: a lockfile that cannot resolve in CI is worse
 than no config, and a committed project-level `.npmrc` outranks the user-level one `setup-node`
