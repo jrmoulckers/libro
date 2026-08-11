@@ -135,37 +135,37 @@ Resolve any `ENG-*` ID through
    backend-for-frontend. If a feature seems to need one, it needs a different design. No ratified
    principle forbids a server tier — this constraint is libro's own, and it is recorded as
    [ADR-0001](docs/architecture/0001-pure-client-architecture.md) because
-   [`ENG-ARCH-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md) *Durable decisions* requires an ADR before a tradeoff may be treated as a durable constraint.
+   [`ENG-ARCH-003` (Durable decisions)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md) *Durable decisions* requires an ADR before a tradeoff may be treated as a durable constraint.
 2. **No secrets in the repo or the bundle.**
-   [`ENG-SEC-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
+   [`ENG-SEC-001` (Secret lifecycle)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
    already forbids secrets in source, artifacts, logs, and clients, and
-   [`ENG-WEB-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+   [`ENG-WEB-001` (Browser trust seam)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
    makes client-visible configuration untrusted. libro is stricter only because it has nowhere
    to inject one at runtime: a feature requiring a private API key is out of scope by
    construction, so third-party integrations must work with public endpoints or with
    user-supplied credentials held in device storage.
 3. **User content stays on the device.** Book files, audio, covers, positions, and highlights
    are personal data under
-   [`ENG-SEC-008`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md),
+   [`ENG-SEC-008` (Privacy-minimizing lifecycle evidence)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md),
    and the device's store is their system of record under
-   [`ENG-LOCAL-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md).
+   [`ENG-LOCAL-001` (Local durable ownership)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md).
    libro-specific: there is no destination to send them to, so do not log them and do not add
    analytics that could carry titles or filenames.
 4. **Own the client budget.** The budget obligation is
-   [`ENG-WEB-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+   [`ENG-WEB-003` (Measured foreground performance)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
    (separate delivery and runtime budgets),
-   [`ENG-PERF-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
+   [`ENG-PERF-002` (Versioned performance budgets)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
    (versioned and owned), and
-   [`ENG-PERF-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
+   [`ENG-PERF-003` (Minimal package surface)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
    (dependency cost). libro's numbers: CI enforces 2048 KB of `dist/`, media parsing (EPUB,
    audio, covers) must be dynamically imported and code-split rather than pulled into the entry
    chunk, and every runtime dependency is justified in the PR body. See
    [practices/performance-budgets.md](https://github.com/jrmoulckers/engineering/blob/main/practices/performance-budgets.md).
 5. **Offline is a feature, not a fallback.** This is
-   [`ENG-LOCAL-004`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+   [`ENG-LOCAL-004` (Zero-config safe degradation)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
    (start with zero external-service configuration; degrade unavailable optional services to
    explicit local behaviour) plus
-   [`ENG-WEB-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
+   [`ENG-WEB-002` (Capability-safe enhancement)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/browser-frontend.md)
    (detect optional browser capabilities before use). libro-specific: reserve layout space so
    loading states don't cause CLS.
 6. **Accessibility is a gate.** WCAG 2.2 AA. Native elements first; media players need full
@@ -173,10 +173,10 @@ Resolve any `ENG-*` ID through
    — the tokens already zero durations; don't reintroduce motion that bypasses that. No ratified
    principle sets an accessibility bar, so WCAG 2.2 AA is libro's own standard. Engineering
    constrains only the tradeoff:
-   [`ENG-PERF-009`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md) *Assurance precedence* forbids accepting a performance change that weakens accessibility.
+   [`ENG-PERF-009` (Assurance precedence)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md) *Assurance precedence* forbids accepting a performance change that weakens accessibility.
 7. **Colocate tests.** `src/lib/foo.ts` → `src/lib/foo.test.ts`. Where the file sits is a libro
    convention; no ratified principle governs test placement. The separate ratified obligation is
-   [`ENG-TEST-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md) *Regression boundaries* — a failing regression test at the narrowest authoritative
+   [`ENG-TEST-003` (Regression boundaries)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md) *Regression boundaries* — a failing regression test at the narrowest authoritative
    boundary for every new behavior, corrected defect, or changed shared contract. Colocation is
    merely where libro keeps such a test, not what satisfies the obligation.
 8. **Domain logic stays framework-free, and the dependency direction is one-way.** No `.ts`
@@ -184,18 +184,18 @@ Resolve any `ENG-*` ID through
    `.svelte` files (including the two colocated at `src/lib/player/Player.svelte` and
    `src/lib/reader/Reader.svelte`), which may consume `src/lib/` but must not be the place logic
    lives. The framework-isolation half of
-   [`ENG-INT-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+   [`ENG-INT-001` (Thin typed adapters)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
    obligates the first part, and
-   [`ENG-ARCH-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+   [`ENG-ARCH-001` (Minimal directed boundaries)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
    (smallest explicit boundary, dependencies acyclic, each fact in one authoritative home)
    obligates the second. The specific `component → store → lib` shape libro uses is a libro
    choice, not an Engineering rule — cite these two for the *direction*, not for the tiering.
 
 Sync behaviour in `src/lib/sync/` is governed by
-[`ENG-LOCAL-002`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+[`ENG-LOCAL-002` (Optional sync seam)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
 (one narrow provider contract; core local operation never waits on an account, provider, or
 network) and
-[`ENG-LOCAL-003`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
+[`ENG-LOCAL-003` (Declared conflict model)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/local-first.md)
 (ordering, tombstone, concurrency, and merge rules are declared and tested per synchronized
 type). See
 [practices/local-first-sync.md](https://github.com/jrmoulckers/engineering/blob/main/practices/local-first-sync.md).
@@ -256,6 +256,28 @@ Two consequences worth knowing. Vendoring normally costs the version signal a re
 here the lock file supplies it, so a refresh is a reviewable diff and drift is detectable. And
 `@tsconfig/svelte` is gone — `tsconfig.app.json` extends the vendored `vite-app.json` instead, and
 the `noUnusedLocals` / `noUnusedParameters` libro contributed upstream come back through it.
+
+**The presets are deliberately not supersets, so the swap was diffed option by option rather than
+assumed.** Resolving both `extends` chains fully (old: `@tsconfig/svelte@5.0.8`, the version the
+lockfile actually pinned) gives 9 differing options for the app project and 13 for the node one.
+Three are losses and each is accounted for:
+
+- **`sourceMap`** — dropped deliberately. `@tsconfig/svelte` sets it to place Svelte compiler
+  diagnostics correctly, a rationale that predates Svelte 5; upstream documents dropping it.
+- **`esModuleInterop`** — dropped on the app project and **not** re-added. Nothing in `src/`
+  default-imports a CommonJS module, so `svelte-check` is clean without it. The node project is
+  different: it keeps a local `allowSyntheticDefaultImports: true`, which is the one genuine local
+  retention in either file.
+- **`target`** `ESNext` → `ES2023` — a narrowing, not a loss, and `lib` is now pinned rather than
+  inferred.
+
+Everything else is the presets being stricter. `noUncheckedIndexedAccess` is the consequential
+one — it is what the accompanying `src/` corrections exist for, and it applies to both projects,
+alongside `noImplicitOverride`, `noFallthroughCasesInSwitch`, and
+`forceConsistentCasingInFileNames`.
+`exactOptionalPropertyTypes` is explicitly `false`, so it is pinned off rather than left to drift.
+Do not restore a dropped option because it *looks* missing; an option the preset lacks is a finding
+to state, and hoisting one into the shared base breaks every other consumer.
 
 ### The registry half
 
@@ -406,7 +428,7 @@ longer resolve. Successors below come from `principles/migration-ledger.json` in
   version of this file claimed the whole `ENG-INT-*` family had "no boundary to govern" because
   libro owns no service seam. That was a false exemption, produced by reading the realm's name
   instead of the principles' text.
-  [`ENG-INT-001`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+  [`ENG-INT-001` (Thin typed adapters)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
   governs *external input* and *framework* behaviour, not just service seams: libro parses EPUB
   containers, OPF metadata, and OPDS feeds, and isolates framework behaviour by keeping every
   `.ts` module in `src/lib/` free of `svelte` imports. `ENG-INT-002` (explicit, keyed, bounded, invalidatable
@@ -415,7 +437,7 @@ longer resolve. Successors below come from `principles/migration-ledger.json` in
   `src/lib/providers/registry.ts`. `ENG-INT-004` (observe seam latency and outcome without
   recording secrets or sensitive payloads) binds in its client-only reading and reinforces
   rule 3 — never log titles or filenames. Only
-  [`ENG-INT-005`](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
+  [`ENG-INT-005` (Credential proxy isolation)](https://github.com/jrmoulckers/engineering/blob/main/principles/platforms/integration-boundaries.md)
   (third-party credentials behind a server-side proxy) is genuinely unsatisfiable, by
   construction, which is exactly why a feature needing a private API key is out of scope.
 - **`ENG-WEB-003` applies in full; its legacy SSR guidance does not survive.** The old
@@ -482,6 +504,17 @@ migration. `ENG-DATA-*`, for instance, is scoped by durability, not by tier, so 
 pure-client product that has no server database. Inheriting a legacy realm's framing is how a
 false exemption gets written down, and a false exemption is most dangerous for a component that
 does not exist yet, because nothing contradicts it until the design is already settled.
+
+**State the principle's name in a link citation, so the claim is machine-checkable.** Write
+``[`ENG-INT-001` (Thin typed adapters)](…/principles/platforms/integration-boundaries.md)`` —
+upstream `scripts/check-citations.mjs` then verifies the stated name against
+`principles/index.json` and fails with a `claimed:`/`actual:` diff on a mismatch. This catches the
+one failure mode the ID and link-path checks both miss: a real, correctly formatted, correctly
+linked ID standing for a *different* rule. Only a parenthesised phrase beginning with a **capital**
+is read as a claimed name, so libro's existing lowercase glosses — `(separate delivery and runtime
+budgets)`, `(smallest explicit boundary…)` — are left alone; if you add a descriptive gloss, start
+it lowercase or it will be checked as a name. The name is a label, not the obligation: it does not
+substitute for reading the principle's **Statement** before asserting scope.
 
 `jrmoulckers/engineering` is consumed in three layers. The first two are read from the repository
 and move with its tags; the third is configuration, delivered over two channels — vendored at a
