@@ -263,6 +263,17 @@ gh api repos/jrmoulckers/engineering/contents/versions.json --jq '.content' | ba
 git show <pinned-ref>:packages/tsconfig/package.json   # in a checkout of the engineering repo
 ```
 
+**Both commands above are deliberately stale-proof, and the distinction is worth keeping.** A read
+of a *branch* from a local checkout — `git show origin/main:versions.json` — returns whatever was
+last fetched, with no error and no way to tell a stale answer from a fresh one; a repo that was
+sixteen releases behind reported four facts that were all true at its ref and all false on `main`.
+The `gh api` form holds no state, so it cannot have that failure. The `git show` form is safe for
+the opposite reason: it names an **immutable tag**, so a cached read is by definition correct, and
+a tag that was never fetched fails *loudly* with a bad-revision error rather than answering
+quietly. Cache staleness is a property of reading a moving ref, not of reading locally — so never
+substitute `origin/main` into either line, and if you must, `git fetch origin` is part of the
+command rather than something you did earlier.
+
 Upstream's `versions.json` records the published version per package and is registry-verified in
 their CI, which makes it safe to read at a tag — unlike `packages/<name>/package.json`, which
 reports the source tree at that moment and is what has repeatedly caused repos to report
@@ -481,8 +492,19 @@ and answers the wrong question.
 One known defect to avoid on adoption: **do not pass `strictTypeChecked: true` to
 `svelteConfig()`.** It aborts the entire ESLint run on the first `.svelte` file — the type-checked
 rule sets apply unscoped, while the re-disable blocks that rescue `.ts`/`.js` match neither
-`.svelte` nor its variants. Re-verified still present at `v0.17.0`. Reported upstream; a consumer
-can self-rescue through `extend`, but the plain default is unaffected, so leave it alone.
+`.svelte` nor its variants. **Re-verified against `main` — not a tag — on 2026-08-11, at published
+`eslint-config` 0.12.0: still present.** `svelte.js` grew 1843 → 3894 bytes over that span, but
+every added line is the `eslint-recommended` scoping fix; `base.js`, which owns the rescue blocks,
+contains **zero occurrences of `svelte`**, so the blocks still name only `**/*.{js,jsx,mjs,cjs}`
+and the tooling globs. Reported upstream; a consumer can self-rescue through `extend`, but the
+plain default is unaffected, so leave it alone.
+
+Re-check it that way — read the *source at `main`* and grep the rescue blocks for the file class
+you care about. A fixed-in-a-later-release claim is not evidence, and neither is the release note
+that fixed an adjacent defect in the same file: the `.svelte` scoping fix landed in `svelte.js`
+while this defect lives in `base.js`, so a diff that looks like "the Svelte path was fixed" leaves
+it untouched. **A workaround for a fixed bug is just a bug — but retiring one on the strength of a
+nearby fix is worse, because the note makes it feel verified.**
 
 Do not add the dependency or an `.npmrc` before then: a lockfile that cannot resolve in CI is worse
 than no config, and a committed project-level `.npmrc` outranks the user-level one `setup-node`
