@@ -372,7 +372,7 @@ The practical consequence: **generating a lockfile locally is possible but must 
 until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
 lint step.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.10.0 <1.0.0` and replace the local
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.11.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
 **Keep `eslint-plugin-svelte` in `devDependencies`** — libro already declares it, and must
@@ -410,6 +410,31 @@ this survived being green everywhere.
 `typescript-eslint` stays at `^8.13.0` and is **not** part of that defect: 8.67.0 is current, the
 caret reaches it, and its own `typescript: >=4.8.4 <6.1.0` peer is what the preset's
 `>=5.5.0 <6.1.0` cap inherits. Do not "fix" it by widening.
+
+**0.11.0 fixes a `.svelte` rule-scoping defect that libro's local config had independently.**
+`typescript-eslint`'s `eslint-recommended` layer is scoped to `**/*.{ts,tsx,mts,cts}`, so it never
+reaches `.svelte`. Because that one layer both disables the core rules the compiler already
+enforces and enables four others, components run **18 rules wrongly on and 4 wrongly off**.
+`no-undef` is the one that bites: it cannot see ambient or namespaced types, so a component
+referencing `NodeJS.Timeout` errors while byte-identical `.ts` code does not — and the identifier
+is correct, so it is unfixable in the source. Reproduced here with a two-file probe before the
+fix, and the local config now re-applies the layer to `.svelte`.
+
+Verify a rule-scoping claim by diffing **resolved** config per file class, not by reading the
+config source — the defect is invisible there, and a green lint is not evidence, because it only
+fires once a component references such a type:
+
+```bash
+npx eslint --print-config src/App.svelte
+npx eslint --print-config src/lib/epub/epub.ts
+```
+
+Post-fix those two differ by exactly one rule, `no-self-assign`, which the Svelte plugin disables
+deliberately. That is the check to re-run on adoption, and it is worth running against any scoped
+exception to confirm it is as narrow as its comment claims. The tradeoff the layer carries — a
+`.svelte` file with a plain `<script>` gives up `no-undef` too — does not bite here: all three
+components are `lang="ts"` and `svelte-check` type-checks them. Reconsider if one is ever added
+without it.
 
 Where a preset defect is reported, quote the **resolved** version — read it from the lockfile or
 `node -p "require('@jrmoulckers/eslint-config/package.json').version"`. A pinned range is not an
