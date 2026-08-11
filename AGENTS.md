@@ -135,7 +135,8 @@ Resolve any `ENG-*` ID through
    backend-for-frontend. If a feature seems to need one, it needs a different design. No ratified
    principle forbids a server tier — this constraint is libro's own, and it is recorded as
    [ADR-0001](docs/architecture/0001-pure-client-architecture.md) because
-   [`ENG-ARCH-003` (Durable decisions)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md) *Durable decisions* requires an ADR before a tradeoff may be treated as a durable constraint.
+   [`ENG-ARCH-003` (Durable decisions)](https://github.com/jrmoulckers/engineering/blob/main/principles/architecture/boundaries-and-contracts.md)
+   requires an ADR before a tradeoff may be treated as a durable constraint.
 2. **No secrets in the repo or the bundle.**
    [`ENG-SEC-001` (Secret lifecycle)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/security-and-privacy.md)
    already forbids secrets in source, artifacts, logs, and clients, and
@@ -173,10 +174,12 @@ Resolve any `ENG-*` ID through
    — the tokens already zero durations; don't reintroduce motion that bypasses that. No ratified
    principle sets an accessibility bar, so WCAG 2.2 AA is libro's own standard. Engineering
    constrains only the tradeoff:
-   [`ENG-PERF-009` (Assurance precedence)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md) *Assurance precedence* forbids accepting a performance change that weakens accessibility.
+   [`ENG-PERF-009` (Assurance precedence)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/performance.md)
+   forbids accepting a performance change that weakens accessibility.
 7. **Colocate tests.** `src/lib/foo.ts` → `src/lib/foo.test.ts`. Where the file sits is a libro
    convention; no ratified principle governs test placement. The separate ratified obligation is
-   [`ENG-TEST-003` (Regression boundaries)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md) *Regression boundaries* — a failing regression test at the narrowest authoritative
+   [`ENG-TEST-003` (Regression boundaries)](https://github.com/jrmoulckers/engineering/blob/main/principles/assurance/testing.md)
+   — a failing regression test at the narrowest authoritative
    boundary for every new behavior, corrected defect, or changed shared contract. Colocation is
    merely where libro keeps such a test, not what satisfies the obligation.
 8. **Domain logic stays framework-free, and the dependency direction is one-way.** No `.ts`
@@ -320,7 +323,7 @@ The practical consequence: **generating a lockfile locally is possible but must 
 until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
 lint step.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.9.0 <1.0.0` and replace the local
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.10.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
 **Keep `eslint-plugin-svelte` in `devDependencies`** — libro already declares it, and must
@@ -343,6 +346,21 @@ fix is unreachable. An explicit `>=x <1.0.0` is the only form that tracks a pre-
 The floor is also **install-time load-bearing**, which is a separate point: libro runs ESLint
 10.8.0, and the peer was `eslint: ^9.0.0` through 0.3.0, so too low a floor fails to *resolve*
 rather than failing to lint.
+
+**0.10.0 raises the floor again, and for libro it is a correctness fix rather than housekeeping.**
+Below it the preset's own `@eslint/js` dependency was capped at `^9.14.0`. That package's major
+tracks ESLint's, so an ESLint 10 consumer resolved the ESLint **9** recommended rule set while
+every peer range and every gate reported agreement — the preset advertised ESLint 10 support it
+did not deliver. libro is exactly that consumer. Verified on the registry at `0.10.0`:
+`@eslint/js ^9.14.0 || ^10.0.0`, `eslint-config-prettier ^9.1.0 || ^10.0.0`,
+`globals ^15.12.0 || ^16.0.0 || ^17.0.0`. Note the asymmetry worth generalising: a *peer* range
+is the consumer's problem and visible in the manifest, whereas a stale *dependency* range is the
+preset's own and invisible to everyone — nothing in a consumer repo can observe it, which is why
+this survived being green everywhere.
+
+`typescript-eslint` stays at `^8.13.0` and is **not** part of that defect: 8.67.0 is current, the
+caret reaches it, and its own `typescript: >=4.8.4 <6.1.0` peer is what the preset's
+`>=5.5.0 <6.1.0` cap inherits. Do not "fix" it by widening.
 
 Where a preset defect is reported, quote the **resolved** version — read it from the lockfile or
 `node -p "require('@jrmoulckers/eslint-config/package.json').version"`. A pinned range is not an
