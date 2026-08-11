@@ -279,6 +279,25 @@ converting the one blocker that affects a single package into one that fails `pn
 --frozen-lockfile` outright. Read `channel` before `range`, and treat `range` as meaningful only
 where `channel` is `registry`.
 
+Upstream now ships a top-level `channels` legend answering this as data rather than prose —
+`registry` is `requiresRegistryAuth: true`, `vendored` is `false` — so the question can be resolved
+mechanically instead of by reading a paragraph:
+
+```bash
+gh api -X GET repos/jrmoulckers/engineering/contents/versions.json -f ref=main \
+  -H 'Accept: application/vnd.github.raw' > /tmp/versions.json
+node -e '
+const j = JSON.parse(require("fs").readFileSync("/tmp/versions.json"));
+for (const [n, p] of Object.entries(j.packages))
+  console.log(n, p.channel, j.channels[p.channel].requiresRegistryAuth);
+'
+```
+
+Note the legend does **not** remove `range` from the vendored entries, so a package can still report
+`requiresRegistryAuth: false` beside a range whose only use is a registry specifier. The legend
+settles whether a token is needed; it does not stop `range` inviting the dependency. Both checks
+still apply, in that order.
+
 The second command above is the same file those repos misread, and it is correct here only
 because it answers a different question. `versions.json` answers *"what is published"*;
 `packages/<name>/package.json` at a ref answers *"what was the source tree at that ref"* — which
