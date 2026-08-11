@@ -272,6 +272,23 @@ it. The tell is metadata resolving while only the tarball download fails: that m
 authenticated fine and was refused on access, so the remaining blocker is a grant or a visibility
 flip, not the wiring.
 
+**The blocker is CI-only, and narrower than "cannot be installed" suggests.** Probed directly
+against `https://npm.pkg.github.com` with a PAT carrying `read:packages`: metadata returns `200`
+for all three packages, and the `eslint-config@0.9.0` **tarball also returns `200`** and extracts
+to the expected tree. So a developer holding a scoped PAT can install and generate a lockfile
+today — the earlier claim that no token here could do so was wrong.
+
+What remains blocked is **CI**, structurally rather than for want of configuration: the packages
+are `visibility: private` (confirmed via `gh api users/jrmoulckers/packages/npm/<name>`), and
+libro's `GITHUB_TOKEN` is scoped to libro, so it cannot read a private package owned by
+`jrmoulckers/engineering` without an explicit grant. No amount of workflow wiring changes that,
+which is why the wiring is already correct and still insufficient. Do not "fix" CI by widening a
+permission; the grant or the visibility flip is owner-only.
+
+The practical consequence: **generating a lockfile locally is possible but must not be committed
+until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
+lint step.
+
 When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.9.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
