@@ -201,7 +201,7 @@ a `read:packages` credential out of band. See
 Do not restate a shared rule in a local override. Genuinely libro-specific lint rules belong in
 `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo belongs upstream.
 
-Floors are `eslint-config@^0.8.0`, `tsconfig@^0.3.0`, `prettier-config@^0.2.0`. **On a `0.x`
+Floors are `eslint-config@^0.8.0`, `tsconfig@^0.3.0`, `prettier-config@^0.3.0`. **On a `0.x`
 package a caret permits patch updates only**, so `^0.2.0` resolves to `>=0.2.0 <0.3.0` and can
 never reach 0.3.0 — a too-low floor is a silent install-time failure, not a lint-time one. The
 `eslint-config` floor is specifically install-time here: libro runs ESLint 10.8.0, and the peer
@@ -213,9 +213,8 @@ The `typescript` peers deliberately differ between the two packages — **do not
 declares `>=5.5.0 <6.1.0`, because it depends on `typescript-eslint`, whose own peer stops below
 6.1. libro runs TypeScript 6.0.3, which satisfies both, so the split does not bite here yet — but
 a future move to TypeScript 7 means adopting `tsconfig` and holding `eslint-config` back, not
-widening either. One peer is still narrower than libro's toolchain — `prettier-plugin-svelte:
-^3.2.0` in `prettier-config` against our 4.1.1 — which must be widened upstream, never overridden
-here.
+widening either. As of `prettier-config@0.3.0` every declared peer accommodates libro's
+toolchain: `prettier-plugin-svelte` is now `^3.2.0 || ^4.0.0` against our 4.1.1.
 
 ### Type-aware linting stays off
 
@@ -233,7 +232,9 @@ upstream fix (see below) before it will run at all here.
 option-checked if `tsconfig.node.json` enabled `allowJs` + `checkJs`. Both were measured as
 working — a valid config compiles clean, and `svelteConfig({ env: 'nonsense' })` is correctly
 rejected. libro does **not** enable them, because `@jrmoulckers/prettier-config` ships no
-declarations, so `prettier.config.js` fails with `TS7016` under `checkJs`. Dropping that one file
+declarations, so `prettier.config.js` fails with `TS7016` under `checkJs`. Re-verified at
+`prettier-config@0.3.0`, which widened a peer but shipped no `.d.ts` and no `types` condition, so
+the blocker is unchanged. Dropping that one file
 from `include` to buy the check would leave it unchecked by *both* `tsc` projects, which is a
 worse trade than not opting in. Revisit once `prettier-config` ships types; do not paper over it
 with a local `declare module` shim, which would assert a contract libro does not own.
