@@ -250,6 +250,24 @@ staleness would make pinning automatic in effect, because a red build pressures 
 into bumping the ref without deciding to accept the change. It runs as the first step of
 `pnpm lint`, so drift is caught by CI rather than by memory.
 
+**The staleness notice keys on the repository tag, and the vendored payload does not.** Nine
+consecutive refreshes — `v0.15.1` through `v0.18.0` — each reported `0 file(s) changed content`,
+because the upstream tags moved for docs and tooling while `tsconfig` stayed at package version
+`0.4.0` and `prettier-config` at `0.3.0` throughout. So the notice has fired nine times and been
+right zero times about what it names. To answer *"has my config actually changed"*, compare the
+package version rather than the tag:
+
+```bash
+gh api repos/jrmoulckers/engineering/contents/versions.json --jq '.content' | base64 -d
+git show <pinned-ref>:packages/tsconfig/package.json   # in a checkout of the engineering repo
+```
+
+Upstream's `versions.json` records the published version per package and is registry-verified in
+their CI, which makes it safe to read at a tag — unlike `packages/<name>/package.json`, which
+reports the source tree at that moment and is what has repeatedly caused repos to report
+already-fixed defects. Note that for a **vendored** package its `range` field is not actionable:
+there is no dependency to pin, only a ref, so read `version` and ignore `range`.
+
 Because the bytes are hashed, **`config/engineering/` is Prettier-ignored**. Reformatting a
 vendored file would change its bytes and break the hash, converting a real upstream-drift signal
 into an apparent local edit. That the files happen to be Prettier-clean today is luck, not a
@@ -259,6 +277,12 @@ Two consequences worth knowing. Vendoring normally costs the version signal a re
 here the lock file supplies it, so a refresh is a reviewable diff and drift is detectable. And
 `@tsconfig/svelte` is gone — `tsconfig.app.json` extends the vendored `vite-app.json` instead, and
 the `noUnusedLocals` / `noUnusedParameters` libro contributed upstream come back through it.
+
+**The two channels deliver the same bytes, and that is checked rather than assumed.** All six
+vendored `tsconfig` files were compared by SHA-256 against the published
+`@jrmoulckers/tsconfig@0.4.0` tarball pulled from the registry: identical. So choosing the vendored
+channel to avoid the token requirement costs nothing in content — it is purely a delivery
+difference.
 
 **The presets are deliberately not supersets, so the swap was diffed option by option rather than
 assumed.** Resolving both `extends` chains fully (old: `@tsconfig/svelte@5.0.8`, the version the
