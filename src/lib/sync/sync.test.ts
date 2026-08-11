@@ -198,7 +198,7 @@ describe('syncProgress — isolation & anti-oscillation', () => {
     );
 
     expect(report.errors).toHaveLength(1);
-    expect(report.errors[0].bookId).toBe('bad');
+    expect(report.errors[0]!.bookId).toBe('bad');
     expect(report.pulledDown).toBe(1); // 'ok' still processed
   });
 

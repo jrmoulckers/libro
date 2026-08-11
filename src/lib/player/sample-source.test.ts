@@ -38,15 +38,15 @@ describe('sampleManifestLayout', () => {
 
     // Cumulative boundaries at 8 and 18.
     const boundaries = [
-      tracks[0].durationSeconds,
-      tracks[0].durationSeconds + tracks[1].durationSeconds,
+      tracks[0]!.durationSeconds,
+      tracks[0]!.durationSeconds + tracks[1]!.durationSeconds,
     ];
     expect(boundaries).toEqual([8, 18]);
 
     // Chapter 2 spans the 8s boundary; chapter 3 spans the 18s boundary.
     const ch2 = chapters[1];
     const ch3 = chapters[2];
-    expect(ch2.startAbsolute < 8 && ch2.endAbsolute > 8).toBe(true);
-    expect(ch3.startAbsolute < 18 && ch3.endAbsolute > 18).toBe(true);
+    expect(ch2!.startAbsolute < 8 && ch2!.endAbsolute > 8).toBe(true);
+    expect(ch3!.startAbsolute < 18 && ch3!.endAbsolute > 18).toBe(true);
   });
 });

@@ -91,8 +91,10 @@ export function locateAbsolute(
   const total = tracks.reduce((sum, t) => sum + t.durationSeconds, 0);
   const clamped = Math.max(0, Math.min(absolute, total));
   for (let i = tracks.length - 1; i >= 0; i--) {
-    if (clamped >= tracks[i].startOffset || i === 0) {
-      return { trackIndex: i, offsetInTrack: clamped - tracks[i].startOffset };
+    const track = tracks[i];
+    if (!track) continue;
+    if (clamped >= track.startOffset || i === 0) {
+      return { trackIndex: i, offsetInTrack: clamped - track.startOffset };
     }
   }
   return { trackIndex: 0, offsetInTrack: 0 };
@@ -180,6 +182,7 @@ export function prevChapterStart(chapters: readonly Chapter[], absolute: number)
   const idx = currentChapterIndex(chapters, absolute);
   if (idx < 0) return null;
   const current = chapters[idx];
+  if (!current) return null;
   if (absolute - current.startAbsolute > PREV_CHAPTER_RESTART_THRESHOLD) {
     return current.startAbsolute;
   }

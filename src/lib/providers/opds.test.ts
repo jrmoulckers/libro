@@ -48,32 +48,34 @@ describe('parseOpdsFeed', () => {
 
   it('maps title, multiple authors, description, and cover', () => {
     const [effectiveJava] = books;
-    expect(effectiveJava.authors).toEqual(['Joshua Bloch', 'Neal Gafter']);
-    expect(effectiveJava.description).toBe('The definitive guide.');
-    expect(effectiveJava.coverUrl).toBe('https://cdn.example.com/covers/1.jpg');
-    expect(effectiveJava.mediaType).toBe('ebook');
-    expect(effectiveJava.sourceProviderId).toBe(PROVIDER_ID);
+    expect(effectiveJava!.authors).toEqual(['Joshua Bloch', 'Neal Gafter']);
+    expect(effectiveJava!.description).toBe('The definitive guide.');
+    expect(effectiveJava!.coverUrl).toBe('https://cdn.example.com/covers/1.jpg');
+    expect(effectiveJava!.mediaType).toBe('ebook');
+    expect(effectiveJava!.sourceProviderId).toBe(PROVIDER_ID);
   });
 
   it('stores the absolute acquisition URL in identifiers', () => {
-    expect(books[0].identifiers?.['opds:acquisition_url']).toBe('https://files.example.com/1.epub');
-    expect(books[0].identifiers?.['opds:acquisition_type']).toBe('application/epub+zip');
+    expect(books[0]!.identifiers?.['opds:acquisition_url']).toBe(
+      'https://files.example.com/1.epub',
+    );
+    expect(books[0]!.identifiers?.['opds:acquisition_type']).toBe('application/epub+zip');
   });
 
   it('resolves relative acquisition and cover links against the catalog URL', () => {
     const [, odyssey] = books;
-    expect(odyssey.identifiers?.['opds:acquisition_url']).toBe(
+    expect(odyssey!.identifiers?.['opds:acquisition_url']).toBe(
       'https://books.example.com/files/2.epub',
     );
-    expect(odyssey.coverUrl).toBe('https://books.example.com/covers/2-thumb.jpg');
-    expect(odyssey.series).toBe('Classics');
-    expect(odyssey.description).toBe('Epic poem.');
+    expect(odyssey!.coverUrl).toBe('https://books.example.com/covers/2-thumb.jpg');
+    expect(odyssey!.series).toBe('Classics');
+    expect(odyssey!.description).toBe('Epic poem.');
   });
 
   it('derives a stable id from the acquisition URL', () => {
-    expect(books[0].id).toMatch(/^opds-[0-9a-z]+$/);
+    expect(books[0]!.id).toMatch(/^opds-[0-9a-z]+$/);
     // Deterministic across runs on the same input.
-    expect(parseOpdsFeed(FEED, CATALOG_URL, PROVIDER_ID)[0].id).toBe(books[0].id);
+    expect(parseOpdsFeed(FEED, CATALOG_URL, PROVIDER_ID)[0]!.id).toBe(books[0]!.id);
   });
 
   it('throws a typed OpdsError on malformed XML', () => {

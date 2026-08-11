@@ -80,7 +80,10 @@ export class IdbMetadataCache implements MetadataCache {
       this.#request<MetadataPatch[]>(db, (store) => store.getAll()),
     ]);
     const map = new Map<string, MetadataPatch>();
-    keys.forEach((key, i) => map.set(String(key), values[i]));
+    keys.forEach((key, i) => {
+      const value = values[i];
+      if (value !== undefined) map.set(String(key), value);
+    });
     return map;
   }
 

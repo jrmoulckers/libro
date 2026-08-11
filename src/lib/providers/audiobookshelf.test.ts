@@ -55,13 +55,13 @@ describe('mapAbsLibraryItems', () => {
 
   it('maps minified metadata: CSV authors, series, description, ids as audiobook', () => {
     const [fellowship] = books;
-    expect(fellowship.id).toBe('abs-li_fellowship');
-    expect(fellowship.mediaType).toBe('audiobook');
-    expect(fellowship.sourceProviderId).toBe(PROVIDER_ID);
-    expect(fellowship.authors).toEqual(['J. R. R. Tolkien', 'Someone Else']);
-    expect(fellowship.series).toBe('The Lord of the Rings');
-    expect(fellowship.description).toBe('The first volume.');
-    expect(fellowship.identifiers).toMatchObject({
+    expect(fellowship!.id).toBe('abs-li_fellowship');
+    expect(fellowship!.mediaType).toBe('audiobook');
+    expect(fellowship!.sourceProviderId).toBe(PROVIDER_ID);
+    expect(fellowship!.authors).toEqual(['J. R. R. Tolkien', 'Someone Else']);
+    expect(fellowship!.series).toBe('The Lord of the Rings');
+    expect(fellowship!.description).toBe('The first volume.');
+    expect(fellowship!.identifiers).toMatchObject({
       'abs:item_id': 'li_fellowship',
       isbn: '9780547928210',
       asin: 'B007978NPG',
@@ -69,17 +69,17 @@ describe('mapAbsLibraryItems', () => {
   });
 
   it('constructs a token-bearing cover URL when the item has a cover', () => {
-    expect(books[0].coverUrl).toBe(
+    expect(books[0]!.coverUrl).toBe(
       'https://abs.example.com/api/items/li_fellowship/cover?token=TESTTOKEN',
     );
   });
 
   it('maps full (structured) authors[].name and series[].name', () => {
     const [, childrenOfTime] = books;
-    expect(childrenOfTime.authors).toEqual(['Adrian Tchaikovsky']);
-    expect(childrenOfTime.series).toBe('Children of Time');
-    expect(childrenOfTime.coverUrl).toBeUndefined();
-    expect(childrenOfTime.identifiers).toEqual({ 'abs:item_id': 'li_fullmeta' });
+    expect(childrenOfTime!.authors).toEqual(['Adrian Tchaikovsky']);
+    expect(childrenOfTime!.series).toBe('Children of Time');
+    expect(childrenOfTime!.coverUrl).toBeUndefined();
+    expect(childrenOfTime!.identifiers).toEqual({ 'abs:item_id': 'li_fullmeta' });
   });
 
   it('accepts a bare items array as well as the wrapped response', () => {

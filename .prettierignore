@@ -14,3 +14,8 @@ vendor/
 .github/instructions/
 .github/copilot-instructions.md
 AGENTS.md
+
+# Vendored from jrmoulckers/engineering at a pinned ref and pinned by SHA-256 in
+# engineering-configs.lock.json. Formatting these would change their bytes and
+# break the hash check, turning an upstream-drift signal into a local edit.
+config/engineering/

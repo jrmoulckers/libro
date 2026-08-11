@@ -58,7 +58,7 @@ export interface OpdsConfig {
 export class OpdsError extends Error {
   constructor(
     message: string,
-    readonly cause?: unknown,
+    override readonly cause?: unknown,
   ) {
     super(message);
     this.name = 'OpdsError';
@@ -128,7 +128,8 @@ function mapEntry(entry: Element, base: string, providerId: string): Book | null
     }
   }
 
-  if (acquisitions.length === 0) {
+  const first = acquisitions[0];
+  if (!first) {
     return null;
   }
 
@@ -136,7 +137,7 @@ function mapEntry(entry: Element, base: string, providerId: string): Book | null
   const primary =
     acquisitions.find((a) => a.rel.includes('open-access')) ??
     acquisitions.find((a) => a.type?.includes('epub')) ??
-    acquisitions[0];
+    first;
 
   const authors = directChildren(entry, 'author')
     .map((a) => childText(a, 'name'))

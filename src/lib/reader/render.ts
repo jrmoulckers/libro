@@ -97,7 +97,8 @@ export async function openEpub(bytes: Uint8Array): Promise<OpenedEpub> {
     },
     renderChapter(index: number): RenderedChapter {
       const item = structure.spine[clampIndex(index, structure.spine.length)];
-      const html = strFromU8(entries[item.href] ?? new Uint8Array());
+      const href = item?.href ?? '';
+      const html = strFromU8(entries[href] ?? new Uint8Array());
 
       const created: string[] = [];
       const cache = new Map<string, string>();
@@ -117,7 +118,7 @@ export async function openEpub(bytes: Uint8Array): Promise<OpenedEpub> {
       };
 
       return {
-        srcdoc: rewriteChapterHtml(html, item.href, resolve),
+        srcdoc: rewriteChapterHtml(html, href, resolve),
         revoke: () => {
           for (const url of created) URL.revokeObjectURL(url);
         },

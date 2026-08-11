@@ -31,7 +31,7 @@ metadata, reading/listening position, and playback all live on the user's device
 | Language        | TypeScript (strict)                                                        |
 | Package manager | **pnpm** (`packageManager` field is authoritative; do not use npm or yarn) |
 | Tests           | Vitest (jsdom)                                                             |
-| Lint / format   | ESLint flat config + Prettier (`prettier-plugin-svelte`)                   |
+| Lint / format   | ESLint flat config + Prettier (shared config from `jrmoulckers/engineering`) |
 | Type-check      | `svelte-check` for the app, `tsc` for config files                         |
 | Output          | Static `dist/` — deployable to any static host or CDN                      |
 | Design tokens   | `@jrm/tokens`, vendored from `jrmoulckers/studio` (see below)              |
@@ -68,6 +68,9 @@ These are exactly the commands `.github/workflows/ci.yml` runs.
 │   ├── app.css              # global stylesheet; token import lives here
 │   └── lib/                 # domain logic + colocated *.test.ts
 ├── docs/architecture/       # ADRs — required by ENG-ARCH-003 before a tradeoff is durable
+├── config/engineering/      # VENDORED from jrmoulckers/engineering at a pinned ref;
+│                            #   byte-identical, SHA-256-pinned — refresh via the script only
+├── scripts/vendor-configs.mjs  # fetches the above; committed so a refresh is reproducible
 ├── vendor/@jrm/tokens/      # SYNC-OWNED, arrives via chore(sync) PR — never hand-write
 ├── .github/workflows/ci.yml # product-owned; calls the backbone reusable workflows
 └── dist/                    # build output (git-ignored)
@@ -102,10 +105,10 @@ The studio is registry-free, and the sync engine vendors **only** the token `dis
 `@jrm/tailwind-preset`, `@jrm/eslint-config`, `@jrm/tsconfig`, and `@jrm/prettier-config` are
 **not** synced into member repos and **cannot resolve here**. Studio's README shows
 `presets: [require('@jrm/tailwind-preset')]`, `"extends": "@jrm/tsconfig/svelte.json"`, and
-`"prettier": "@jrm/prettier-config"` — those examples do **not** apply to libro. Our
-`eslint.config.js`, `.prettierrc.json`, and `tsconfig*.json` inline the equivalents locally,
-and must stay that way. Adding an `@jrm/*` dependency other than the vendored tokens will fail
-`pnpm install --frozen-lockfile` in CI.
+`"prettier": "@jrm/prettier-config"` — those examples do **not** apply to libro. libro's
+equivalents come from `jrmoulckers/engineering` instead (see [Shared engineering
+configuration](#shared-engineering-configuration)), and must stay that way. Adding an `@jrm/*`
+dependency other than the vendored tokens will fail `pnpm install --frozen-lockfile` in CI.
 
 Rules that follow from studio's frontend principles:
 
@@ -197,98 +200,107 @@ network) and
 type). See
 [practices/local-first-sync.md](https://github.com/jrmoulckers/engineering/blob/main/practices/local-first-sync.md).
 
-## Shared engineering configuration — not adopted yet
+## Shared engineering configuration
 
-Lint, format, and TypeScript settings are still authored locally in `eslint.config.js`,
-`.prettierrc.json`, and `tsconfig.*.json`. They are **intended** to come from
-`@jrmoulckers/eslint-config`, `@jrmoulckers/prettier-config`, and `@jrmoulckers/tsconfig`
-(published to GitHub Packages — currently 0.4.0, 0.2.0, and 0.3.0 respectively), but adoption is
-not complete — see the tracking
-issue and [docs/adopting.md](https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md).
+Lint, format, and TypeScript settings come from
+[`jrmoulckers/engineering`](https://github.com/jrmoulckers/engineering), over **two different
+channels**. Which channel a config uses is decided by whether it owns runtime dependencies, not by
+its file format, and the split is recorded upstream in
+[ADR-0001](https://github.com/jrmoulckers/engineering/blob/main/docs/architecture/0001-two-channel-config-delivery.md).
 
-CI is already wired for it. `.github/workflows/ci.yml` passes `registry-url` and
-`registry-scope` to every install-bearing reusable workflow, and grants each caller job
-`packages: read`. It deliberately passes **no `NODE_AUTH_TOKEN`**: at the pinned SHA the
-workflows resolve the token as
-`inputs.registry-url != '' && (secrets.NODE_AUTH_TOKEN || github.token) || ''`, so `GITHUB_TOKEN`
-is supplied automatically, and only on runs that opted into a registry. Passing the secret
-explicitly still works — it is declared and optional — but it is redundant, so don't.
-**`packages: read` is mandatory** — GitHub Packages authenticates every read, including of a
-public package, and a `GITHUB_TOKEN` minted without package scope 401s exactly like no token at
-all. A caller `permissions:` block replaces the defaults rather than adding to them, and a called
-workflow can never hold a scope its caller lacks, so omitting it fails the run at
-`startup_failure` with no readable log. Check it first if a re-pinned workflow goes strange.
+| Config | Channel | Adopted |
+| --- | --- | --- |
+| `@jrmoulckers/tsconfig` | vendored at a pinned ref | yes |
+| `@jrmoulckers/prettier-config` | vendored at a pinned ref | yes |
+| `@jrmoulckers/eslint-config` | GitHub Packages registry | **no — blocked** |
 
-One thing remains before the dependencies can be added: the three packages are still
-**private**. `jrmoulckers/engineering` itself is public now, so any authenticated token may read
-them once the per-package visibility flip lands, but until it does every install fails — first
-`401`, then `403 permission_denied: read_package` once auth succeeds and only authorization is
-missing. That flip is owner-only and cannot be worked around here.
+The reason for the split is that GitHub Packages **authenticates every read, including of a public
+package**. Routing the `@jrmoulckers` scope therefore puts a credential in the install path for
+every contributor and self-hoster, not just CI — which for a pure-client product distributed to
+people who run their own copy is an onboarding regression, and one that per-package visibility does
+not fix, because visibility changes authorization and not authentication. `tsconfig` and
+`prettier-config` have no runtime dependencies, so they can be fetched and committed directly.
+`eslint-config` cannot: it depends on `@eslint/js`, `typescript-eslint`, `eslint-config-prettier`,
+and `globals`, and copying it would hand four version choices back to every repo — exactly the
+drift the shared layer exists to remove.
 
-`reusable-security-ci` needs no registry wiring, despite appearances. It has no install step —
-only checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the
-default registry rather than the `@jrmoulckers`-scoped one. Do not add `registry-url` or
-`packages: read` to that call site.
+### The vendored half
 
-When adoption does happen, pin `@jrmoulckers/eslint-config` at `^0.4.0`,
-`@jrmoulckers/tsconfig` at `^0.3.0`, and `@jrmoulckers/prettier-config` at `^0.2.0`. Those floors
-are not cosmetic: **on a `0.x` package a caret permits patch updates only**, so `^0.2.0` resolves
-to `>=0.2.0 <0.3.0` and can never reach 0.3.0. A too-low floor is also the one mistake this repo
-cannot catch by testing, because verifying a preset through a `file:` or `link:` dependency
-resolves current source and never consults the declared range at all — only lockfile generation,
-the step still blocked, would surface it. Verify by staging the exact published version instead.
+Files live in `config/engineering/`, are written **byte-identical to upstream** with no generated
+header, and are pinned by ref plus a SHA-256 per file in `engineering-configs.lock.json`. Refresh
+with the committed script, never by hand:
 
-The `eslint-config` floor is specifically an **install-time** requirement here, not a preference.
-libro runs ESLint 10.8.0, and through 0.3.0 the preset declared a peer of `eslint: ^9.0.0`, so
-`^0.3.0` would fail to resolve rather than fail to lint. 0.4.0 widens it to `^9.0.0 || ^10.0.0`;
-nothing was ever genuinely incompatible, since `typescript-eslint` and `eslint-plugin-svelte`
-both already supported ESLint 10.
+```bash
+node scripts/vendor-configs.mjs <newer-ref>
+```
 
-One peer range is still narrower than libro's toolchain: `prettier-plugin-svelte: ^3.2.0` against
-our 4.1.1. The preset was run against the real toolchain — lint, format check, and both typecheck
-projects pass — so this is a stale declaration rather than a real incompatibility, and it must be
-widened upstream, never overridden here. pnpm only warns on an unmet peer; npm and
-`strict-peer-dependencies` hard-fail, which is what turns a stale declaration into a broken
-install.
+Because the bytes are hashed, **`config/engineering/` is Prettier-ignored**. Reformatting a
+vendored file would change its bytes and break the hash, converting a real upstream-drift signal
+into an apparent local edit. That the files happen to be Prettier-clean today is luck, not a
+guarantee — the ignore is what makes it safe.
 
-The `typescript` peers, by contrast, are **deliberately different between the two packages — do not
-align them.** `@jrmoulckers/tsconfig` declares `^5.5.0 || ^6.0.0 || ^7.0.0`, while
-`@jrmoulckers/eslint-config` declares `>=5.5.0 <6.1.0`, because it depends on `typescript-eslint`,
-whose own peer stops below 6.1. libro runs TypeScript 6.0.3, which satisfies both, so the split
-does not bite here yet — but a future move to TypeScript 7 means adopting `tsconfig` and holding
-`eslint-config` back, not widening either.
+Two consequences worth knowing. Vendoring normally costs the version signal a registry provides;
+here the lock file supplies it, so a refresh is a reviewable diff and drift is detectable. And
+`@tsconfig/svelte` is gone — `tsconfig.app.json` extends the vendored `vite-app.json` instead, and
+the `noUnusedLocals` / `noUnusedParameters` libro contributed upstream come back through it.
 
-Package versions also track independently of the engineering repo's own tags: repo tag `v0.5.0`
-ships `eslint-config` 0.4.0, `prettier-config` 0.2.0, and `tsconfig` 0.3.0, so a repo tag is never
-an actionable npm specifier.
+### The registry half
 
-Until the visibility flip, do not add an `@jrmoulckers/*` dependency and do not commit an
-`.npmrc` routing the scope — a lockfile that cannot be resolved in CI is worse than a local
-config, and a committed project-level `.npmrc` outranks the user-level one `setup-node` writes.
-Because the token is bound to `npm.pkg.github.com`, a project-level `.npmrc` routing the scope
-elsewhere means the credential is never sent, producing a 401 that looks like the CI wiring
-failed. pnpm additionally discards credentials in a project-level `.npmrc` by design, so a token
-belongs in the user-level config or in `NODE_AUTH_TOKEN`, never in a committed file.
+`eslint.config.js` is still authored locally, because `@jrmoulckers/eslint-config` cannot be
+installed: the package is **private**, and that flip is owner-only. `jrmoulckers/engineering` is
+itself a public repo, which does not make its packages public — the two settings are independent,
+and no registry error distinguishes them, since an anonymous read 401s and a scopeless token 403s
+whether the package is public or not.
 
-When the `.npmrc` is finally added, it must map **only the scope**:
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@^0.8.0` and replace the local file with
+`svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost. Note the floor is
+**install-time load-bearing**: libro runs ESLint 10.8.0, and the peer was `eslint: ^9.0.0` through
+0.3.0, so a lower floor fails to resolve rather than failing to lint. On a `0.x` package a caret
+permits patch updates only, so `^0.3.0` can never reach 0.8.0.
+
+Do not add the dependency or an `.npmrc` before then: a lockfile that cannot resolve in CI is worse
+than no config, and a committed project-level `.npmrc` outranks the user-level one `setup-node`
+writes. When it is added it must map **only the scope**, never the default registry —
+`registry=https://npm.pkg.github.com/` breaks `pnpm audit` with
+`ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS`, because GitHub Packages implements no advisory endpoint and
+no token fixes a missing endpoint.
 
 ```ini
 @jrmoulckers:registry=https://npm.pkg.github.com
 ```
 
-Never replace the default registry wholesale (`registry=https://npm.pkg.github.com/`). Doing so
-breaks `pnpm audit` with `ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS`, because GitHub Packages implements
-no audit endpoint and `@npmcli/arborist` resolves the advisory endpoint as
-`auditRegistry || registry` — so audit never consults the scoped registry at all and **no token
-fixes it**. That would break the `security` job, which is otherwise unaffected by any of this.
-Relatedly, `npm audit` transmits package names and versions to `registry.npmjs.org`, including
-`@jrmoulckers/*` ones; that is inherent npm behavior, not something this repo configures.
+### Things that stay true across both channels
 
-Unlike `@jrm/tokens`, these will be real registry dependencies, not sync-vendored files.
+CI is already wired for the registry half. `.github/workflows/ci.yml` passes `registry-url` and
+`registry-scope` to every install-bearing reusable workflow and grants each caller job
+`packages: read`, but passes **no `NODE_AUTH_TOKEN`**: at the pinned SHA the workflows resolve it as
+`inputs.registry-url != '' && (secrets.NODE_AUTH_TOKEN || github.token) || ''`, so `GITHUB_TOKEN` is
+supplied automatically and only on runs that opted into a registry.
 
-When it does land: do not restate a shared rule in a local override. Genuinely libro-specific
-lint rules belong in `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo
-belongs upstream.
+**`packages: read` is mandatory on the caller**, and it tracks what the callee *declares*, not
+whether it installs — `reusable-perf-budget` runs no install and still needs the grant. A caller
+`permissions:` block replaces the defaults rather than adding to them, and a called workflow can
+never hold a scope its caller lacks, so omitting one fails the run at `startup_failure` with no
+readable log. `reusable-ci-lint` additionally needs `pull-requests: read`. `actionlint` does not
+model this ceiling, so a green lint is not evidence.
+
+`reusable-security-ci` needs no registry wiring, despite appearances. It has no install step — only
+checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the default
+registry. Do not add `registry-url` or `packages: read` to that call site.
+
+The `typescript` peers are **deliberately different between the two packages — do not align them.**
+`tsconfig` declares `^5.5.0 || ^6.0.0 || ^7.0.0`, while `eslint-config` declares `>=5.5.0 <6.1.0`,
+because it depends on `typescript-eslint`, whose own peer stops below 6.1. libro's TypeScript 6.0.3
+satisfies both, so the split does not bite yet — but a move to TypeScript 7 means adopting
+`tsconfig` and holding `eslint-config` back, not widening either.
+
+Package versions track independently of the engineering repo's own tags, and the skew runs the
+direction people do not expect: repo tag `v0.4.0` ships `eslint-config` **0.3.0**. So a repo tag is
+not an actionable npm specifier *and* is not a safe ref to verify a package version at. Read
+`version` from the same `package.json` you read the peer from.
+
+Do not restate a shared rule in a local override. Genuinely libro-specific lint rules belong in
+`svelteConfig({ extend: [...] })`; a rule that is wrong for every repo belongs upstream.
 
 ## Deviations from the shared principles
 
@@ -404,14 +416,14 @@ false exemption gets written down, and a false exemption is most dangerous for a
 does not exist yet, because nothing contradicts it until the design is already settled.
 
 `jrmoulckers/engineering` is consumed in three layers. The first two are read from the repository
-and move with its tags; the third is npm packages whose versions track **independently** of those
-tags, so an engineering repo tag is never an actionable npm specifier:
+and move with its tags; the third is configuration, delivered over two channels — vendored at a
+pinned ref, or npm packages whose versions track **independently** of those tags:
 
 | Layer | What it gives libro | How it arrives |
 | --- | --- | --- |
 | [`principles/`](https://github.com/jrmoulckers/engineering/blob/main/principles/README.md) | 66 ratified `ENG-*` rules | cited by ID; resolve via [`principles/index.json`](https://github.com/jrmoulckers/engineering/blob/main/principles/index.json) |
 | [`practices/`](https://github.com/jrmoulckers/engineering/blob/main/practices/README.md) | technique for satisfying them | linked by URL |
-| `packages/` | executable enforcement | GitHub Packages, versioned per package — **not adopted yet**, see [Shared engineering configuration](#shared-engineering-configuration--not-adopted-yet) |
+| `packages/` | executable enforcement | `tsconfig` + `prettier-config` vendored into `config/engineering/`; `eslint-config` from GitHub Packages — see [Shared engineering configuration](#shared-engineering-configuration) |
 
 Practices state no new rules — every normative sentence in one cites the `ENG-*` ID it derives
 from, so cite the principle, not the practice, when you need an obligation.

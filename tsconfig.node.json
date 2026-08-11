@@ -1,13 +1,7 @@
 {
+  "extends": "./config/engineering/tsconfig/vite-node.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "types": ["node"]
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts", "svelte.config.js", "eslint.config.js"]
+  "include": ["vite.config.ts", "svelte.config.js", "eslint.config.js", "prettier.config.js"]
 }

@@ -93,20 +93,20 @@ describe('mapDeclarativeCatalog', () => {
     const books = mapDeclarativeCatalog(json, manifest());
     expect(books).toHaveLength(1);
     const b = books[0];
-    expect(b.id).toBe('b1');
-    expect(b.title).toBe('Sandbox Stories');
-    expect(b.authors).toEqual(['Ada Lovelace', 'Alan Turing']);
-    expect(b.series).toBe('Foundations');
-    expect(b.coverUrl).toBe('https://api.example-books.test/covers/b1.jpg');
-    expect(b.description).toBe('A book about safe extensibility.');
-    expect(b.mediaType).toBe('ebook');
-    expect(b.sourceProviderId).toBe('example-rest-catalog');
-    expect(b.identifiers).toEqual({ isbn_13: '9781234567897' });
+    expect(b!.id).toBe('b1');
+    expect(b!.title).toBe('Sandbox Stories');
+    expect(b!.authors).toEqual(['Ada Lovelace', 'Alan Turing']);
+    expect(b!.series).toBe('Foundations');
+    expect(b!.coverUrl).toBe('https://api.example-books.test/covers/b1.jpg');
+    expect(b!.description).toBe('A book about safe extensibility.');
+    expect(b!.mediaType).toBe('ebook');
+    expect(b!.sourceProviderId).toBe('example-rest-catalog');
+    expect(b!.identifiers).toEqual({ isbn_13: '9781234567897' });
   });
 
   it('splits a comma-separated author string', () => {
     const json = { results: [{ id: 'x', title: 'T', authors: 'A One, B Two' }] };
-    expect(mapDeclarativeCatalog(json, manifest())[0].authors).toEqual(['A One', 'B Two']);
+    expect(mapDeclarativeCatalog(json, manifest())[0]!.authors).toEqual(['A One', 'B Two']);
   });
 
   it('treats the body as the array when itemsPath is empty', () => {
@@ -115,7 +115,7 @@ describe('mapDeclarativeCatalog', () => {
     });
     const books = mapDeclarativeCatalog([{ id: '1', title: 'Root Item' }], m);
     expect(books).toHaveLength(1);
-    expect(books[0].title).toBe('Root Item');
+    expect(books[0]!.title).toBe('Root Item');
   });
 
   it('stores a scalar identifier under isbn', () => {
@@ -126,7 +126,7 @@ describe('mapDeclarativeCatalog', () => {
       },
     });
     const books = mapDeclarativeCatalog([{ id: '1', title: 'T', isbn: '9780000000001' }], m);
-    expect(books[0].identifiers).toEqual({ isbn: '9780000000001' });
+    expect(books[0]!.identifiers).toEqual({ isbn: '9780000000001' });
   });
 
   it('returns an empty list for a non-array items location', () => {
@@ -166,8 +166,8 @@ describe('createDeclarativePluginProvider', () => {
     const books = await provider.listBooks();
     expect(seen).toEqual(['https://api.example-books.test/api/books']);
     expect(books).toHaveLength(1);
-    expect(books[0].title).toBe('The Pragmatic Plugin');
-    expect(books[0].sourceProviderId).toBe('example-rest-catalog');
+    expect(books[0]!.title).toBe('The Pragmatic Plugin');
+    expect(books[0]!.sourceProviderId).toBe('example-rest-catalog');
   });
 
   it('never fetches a denied domain (typed error)', async () => {

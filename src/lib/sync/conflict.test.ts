@@ -55,7 +55,7 @@ describe('ConflictStore', () => {
     expect(store.get('a')).toEqual(a);
     store.clear('a');
     expect(store.size()).toBe(1);
-    expect(store.list()[0].bookId).toBe('b');
+    expect(store.list()[0]!.bookId).toBe('b');
   });
 });
 

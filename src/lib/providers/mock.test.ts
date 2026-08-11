@@ -27,10 +27,10 @@ describe('createMockProvider', () => {
   it('does not share author arrays between calls (no fixture mutation)', async () => {
     const provider = createMockProvider();
     const first = await provider.listBooks();
-    first[0].authors.push('Injected');
+    first[0]!.authors!.push!('Injected');
 
     const second = await provider.listBooks();
-    expect(second[0].authors).not.toContain('Injected');
+    expect(second[0]!.authors).not.toContain('Injected');
   });
 
   it('accepts custom fixtures', async () => {
