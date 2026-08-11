@@ -201,6 +201,32 @@ a `read:packages` credential out of band. See
 Do not restate a shared rule in a local override. Genuinely libro-specific lint rules belong in
 `svelteConfig({ extend: [...] })`; a rule that is wrong for every repo belongs upstream.
 
+Floors are `eslint-config@^0.6.0`, `tsconfig@^0.3.0`, `prettier-config@^0.2.0`. **On a `0.x`
+package a caret permits patch updates only**, so `^0.2.0` resolves to `>=0.2.0 <0.3.0` and can
+never reach 0.3.0 — a too-low floor is a silent install-time failure, not a lint-time one. The
+`eslint-config` floor is specifically install-time here: libro runs ESLint 10.8.0, and the peer
+was `^9.0.0` through 0.3.0. Package versions track independently of the engineering repo's own
+tags, so a repo tag is never an actionable npm specifier.
+
+The `typescript` peers deliberately differ between the two packages — **do not align them.**
+`@jrmoulckers/tsconfig` declares `^5.5.0 || ^6.0.0 || ^7.0.0`, while `@jrmoulckers/eslint-config`
+declares `>=5.5.0 <6.1.0`, because it depends on `typescript-eslint`, whose own peer stops below
+6.1. libro runs TypeScript 6.0.3, which satisfies both, so the split does not bite here yet — but
+a future move to TypeScript 7 means adopting `tsconfig` and holding `eslint-config` back, not
+widening either. One peer is still narrower than libro's toolchain — `prettier-plugin-svelte:
+^3.2.0` in `prettier-config` against our 4.1.1 — which must be widened upstream, never overridden
+here.
+
+### Type-aware linting stays off
+
+`svelteConfig()` is called with no options, so the preset's default `recommended` rule set
+applies and no file needs to resolve to a TypeScript project. `strictTypeChecked: true` was
+measured against libro at `eslint-config@0.6.0`: it reports **71 findings across 18 files**,
+almost all discipline rather than soundness — 27 `require-await`, 20
+`prefer-promise-reject-errors`, and **zero** `no-floating-promises`. Adopting it is a deliberate
+future change with a real remediation cost, not a free upgrade, and it additionally needs an
+upstream fix (see below) before it will run at all here.
+
 ## Deviations from the shared principles
 
 Recorded explicitly so reviewers and agents don't treat them as oversights. Each exception

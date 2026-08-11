@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@jrmoulckers/eslint-config": "^0.4.0",
+    "@jrmoulckers/eslint-config": "^0.6.0",
     "@jrmoulckers/prettier-config": "^0.2.0",
     "@jrmoulckers/tsconfig": "^0.3.0",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
