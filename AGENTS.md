@@ -231,8 +231,21 @@ header, and are pinned by ref plus a SHA-256 per file in `engineering-configs.lo
 with the committed script, never by hand:
 
 ```bash
-node scripts/vendor-configs.mjs <newer-ref>
+gh api repos/jrmoulckers/engineering/releases/latest --jq .tag_name   # resolve, don't guess
+node scripts/vendor-configs.mjs <that-tag>
 ```
+
+**Resolve the tag; never copy a version literal out of upstream docs.** A literal in a document
+does not merely go stale — a tag can carry guidance a later release reversed, so pinning to a
+number someone wrote down can reintroduce the behaviour the document exists to prevent. Upstream
+now writes these recipes with a placeholder for that reason.
+
+`pnpm vendor:check` verifies the tree against the lock. The two severities are deliberate and
+worth preserving: **drift exits non-zero** (a generated file was edited or a write was lost — a
+local integrity failure), while **a newer upstream release only warns, exit 0**. Failing on
+staleness would make pinning automatic in effect, because a red build pressures the next person
+into bumping the ref without deciding to accept the change. It runs as the first step of
+`pnpm lint`, so drift is caught by CI rather than by memory.
 
 Because the bytes are hashed, **`config/engineering/` is Prettier-ignored**. Reformatting a
 vendored file would change its bytes and break the hash, converting a real upstream-drift signal
