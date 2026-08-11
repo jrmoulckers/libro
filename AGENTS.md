@@ -418,10 +418,25 @@ CI is already wired for the registry half. `.github/workflows/ci.yml` passes `re
 `inputs.registry-url != '' && (secrets.NODE_AUTH_TOKEN || github.token) || ''`, so `GITHUB_TOKEN` is
 supplied automatically and only on runs that opted into a registry.
 
-**Before re-pinning on advice, compare the callees' blob SHAs, not the commit distance.** A pin
-exists to freeze *content*, so "behind by commits" and "behind by content" are different questions
-and only the second one matters. The five call sites were held at `f145727` through a stretch where
-that ref was 157 commits behind `main` and every called workflow was still byte-identical, because
+**Check the *direction* of a proposed pin before its content.** A SHA arrives as an upgrade, but a
+SHA broadcast to several repos sitting at different pins is necessarily a rollback for some of
+them, and a backwards re-pin is the one workflow failure with **no signal at all** — the older
+callees were green when they were current, so CI stays green while whatever they fixed is silently
+withdrawn. Compare first, and refuse anything that reports `behind`:
+
+```bash
+gh api repos/jrmoulckers/.github/compare/<current-pin>...<proposed-sha> \
+  --jq '{status,ahead_by,behind_by}'
+```
+
+Run it from libro's **actual** pin. A sender's distance figure is measured from whatever ref they
+believe you are on, so it is stale the moment you move: `68c4265` was offered as 163 commits ahead,
+which was true of `f145727` and wrong by 157 of the pin libro already held.
+
+**Then compare the callees' blob SHAs, not the commit distance.** A pin exists to freeze *content*,
+so "behind by commits" and "behind by content" are different questions and only the second one
+matters. The five call sites were held at `f145727` through a stretch where that ref was 157 commits
+behind `main` and every called workflow was still byte-identical, because
 the intervening commits touched the sync engine, docs, and workflows libro does not call. Ask the
 contents API for each callee's `sha` at both refs; a bare `compare` file list answers it too, but
 only if you check it against the call sites rather than skimming it. Re-pinning to a ref whose
