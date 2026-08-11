@@ -250,12 +250,13 @@ staleness would make pinning automatic in effect, because a red build pressures 
 into bumping the ref without deciding to accept the change. It runs as the first step of
 `pnpm lint`, so drift is caught by CI rather than by memory.
 
-**The staleness notice keys on the repository tag, and the vendored payload does not.** Nine
-consecutive refreshes — `v0.15.1` through `v0.18.0` — each reported `0 file(s) changed content`,
-because the upstream tags moved for docs and tooling while `tsconfig` stayed at package version
-`0.4.0` and `prettier-config` at `0.3.0` throughout. So the notice has fired nine times and been
-right zero times about what it names. To answer *"has my config actually changed"*, compare the
-package version rather than the tag:
+**The staleness notice keys on the repository tag, and the vendored payload does not.** Every
+refresh since `v0.15.1` has reported `0 file(s) changed content`, because the upstream tags move
+for docs and tooling while `tsconfig` stays at package version `0.4.0` and `prettier-config` at
+`0.3.0`. Measured across the full span from the pinned `v0.18.0` to `v0.34.0` — sixteen tags — all
+three package versions are unchanged and **all eight vendored payload blobs are byte-identical**.
+So the notice has never once been right about what it names. To answer *"has my config actually
+changed"*, compare the package version rather than the tag:
 
 ```bash
 gh api repos/jrmoulckers/engineering/contents/versions.json --jq '.content' | base64 -d
@@ -267,6 +268,16 @@ their CI, which makes it safe to read at a tag — unlike `packages/<name>/packa
 reports the source tree at that moment and is what has repeatedly caused repos to report
 already-fixed defects. Note that for a **vendored** package its `range` field is not actionable:
 there is no dependency to pin, only a ref, so read `version` and ignore `range`.
+
+**Acting on that `range` is not a harmless extra step — it undoes ADR-0001.** `versions.json`
+populates `range` for all three packages while also marking two of them `channel: vendored`, so
+the file simultaneously says *"this does not come from the registry"* and offers a range whose only
+use is a registry specifier. Adding `@jrmoulckers/tsconfig` or `@jrmoulckers/prettier-config` to
+`devDependencies` puts a private-package fetch back in the install path for every contributor and
+for CI — reintroducing precisely the token requirement the vendored channel exists to remove, and
+converting the one blocker that affects a single package into one that fails `pnpm install
+--frozen-lockfile` outright. Read `channel` before `range`, and treat `range` as meaningful only
+where `channel` is `registry`.
 
 The second command above is the same file those repos misread, and it is correct here only
 because it answers a different question. `versions.json` answers *"what is published"*;
