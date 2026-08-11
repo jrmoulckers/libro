@@ -22,4 +22,9 @@ host. The runtime tests instantiate it with a fake `HostHttp` (no network).
 ## `*.plugin.json`
 
 Example manifests in Libro's own (browser) manifest schema — one per kind (`declarative`,
-`wasm`) — used to validate `validatePluginManifest` and the provider builders.
+`wasm`). `manifest.test.ts` reads both files and asserts they satisfy `validatePluginManifest`,
+so the schema and these examples cannot drift apart silently.
+
+They are deliberately read from disk rather than inlined. Every other manifest in the suite is
+an object literal built by a helper, which tests the validator but leaves these committed files
+unchecked — which is what they were before that test existed.

@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   validatePluginManifest,
   validateDomain,
@@ -149,4 +151,17 @@ describe('validateDomain', () => {
   it('rejects a host with no dot', () => {
     expect(() => validateDomain('localhost')).toThrow(/valid host/);
   });
+});
+
+describe('committed fixture manifests', () => {
+  // The fixtures README states these validate against validatePluginManifest, but nothing
+  // loaded them, so the claim was unenforced and they could drift from the schema silently.
+  // They are read rather than inlined here deliberately: an inlined copy would re-introduce
+  // the same gap.
+  for (const file of ['example-rest-catalog.plugin.json', 'example-wasm-catalog.plugin.json']) {
+    it(`validates ${file}`, () => {
+      const raw = readFileSync(join(process.cwd(), 'src/lib/plugins/fixtures', file), 'utf8');
+      expect(() => validatePluginManifest(JSON.parse(raw))).not.toThrow();
+    });
+  }
 });
