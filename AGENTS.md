@@ -372,19 +372,35 @@ The practical consequence: **generating a lockfile locally is possible but must 
 until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
 lint step.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.11.0 <1.0.0` and replace the local
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.12.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
 **Keep `eslint-plugin-svelte` in `devDependencies`** — libro already declares it, and must
-continue to. Through 0.8.0 the preset declared the five framework plugins as optional peers, on
-the belief that `peerDependenciesMeta.optional` prevents installation. It does not: it only
-suppresses the missing-peer *error*, while npm 7+ still auto-installs any optional peer it can
-resolve, so every consumer received every framework's toolchain (75 MB measured; 36.6 MB after).
-From 0.9.0 the ranges sit in a top-level `frameworkPlugins` field that npm ignores, and the
-consumer declares its own. Verified against `v0.16.0`: the declared range is
-`^2.46.0 || ^3.0.0`, which libro's 3.22.0 satisfies, and `svelte.js` imports the plugin with a
-static top-level `import`, so omitting it fails at config load naming the package rather than
-degrading silently.
+continue to, because `svelte.js` imports the plugin with a static top-level `import`. Omitting it
+fails at config load naming the package, rather than degrading silently. The declared range is
+`^2.46.0 || ^3.0.0`, which libro's 3.22.0 satisfies, so the 0.12.0 change below cannot bite here.
+
+The reason that declaration is load-bearing has been restated upstream twice, and the middle
+version was false. Through 0.8.0 the plugins were optional peers; from 0.9.0 their ranges moved to
+a bespoke `frameworkPlugins` field that npm ignores, justified by the claim that npm 7+
+auto-installs any *optional* peer it can resolve. **It does not.** Verified here on npm 11.16.0
+with a two-arm probe — a throwaway provider packed with `npm pack` and installed into a bare
+consumer:
+
+| provider declares | peer installed? |
+| --- | --- |
+| `peerDependencies` + `peerDependenciesMeta.optional` | **no** |
+| `peerDependencies` alone (control) | **yes** |
+
+So the asymmetry is real but sits at *required vs optional*, not at *errors vs installs*, and the
+original optional-peer design was never the cause of the install-size measurement it was changed to
+fix. 0.12.0 restores them as real optional peers. Keep the control arm in any such probe: without
+it, "not installed" is equally consistent with a probe that installed nothing at all.
+
+The transferable rule is that **a measurement is evidence for its number, not for its cause** — the
+75 MB was real throughout while the mechanism blamed for it was not. When reporting install weight,
+send `npm ls <pkg>` or `pnpm why <pkg>` alongside the figure, because the dependency path is the
+part a reader can check.
 
 **Write the range that way, not as a caret.** On a `0.x` package a caret permits patch updates
 only — `^0.9.0` is `>=0.9.0 <0.10.0` and can never reach 0.10.0 — so a caret floor silently
