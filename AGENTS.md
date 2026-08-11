@@ -272,14 +272,25 @@ it. The tell is metadata resolving while only the tarball download fails: that m
 authenticated fine and was refused on access, so the remaining blocker is a grant or a visibility
 flip, not the wiring.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.8.0 <1.0.0` and replace the local
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.9.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
+**Keep `eslint-plugin-svelte` in `devDependencies`** — libro already declares it, and must
+continue to. Through 0.8.0 the preset declared the five framework plugins as optional peers, on
+the belief that `peerDependenciesMeta.optional` prevents installation. It does not: it only
+suppresses the missing-peer *error*, while npm 7+ still auto-installs any optional peer it can
+resolve, so every consumer received every framework's toolchain (75 MB measured; 36.6 MB after).
+From 0.9.0 the ranges sit in a top-level `frameworkPlugins` field that npm ignores, and the
+consumer declares its own. Verified against `v0.16.0`: the declared range is
+`^2.46.0 || ^3.0.0`, which libro's 3.22.0 satisfies, and `svelte.js` imports the plugin with a
+static top-level `import`, so omitting it fails at config load naming the package rather than
+degrading silently.
+
 **Write the range that way, not as a caret.** On a `0.x` package a caret permits patch updates
-only — `^0.8.0` is `>=0.8.0 <0.9.0` and can never reach 0.9.0 — so a caret floor silently freezes
-you on the minor you pinned. The failure is invisible in the worst way: install succeeds, CI stays
-green, and you go on reporting defects that were fixed several releases ago, because the fix is
-unreachable. An explicit `>=x <1.0.0` is the only form that tracks a pre-1.0 package.
+only — `^0.9.0` is `>=0.9.0 <0.10.0` and can never reach 0.10.0 — so a caret floor silently
+freezes you on the minor you pinned. The failure is invisible in the worst way: install succeeds,
+CI stays green, and you go on reporting defects that were fixed several releases ago, because the
+fix is unreachable. An explicit `>=x <1.0.0` is the only form that tracks a pre-1.0 package.
 
 The floor is also **install-time load-bearing**, which is a separate point: libro runs ESLint
 10.8.0, and the peer was `eslint: ^9.0.0` through 0.3.0, so too low a floor fails to *resolve*
@@ -288,7 +299,15 @@ rather than failing to lint.
 Where a preset defect is reported, quote the **resolved** version — read it from the lockfile or
 `node -p "require('@jrmoulckers/eslint-config/package.json').version"`. A pinned range is not an
 observation; under a caret freeze the two routinely disagree, and that gap is exactly what makes
-the freeze invisible.
+the freeze invisible. For the same reason, never read a package's version or peers from a *repo*
+tag: `v0.4.0` of the engineering repo shipped `eslint-config` 0.3.0, so the ref resolves cleanly
+and answers the wrong question.
+
+One known defect to avoid on adoption: **do not pass `strictTypeChecked: true` to
+`svelteConfig()`.** It aborts the entire ESLint run on the first `.svelte` file — the type-checked
+rule sets apply unscoped, while the re-disable blocks that rescue `.ts`/`.js` match neither
+`.svelte` nor its variants. Still present as of `v0.16.0`. Reported upstream; a consumer can
+self-rescue through `extend`, but the plain default is unaffected, so leave it alone.
 
 Do not add the dependency or an `.npmrc` before then: a lockfile that cannot resolve in CI is worse
 than no config, and a committed project-level `.npmrc` outranks the user-level one `setup-node`
