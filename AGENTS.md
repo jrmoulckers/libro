@@ -376,6 +376,16 @@ CI is already wired for the registry half. `.github/workflows/ci.yml` passes `re
 `inputs.registry-url != '' && (secrets.NODE_AUTH_TOKEN || github.token) || ''`, so `GITHUB_TOKEN` is
 supplied automatically and only on runs that opted into a registry.
 
+**Before re-pinning on advice, compare the callees' blob SHAs, not the commit distance.** The five
+call sites sit at `f145727`, which is behind current `main` by several commits — and all five called
+workflows are **byte-identical** at both refs, because the intervening commits touch the sync
+engine, docs, and a smoke-test workflow libro does not call. A pin exists to freeze *content*, so
+"behind by
+commits" and "behind by content" are different questions and only the second one matters. Ask the
+contents API for each callee's `sha` at both refs; a bare `compare` file list answers it too, but
+only if you check it against the call sites rather than skimming it. Re-pinning to a ref whose
+callees are identical is churn that can only introduce error.
+
 **`packages: read` is mandatory on the caller**, and it tracks what the callee *declares*, not
 whether it installs — `reusable-perf-budget` runs no install and still needs the grant. A caller
 `permissions:` block replaces the defaults rather than adding to them, and a called workflow can
