@@ -81,7 +81,7 @@ export const tokens = {
       "lg": "0 10px 20px -3px rgba(0, 0, 0, 0.6)",
       "xl": "0 20px 30px -5px rgba(0, 0, 0, 0.65)"
     },
-    "lift": "0 10px 30px rgba(60, 50, 120, 0.12)",
+    "lift": "0 10px 30px rgba(0, 0, 0, 0.45)",
     "hairline": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)"
   },
   "spacing": {
@@ -300,65 +300,49 @@ export const tokens = {
       "10": "#22d3ee",
       "11": "#e879f9",
       "12": "#facc15"
-    },
-    "bg": "#f4f4fb",
-    "surface": "#ffffff",
-    "surface-2": "#f1f1f9",
-    "surface-3": "#e7e7f4",
-    "border": "#dcdcea",
-    "text": "#1c1d2e",
-    "text-muted": "#5b5e7e",
-    "primary": "#6b46f0",
-    "primary-strong": "oklch(0.38 0.14 285)",
-    "on-primary": "#ffffff",
-    "accent": "#ffd166",
-    "accent-ink": "#806600",
-    "success": "oklch(0.47 0.10 165)",
-    "danger": "oklch(0.50 0.13 25)",
-    "warning": "oklch(0.41 0.08 80)",
-    "focus-ring": "#6b46f0"
+    }
   },
   "semantic": {
     "background": {
-      "primary": "#f4f4fb",
-      "secondary": "#f1f1f9",
-      "elevated": "#ffffff",
-      "raised": "#e7e7f4"
+      "primary": "#000000",
+      "secondary": "#0f1020",
+      "elevated": "#1a1b2e",
+      "raised": "#24263f"
     },
     "text": {
-      "primary": "#1c1d2e",
-      "secondary": "#5b5e7e",
-      "disabled": "#dcdcea",
-      "inverse": "#ffffff"
+      "primary": "#ffffff",
+      "secondary": "#e9e9f4",
+      "disabled": "#a3a6cb",
+      "inverse": "#000000"
     },
     "border": {
-      "default": "#dcdcea",
-      "focus": "#6b46f0",
-      "error": "#f87171"
+      "default": "#a3a6cb",
+      "focus": "oklch(0.83 0.10 285)",
+      "error": "oklch(0.88 0.09 25)"
     },
     "interactive": {
-      "default": "#6b46f0",
-      "hover": "oklch(0.38 0.14 285)",
-      "pressed": "oklch(0.28 0.10 285)",
-      "disabled": "#e7e7f4"
+      "default": "oklch(0.83 0.10 285)",
+      "hover": "oklch(0.94 0.04 285)",
+      "pressed": "oklch(0.94 0.04 285)",
+      "disabled": "#2c2e4d"
     },
     "accent": {
-      "default": "#ffd166",
-      "ink": "#806600"
+      "default": "oklch(0.84 0.14 90)",
+      "ink": "oklch(0.84 0.14 90)"
     },
     "status": {
-      "positive": "oklch(0.47 0.10 165)",
-      "negative": "oklch(0.50 0.13 25)",
-      "warning": "oklch(0.41 0.08 80)",
-      "info": "oklch(0.42 0.10 230)",
-      "pending": "oklch(0.50 0.09 195)",
-      "neutral": "#5b5e7e",
-      "positiveSubtle": "oklch(0.98 0.015 165)",
-      "negativeSubtle": "oklch(0.98 0.012 25)",
-      "warningSubtle": "oklch(0.98 0.015 80)",
-      "infoSubtle": "oklch(0.98 0.01 230)",
-      "pendingSubtle": "oklch(0.98 0.012 195)",
-      "neutralSubtle": "#dcdcea"
+      "positive": "oklch(0.78 0.15 165)",
+      "negative": "oklch(0.88 0.09 25)",
+      "warning": "oklch(0.83 0.16 80)",
+      "info": "oklch(0.88 0.07 230)",
+      "pending": "oklch(0.88 0.08 195)",
+      "neutral": "#e9e9f4",
+      "positiveSubtle": "oklch(0.47 0.10 165)",
+      "negativeSubtle": "oklch(0.50 0.13 25)",
+      "warningSubtle": "oklch(0.53 0.11 80)",
+      "infoSubtle": "oklch(0.52 0.12 230)",
+      "pendingSubtle": "oklch(0.50 0.09 195)",
+      "neutralSubtle": "#313357"
     }
   },
   "text": {
@@ -571,7 +555,7 @@ export const tokens = {
   "elevation": {
     "flat": "none",
     "hairline": "inset 0 0 0 1px rgba(0, 0, 0, 0.18)",
-    "raised": "0 10px 30px rgba(60, 50, 120, 0.12)"
+    "raised": "0 10px 30px rgba(0, 0, 0, 0.45)"
   },
   "avatar": {
     "bg": "#7c5cff",
@@ -583,20 +567,20 @@ export const tokens = {
   },
   "button": {
     "primary": {
-      "bg": "#6b46f0",
-      "text": "#ffffff",
-      "border": "oklch(0.38 0.14 285)",
-      "hover-bg": "oklch(0.38 0.14 285)",
+      "bg": "oklch(0.83 0.10 285)",
+      "text": "#000000",
+      "border": "oklch(0.94 0.04 285)",
+      "hover-bg": "oklch(0.94 0.04 285)",
       "radius": "8px",
       "min-height": "46px",
       "padding-x": "18px",
       "padding-y": "12px"
     },
     "default": {
-      "bg": "#f1f1f9",
-      "text": "#1c1d2e",
-      "border": "#dcdcea",
-      "hover-bg": "#e7e7f4",
+      "bg": "#0f1020",
+      "text": "#ffffff",
+      "border": "#a3a6cb",
+      "hover-bg": "#24263f",
       "radius": "8px",
       "min-height": "46px",
       "padding-x": "18px",
@@ -604,62 +588,62 @@ export const tokens = {
     },
     "ghost": {
       "bg": "transparent",
-      "text": "#1c1d2e"
+      "text": "#ffffff"
     },
     "danger": {
       "bg": "transparent",
-      "text": "oklch(0.50 0.13 25)",
-      "border": "oklch(0.50 0.13 25)"
+      "text": "oklch(0.88 0.09 25)",
+      "border": "oklch(0.88 0.09 25)"
     }
   },
   "card": {
-    "bg": "#ffffff",
-    "text": "#1c1d2e",
-    "border": "#dcdcea",
+    "bg": "#1a1b2e",
+    "text": "#ffffff",
+    "border": "#a3a6cb",
     "radius": "16px",
     "padding": "16px",
-    "shadow": "0 10px 30px rgba(60, 50, 120, 0.12)"
+    "shadow": "0 10px 30px rgba(0, 0, 0, 0.45)"
   },
   "tile": {
-    "bg": "#ffffff",
-    "text": "#1c1d2e",
-    "border": "#dcdcea",
-    "hover-border": "#6b46f0",
+    "bg": "#1a1b2e",
+    "text": "#ffffff",
+    "border": "#a3a6cb",
+    "hover-border": "oklch(0.83 0.10 285)",
     "radius": "16px",
     "padding": "16px",
-    "shadow": "0 10px 30px rgba(60, 50, 120, 0.12)"
+    "shadow": "0 10px 30px rgba(0, 0, 0, 0.45)"
   },
   "chart": {
-    "bg": "#f4f4fb",
+    "bg": "#000000",
     "radius": "16px",
     "padding": "12px",
     "min-height": "240px",
     "default-height": "320px",
     "max-height": "480px",
-    "axis": "#dcdcea",
-    "grid": "#dcdcea",
-    "axis-label": "#5b5e7e",
-    "legend-label": "#5b5e7e",
+    "axis": "#a3a6cb",
+    "grid": "#a3a6cb",
+    "axis-label": "#e9e9f4",
+    "legend-label": "#e9e9f4",
     "legend-gap": "12px",
     "swatch-radius": "8px",
     "swatch-size": "12px",
-    "tooltip-bg": "#ffffff",
-    "tooltip-text": "#1c1d2e",
-    "tooltip-border": "#dcdcea",
+    "tooltip-bg": "#1a1b2e",
+    "tooltip-text": "#ffffff",
+    "tooltip-border": "#a3a6cb",
     "tooltip-radius": "8px",
     "tooltip-padding-x": "8px",
     "tooltip-padding-y": "4px",
-    "tooltip-shadow": "0 10px 30px rgba(60, 50, 120, 0.12)",
+    "tooltip-shadow": "0 10px 30px rgba(0, 0, 0, 0.45)",
     "bar-radius": "8px",
     "bar-gap": "4px",
-    "slice-stroke": "#f4f4fb",
+    "slice-stroke": "#000000",
     "slice-stroke-width": "2px",
     "donut-inner-ratio": 0.6,
     "line-width": "2px",
     "dot-radius": "4px",
     "dot-radius-active": "6px",
-    "empty-icon": "#5b5e7e",
-    "empty-text": "#5b5e7e",
+    "empty-icon": "#e9e9f4",
+    "empty-text": "#e9e9f4",
     "enter-duration": "400ms",
     "enter-easing": "cubic-bezier(0.4, 0, 0.2, 1)",
     "transition-duration": "250ms",
@@ -670,7 +654,7 @@ export const tokens = {
     "series-4": "#fe6100",
     "series-5": "#ffb000",
     "series-6": "#009e73",
-    "series-other": "#5b5e7e"
+    "series-other": "#e9e9f4"
   },
   "cognitive-button": {
     "padding-x": "24px",
@@ -705,23 +689,23 @@ export const tokens = {
     "gap": "8px"
   },
   "input": {
-    "bg": "#ffffff",
-    "text": "#1c1d2e",
-    "border": "#dcdcea",
-    "placeholder": "#5b5e7e",
-    "focus-ring": "#6b46f0",
+    "bg": "#1a1b2e",
+    "text": "#ffffff",
+    "border": "#a3a6cb",
+    "placeholder": "#e9e9f4",
+    "focus-ring": "oklch(0.83 0.10 285)",
     "radius": "8px",
     "min-height": "46px",
     "padding-x": "12px",
     "padding-y": "11px"
   },
   "modal": {
-    "surface": "#ffffff",
-    "text": "#1c1d2e",
-    "text-muted": "#5b5e7e",
-    "border": "#dcdcea",
+    "surface": "#1a1b2e",
+    "text": "#ffffff",
+    "text-muted": "#e9e9f4",
+    "border": "#a3a6cb",
     "radius": "16px",
-    "elevation": "0 10px 30px rgba(60, 50, 120, 0.12)",
+    "elevation": "0 10px 30px rgba(0, 0, 0, 0.45)",
     "layer": 1000,
     "scrim-layer": 500,
     "scrim-opacity": 0.24,
@@ -735,79 +719,79 @@ export const tokens = {
   },
   "nav": {
     "tabbar": {
-      "bg": "#ffffff",
-      "border": "#dcdcea",
+      "bg": "#1a1b2e",
+      "border": "#a3a6cb",
       "radius": "16px"
     },
     "tab": {
-      "text": "#5b5e7e",
-      "active-text": "#1c1d2e",
-      "active-bg": "#f1f1f9",
+      "text": "#e9e9f4",
+      "active-text": "#ffffff",
+      "active-bg": "#0f1020",
       "radius": "12px"
     },
     "iconbtn": {
-      "bg": "#f1f1f9",
-      "text": "#1c1d2e",
+      "bg": "#0f1020",
+      "text": "#ffffff",
       "size": "46px",
       "radius": "12px"
     }
   },
   "pill": {
-    "bg": "#f1f1f9",
-    "text": "#5b5e7e",
-    "border": "#dcdcea",
+    "bg": "#0f1020",
+    "text": "#e9e9f4",
+    "border": "#a3a6cb",
     "radius": "9999px",
     "padding-x": "8px",
     "padding-y": "3px"
   },
   "premium-badge": {
-    "bg": "#6b46f0",
-    "text": "#ffffff",
+    "bg": "oklch(0.83 0.10 285)",
+    "text": "#000000",
     "radius": "9999px",
     "padding-x": "8px",
     "padding-y": "4px"
   },
   "premium-gate": {
-    "overlay-bg": "#f4f4fb",
+    "overlay-bg": "#000000",
     "overlay-opacity": 0.24,
-    "icon": "#5b5e7e",
+    "icon": "#e9e9f4",
     "icon-size": "24px"
   },
   "premium-upsell": {
-    "bg": "#f1f1f9",
-    "border": "#dcdcea",
+    "bg": "#0f1020",
+    "border": "#a3a6cb",
     "radius": "16px",
     "padding": "16px",
-    "icon": "oklch(0.42 0.10 230)"
+    "icon": "oklch(0.88 0.07 230)"
   },
   "premium-paywall": {
     "preview-radius": "16px",
-    "feature-check": "oklch(0.47 0.10 165)",
+    "feature-check": "oklch(0.78 0.15 165)",
     "price-selector-radius": "12px",
     "cta-padding-x": "32px",
     "cta-padding-y": "12px",
     "cta-min-height": "46px"
   },
   "progress": {
-    "track": "#f1f1f9",
-    "fill": "#6b46f0",
+    "track": "#0f1020",
+    "fill": "oklch(0.83 0.10 285)",
     "height": "8px",
     "height-lg": "12px",
     "radius": "9999px",
     "stroke": "8px",
     "duration": "150ms",
     "easing": "ease",
-    "label": "#1c1d2e",
-    "label-muted": "#5b5e7e",
-    "on-track": "oklch(0.47 0.10 165)",
-    "at-risk": "oklch(0.41 0.08 80)",
-    "exceeded": "oklch(0.50 0.13 25)",
-    "pending": "oklch(0.50 0.09 195)",
-    "complete": "oklch(0.47 0.10 165)"
+    "label": "#ffffff",
+    "label-muted": "#e9e9f4",
+    "on-track": "oklch(0.78 0.15 165)",
+    "at-risk": "oklch(0.83 0.16 80)",
+    "exceeded": "oklch(0.88 0.09 25)",
+    "pending": "oklch(0.88 0.08 195)",
+    "complete": "oklch(0.78 0.15 165)"
   },
   "skeleton": {
-    "base": "#f1f1f9",
-    "highlight": "#e7e7f4",
+    "base": "#0f1020",
+    "highlight": "#24263f",
     "radius": "8px",
     "radius-text": "4px",
     "line-height": "12px",
@@ -816,13 +800,13 @@ export const tokens = {
     "easing": "cubic-bezier(0.4, 0, 0.2, 1)"
   },
   "toast": {
-    "surface": "#ffffff",
-    "text": "#1c1d2e",
-    "text-muted": "#5b5e7e",
-    "border": "#dcdcea",
-    "action": "#806600",
+    "surface": "#1a1b2e",
+    "text": "#ffffff",
+    "text-muted": "#e9e9f4",
+    "border": "#a3a6cb",
+    "action": "oklch(0.84 0.14 90)",
     "radius": "16px",
-    "elevation": "0 10px 30px rgba(60, 50, 120, 0.12)",
+    "elevation": "0 10px 30px rgba(0, 0, 0, 0.45)",
     "layer": 2000,
     "padding-block": "12px",
     "padding-inline": "16px",
@@ -832,10 +816,10 @@ export const tokens = {
     "enter-easing": "cubic-bezier(0, 0, 0, 1)",
     "exit-duration": "150ms",
     "exit-easing": "cubic-bezier(0.3, 0, 1, 1)",
-    "positive": "oklch(0.47 0.10 165)",
-    "negative": "oklch(0.50 0.13 25)",
-    "warning": "oklch(0.41 0.08 80)",
-    "info": "oklch(0.42 0.10 230)"
+    "positive": "oklch(0.78 0.15 165)",
+    "negative": "oklch(0.88 0.09 25)",
+    "warning": "oklch(0.83 0.16 80)",
+    "info": "oklch(0.88 0.07 230)"
   }
 };
 export default tokens;
