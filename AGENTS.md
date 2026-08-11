@@ -279,6 +279,15 @@ alongside `noImplicitOverride`, `noFallthroughCasesInSwitch`, and
 Do not restore a dropped option because it *looks* missing; an option the preset lacks is a finding
 to state, and hoisting one into the shared base breaks every other consumer.
 
+`node.json` is vendored with the rest of the set but deliberately **unextended**. It exists for a
+package whose Node executes `.ts` directly, and libro has none: it is a single package with no
+workspace, nothing invokes `node` on a `.ts` file or `--experimental-strip-types`, and no import
+specifier carries a `.ts` extension. That also makes the `allowImportingTsExtensions` regression
+other repos hit structurally impossible here — the option is set **only** in `node.json`, and
+libro's pre-migration configs never set it, so there was nothing to lose. Choose the variant per
+package, not per repository; if that ever changes, `node.json` is the answer, and it needs
+`@types/node` or the first run fails with a `TS2688` that reads like a broken preset.
+
 ### The registry half
 
 `eslint.config.js` is still authored locally, because `@jrmoulckers/eslint-config` cannot be
