@@ -265,11 +265,30 @@ itself a public repo, which does not make its packages public — the two settin
 and no registry error distinguishes them, since an anonymous read 401s and a scopeless token 403s
 whether the package is public or not.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@^0.8.0` and replace the local file with
-`svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost. Note the floor is
-**install-time load-bearing**: libro runs ESLint 10.8.0, and the peer was `eslint: ^9.0.0` through
-0.3.0, so a lower floor fails to resolve rather than failing to lint. On a `0.x` package a caret
-permits patch updates only, so `^0.3.0` can never reach 0.8.0.
+Read the two codes as different failures rather than degrees of the same one. **`401` is
+authentication** — no token, wrong host, or the wrong class of token — and is fixable from here.
+**`403 permission_denied: read_package` is authorization**, and no amount of token work resolves
+it. The tell is metadata resolving while only the tarball download fails: that means the request
+authenticated fine and was refused on access, so the remaining blocker is a grant or a visibility
+flip, not the wiring.
+
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.8.0 <1.0.0` and replace the local
+file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
+
+**Write the range that way, not as a caret.** On a `0.x` package a caret permits patch updates
+only — `^0.8.0` is `>=0.8.0 <0.9.0` and can never reach 0.9.0 — so a caret floor silently freezes
+you on the minor you pinned. The failure is invisible in the worst way: install succeeds, CI stays
+green, and you go on reporting defects that were fixed several releases ago, because the fix is
+unreachable. An explicit `>=x <1.0.0` is the only form that tracks a pre-1.0 package.
+
+The floor is also **install-time load-bearing**, which is a separate point: libro runs ESLint
+10.8.0, and the peer was `eslint: ^9.0.0` through 0.3.0, so too low a floor fails to *resolve*
+rather than failing to lint.
+
+Where a preset defect is reported, quote the **resolved** version — read it from the lockfile or
+`node -p "require('@jrmoulckers/eslint-config/package.json').version"`. A pinned range is not an
+observation; under a caret freeze the two routinely disagree, and that gap is exactly what makes
+the freeze invisible.
 
 Do not add the dependency or an `.npmrc` before then: a lockfile that cannot resolve in CI is worse
 than no config, and a committed project-level `.npmrc` outranks the user-level one `setup-node`
