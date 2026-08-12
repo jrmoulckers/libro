@@ -259,10 +259,11 @@ into bumping the ref without deciding to accept the change. It runs as the first
 **The staleness notice keys on the repository tag, and the vendored payload does not.** Every
 refresh since `v0.15.1` has reported `0 file(s) changed content`, because the upstream tags move
 for docs and tooling while `tsconfig` stays at package version `0.4.0` and `prettier-config` at
-`0.3.0`. Measured across the full span from the pinned `v0.18.0` to `v0.34.0` — sixteen tags — all
-three package versions are unchanged and **all eight vendored payload blobs are byte-identical**.
-So the notice has never once been right about what it names. To answer *"has my config actually
-changed"*, compare the package version rather than the tag:
+`0.3.0`. Measured across the full span from `v0.18.0` to `v0.115.0` — **97 tags** — all three
+package versions are unchanged and **all eight vendored payload blobs are byte-identical**; the pin
+now sits at `v0.115.0` and the move cost a two-line lock diff and nothing else. So the notice has
+never once been right about what it names. To answer *"has my config actually changed"*, compare
+the package version rather than the tag:
 
 ```bash
 gh api repos/jrmoulckers/engineering/contents/versions.json --jq '.content' | base64 -d
@@ -365,7 +366,7 @@ one disproves a "blocked" claim; use the second when the question is specificall
 
 ```bash
 node scripts/vendor-configs.mjs --check     # local bytes vs lock, plus the staleness notice
-node scripts/vendor-configs.mjs v0.18.0     # refetch the pinned ref; expect a fetchedAt-only diff
+node scripts/vendor-configs.mjs v0.115.0    # refetch the pinned ref; expect a fetchedAt-only diff
 ```
 
 Note the second is **not** idempotent in the lock file: `fetchedAt` always moves, so a same-ref
@@ -385,12 +386,31 @@ is precisely the vendored-payload question, since the payload is fetched from th
 compare two refs you are choosing between. Never quote it as a published version.
 
 **If `versions.json` is absent from the ref you are reading, that absence is the finding.** It
-first appears at `v0.18.0`, which is exactly libro's pinned ref, so libro sits on the boundary:
-any ref below it has no `versions.json` at all, and the only version-shaped file in the tree is
-the `package.json` that must not be quoted. This compounds with the direction rule above — a
-backwards re-pin does not merely revert workflow content, it can remove the file that exists to
-prevent the version error, leaving the misleading answer as the only available one. Resolve a
-newer ref before reporting anything about versions.
+first appears at `v0.18.0`, which was libro's pinned ref for most of the migration, so libro sat on
+the boundary: any ref below it has no `versions.json` at all, and the only version-shaped file in
+the tree is the `package.json` that must not be quoted. This compounds with the direction rule
+above — a backwards re-pin does not merely revert workflow content, it can remove the file that
+exists to prevent the version error, leaving the misleading answer as the only available one.
+Resolve a newer ref before reporting anything about versions.
+
+**libro vendors 8 files because its manifest says 8, not because the ref is old — and the number
+coincides with a real sub-floor signature.** Upstream reports a full set of 10 and reads `8` as
+*"this repo predates the two `prettier-config` declarations."* That inference is sound upstream and
+false here: `SETS` in `scripts/vendor-configs.mjs` hardcodes `files: ['index.js', 'svelte.js']` for
+prettier, so a refresh at **any** ref fetches exactly those two, and re-pinning 97 tags forward
+changed the count not at all. The count is a property of the consumer's manifest, and a diagnostic
+keyed on it silently assumes every consumer takes the whole set.
+
+**Do not add `index.d.ts` / `svelte.d.ts` to that manifest.** They exist upstream from `v0.112.0`
+and are genuinely needed by a *package* consumer, whose `.js` is opaque to the compiler. libro is a
+**source** consumer, and the two facts that follow both cut the other way: the vendored
+`prettier/svelte.js` already carries `@type {import('prettier').Config}`, so `prettier.config.js`
+resolves to `Config` today — verified by probing a known key, which errors `Type 'Config' is not
+assignable to type 'number'` — and a sibling `.d.ts` **outranks the `.js` it sits beside**, so
+vendoring one would replace a type read from the code libro actually runs with an assertion about
+it. That is the ambient-shim precedence hazard in a second form: same mechanism, and here it would
+be self-inflicted while adding nothing. For a source consumer a declaration is strictly weaker than
+inference — it can only introduce a way for the type and the executed code to disagree.
 
 Because the bytes are hashed, **`config/engineering/` is Prettier-ignored**. Reformatting a
 vendored file would change its bytes and break the hash, converting a real upstream-drift signal
@@ -539,6 +559,31 @@ release's headline feature is unreachable from exactly the consumer the declarat
 That is the same implementation-versus-declaration split the release is otherwise about, and it is
 why `0.16.0` is not a floor bump for libro: it fixes nothing libro has and adds a feature libro
 could not call.
+
+**Measured against libro's own `App.svelte` at `0.16.0`, not argued.** The split is real and the
+runtime half works; only the declaration is missing:
+
+| arm | result |
+| --- | --- |
+| `svelteConfig({ strictTypeChecked: true })` | exit 1 — 2 findings, **both stylistic** (`consistent-type-definitions`, `array-type`) |
+| `svelteConfig({ typeChecked: true })` | **exit 0** — and `no-floating-promises` still `2` on a `.ts`, `consistent-type-definitions` absent |
+| the same config under `checkJs` | **`TS2353`: `'typeChecked' does not exist in type 'BaseOptions'`** |
+
+So libro's entire `strictTypeChecked` finding count is house style, `typeChecked` would buy the
+correctness half for free, and libro is the exact consumer that cannot ask for it — because
+`tsconfig.node.json` now compiles `eslint.config.js`. Enabling `checkJs` is what converts this from
+someone else's release note into a blocker here, which is worth knowing before adopting: **a
+stricter gate can turn an upstream declaration gap into your build error.** That is not a reason to
+weaken the gate; it is a reason to report the gap.
+
+**Adoption is additionally npm-hostile on ESLint 10, though not for libro.** `0.16.0` declares
+`eslint-plugin-jsx-a11y ^6.10.0` as an *optional* peer, and that plugin's own peer stops at
+`eslint@^9`. Measured: `pnpm add` succeeds with a peer **warning** (libro's manager, so libro is
+fine), while `npm i` fails `ERESOLVE` outright — and it fails while leaving `jsx-a11y` **absent**
+from the tree. That refines the optional-peer rule recorded above rather than contradicting it:
+npm does not *install* an optional peer it can skip, but it does *validate* that peer's own peer
+range and abort. **Not-installed and not-considered are different**, so "optional" bounds what
+lands on disk, not whether the install succeeds.
 
 **It also defeats the shim discriminator, which is the transferable part.** The published rule for a
 stale hand-written `declare module` is to read the *shape* of the failing type — a **named** type
