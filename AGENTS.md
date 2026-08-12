@@ -523,6 +523,28 @@ names `BaseOptions`, so the discriminator reports *healthy* on a genuine defect.
 question is the one a rejected-but-valid option raises. When a valid option is refused, hash the
 `.d.ts` against the previous version before believing the error.
 
+**The companion recipe — "check that a bogus option is still rejected" — fails in the other
+direction, and the two failures together retire it.** It is meant to catch a declaration that
+resolved but widened to `any`. Measured against libro's own toolchain, both arms in one `checkJs`
+run:
+
+| declaration | a bogus option | a valid option |
+| --- | --- | --- |
+| Prettier's `Config` (carries `[_: string]: unknown`) | **accepted** — probe is vacuous | fine |
+| `BaseOptions` (no index signature) | rejected | **also rejected**, wrongly |
+
+So the probe reports "broken" on a healthy declaration that is deliberately open, and "healthy" on
+one silently behind its implementation. Which answer you get is decided by whether the type has an
+index signature — the very property you would need to know already in order to read the result.
+Probe a **known** key with a **wrong** type instead: `/** @type {number} */ const n = config.semi;`
+raises `TS2322: 'boolean | undefined' is not assignable to 'number'`, and that works on both shapes
+because it depends on neither. Verified here against prettier 3.9.6, whose `index.d.ts` does carry
+`[_: string]: unknown`.
+
+The reusable shape: a probe is a test only if both its outcomes are reachable **for the reason you
+think**. Both recipes above answer confidently in cases they cannot actually distinguish — the same
+defect as a control run that cannot fail.
+
 libro has **no `declare module` shim to remove** — the grep returns nothing, and could not have
 returned anything, since libro never took these as packages at all. Its only `.d.ts` files are
 `src/vite-env.d.ts` and five sync-owned files under `vendor/@jrm/tokens/`.
