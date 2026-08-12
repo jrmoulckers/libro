@@ -38,8 +38,13 @@ const LOCK = 'engineering-configs.lock.json';
 
 const SETS = {
   tsconfig: {
-    // `extends` between these is relative, so a partial fetch produces a config
-    // that resolves to nothing. The set is all-or-nothing on purpose.
+    // `extends` between these is relative, so a fetch must take the whole
+    // transitive closure of what it uses or the config resolves to nothing.
+    // The closure libro actually reaches is base + vite-app + vite-node;
+    // next.json, vite-react.json and node.json are carried but unreachable.
+    // They are kept because the lock hashes all six, so an unused file cannot
+    // drift silently — it is reviewed on refresh rather than trusted. Trim the
+    // list, not the closure, if that review cost ever outweighs the option.
     from: 'packages/tsconfig',
     files: [
       'base.json',

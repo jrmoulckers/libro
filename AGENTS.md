@@ -319,6 +319,30 @@ manifest*, and only for them. Availability and selection are different questions
 answers the second. Read the `ref` out of `engineering-configs.lock.json` to learn the pin — that is
 the fact being asked about, and it cannot be inferred from a total.
 
+**libro needs no `{"type": "module"}` marker in the vendored tree, and adding one would guard
+nothing.** Upstream's `prettier-config` declares `"type": "module"` and its vendoring script did not
+copy that declaration, so a consumer whose root `package.json` omits `type` gets nominally-CommonJS
+files whose `export default` is a syntax error — masked on Node ≥22.7, which retries the parse as
+ESM. libro's root `package.json` **already declares `"type": "module"`**, and the whole repo depends
+on that (`eslint.config.js`, `prettier.config.js`, `vite.config.ts`), so removing it would break far
+more than the vendored configs. A marker file would restate a fact the root already states, in a
+directory that must not be hand-edited.
+
+The generalizable half is worth keeping even though the defect is not libro's: **a hash answers
+"are these the right bytes", never "is this loadable."** Every file was byte-identical and the lock
+verified clean while the package would not load. libro's covering gate is that the config is
+**executed by something that already runs** — `prettier.config.js` re-exports the vendored
+`prettier/svelte.js`, so `pnpm format:check` fails if the chain cannot load, and `pnpm typecheck`
+compiles it. Verified by resolution rather than by assumption: importing `prettier.config.js`
+returns a populated object, and `prettier --find-config-path` names `prettier.config.js` for both
+`README.md` and `src/App.svelte` — one config source, no `.prettierrc.json` and no `prettier` field
+in `package.json` to outrank it.
+
+That is also why the vendored Prettier config's `overrides` block is in force here rather than
+merely present: it sets `proseWrap: preserve` and **`printWidth: 96` for `*.md`**, which a
+top-level key comparison would score as no change. `AGENTS.md` is Prettier-ignored and hand-wrapped
+at 100, so the two conventions do not collide.
+
 **Convergent fixes will not share a name — grep for behaviour, not identifiers.** libro and upstream
 independently fixed the `releases/latest` ordering; libro's helper is `compareRefs`, upstream's is
 `isNewerRef`. A name search reported the fix absent upstream, which would have been a confident,
