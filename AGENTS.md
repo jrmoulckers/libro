@@ -533,10 +533,16 @@ and answers the wrong question.
 A defect worth knowing about on adoption, now **fixed** — `strictTypeChecked: true` used to abort
 the entire ESLint run on the first `.svelte` file, because the type-checked rule sets applied
 unscoped while the re-disable blocks that rescue `.ts`/`.js` matched neither `.svelte` nor its
-variants. It was present at published `0.12.0` and `0.13.0`, and is **resolved at `0.14.0`**, which
-parameterises the trailing block as an `untypedFiles` option that `svelteConfig` passes its own
-globs into. That is the general fix rather than a fourth hardcoded `.svelte` block, so the next
-preset covering a file type no `tsconfig` can include does not rediscover it.
+variants. It was present in **every published version that had the option** — `0.6.0` through
+`0.13.0`, eight releases — and is **resolved at `0.14.0`**, which parameterises the trailing block
+as an `untypedFiles` option that `svelteConfig` passes its own globs into. That is the general fix
+rather than a fourth hardcoded `.svelte` block, so the next preset covering a file type no
+`tsconfig` can include does not rediscover it.
+
+The root cause is worth stating in its general form, because it is not "a fix missed a case": the
+disable blocks were written by **enumerating extensions**, and an enumeration silently omits
+whatever it does not name. `.svelte` was never covered rather than uncovered by a regression.
+Parameterising the glob is what removes the class.
 
 Verified end-to-end on 2026-08-11 against libro's own sources, **with a positive control**, because
 "it passes now" is not evidence unless the same harness can still produce the failure:
@@ -553,6 +559,15 @@ under `node_modules/`, ESLint exited **0** while reporting *"File ignored becaus
 path"* — a pass that measured nothing, in the exact shape this file warns about elsewhere. Read the
 file count before reading the exit code.
 
+**Hash the artifact before re-verifying it against a new version number.** Across all 15 published
+versions `base.js` has exactly **three** distinct contents — `0.1.0`–`0.5.0`, then `0.6.0`–`0.13.0`
+byte-identical across eight releases, then `0.14.0`. This file previously recorded the defect as
+"present at `0.12.0`, re-confirmed at `0.13.0`" as though that were two observations; it was the
+same bytes read twice. Repeated verification against an unchanged artifact accumulates confidence
+without accumulating evidence, and it is indistinguishable from the real thing at the point of
+reading. `svelte.js` moved at `0.11.0` while `base.js` did not, which is the same trap from the
+other side: **the file that changed is not the file that decides.**
+
 One behavioural change to know: the `extend` self-rescue for `.svelte` **no longer works**, and that
 is deliberate. It only ever worked because no trailing block matched `.svelte`, so a caller's entry
 was last-matching by accident; now an `extend` entry re-enabling `no-floating-promises` on `.svelte`
@@ -562,7 +577,9 @@ The retired warning is kept in outline because its reasoning recurs: the earlier
 fix landed in `svelte.js` while this defect lived in `base.js`, so a release note that read "the
 Svelte path was fixed" left it untouched. **A workaround for a fixed bug is just a bug — but
 retiring one on the strength of a nearby fix is worse, because the note makes it feel verified.**
-Retire one only against a direct two-arm measurement like the table above.
+Retire one only against a direct two-arm measurement like the table above — and note that a probe
+which does not enable `strictTypeChecked` cannot fail on *any* version, so it certifies the fix on
+releases that predate the mechanism entirely.
 
 Do not add the dependency or an `.npmrc` before then: a lockfile that cannot resolve in CI is worse
 than no config, and a committed project-level `.npmrc` outranks the user-level one `setup-node`
