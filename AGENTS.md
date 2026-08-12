@@ -217,6 +217,12 @@ its file format, and the split is recorded upstream in
 | `@jrmoulckers/prettier-config` | vendored at a pinned ref | yes |
 | `@jrmoulckers/eslint-config` | GitHub Packages registry | **no — blocked** |
 
+**"Vendored" here describes how libro obtains a config, not whether upstream publishes it.** All
+three *are* published to GitHub Packages; libro simply does not install two of them from there,
+copying the source files from the public repo instead. Upstream's own metadata conflated these and
+was retracted — see the note under [The vendored half](#the-vendored-half). Do not read this column
+as a claim about the registry.
+
 The reason for the split is that GitHub Packages **authenticates every read, including of a public
 package**. Routing the `@jrmoulckers` scope therefore puts a credential in the install path for
 every contributor and self-hoster, not just CI — which for a pure-client product distributed to
@@ -308,6 +314,41 @@ Note the legend does **not** remove `range` from the vendored entries, so a pack
 `requiresRegistryAuth: false` beside a range whose only use is a registry specifier. The legend
 settles whether a token is needed; it does not stop `range` inviting the dependency. Both checks
 still apply, in that order.
+
+**`requiresRegistryAuth` was retracted upstream on 2026-08-11 (v0.56.0) — do not rely on it, and do
+not draw the conclusion the retraction draws either.** The legend asserted `tsconfig` and
+`prettier-config` were unpublished; in fact `publish.yml` publishes every directory under
+`packages/` unconditionally and never reads `channel`, all three are `private: false`, and a
+consumer's CI got `403 permission_denied: read_package` for `@jrmoulckers/tsconfig`. So the
+metadata was false and the whole legend is now untrustworthy as a token oracle.
+
+**That does not touch libro, because libro does not consume those two as packages at all.** The
+retraction and the `403` are both about a *registry tarball read* on `npm.pkg.github.com`.
+`scripts/vendor-configs.mjs` fetches source files from `raw.githubusercontent.com` at a tag, over
+plain `fetch()` with no `Authorization` header, from a repository that is public. Different host,
+different resource, different auth system — a package's registry visibility places no constraint
+on reading the same bytes from the repo it is built from.
+
+Verified rather than argued, on 2026-08-11: with `GH_TOKEN`, `GITHUB_TOKEN`, `NODE_AUTH_TOKEN`, and
+`NPM_TOKEN` all emptied, `--check` passed and a full re-vendor at the pinned ref refetched all
+**8/8** payload files byte-identically — the only diff was the lock's `fetchedAt` timestamp. Both
+commands reach the network unauthenticated (`--check` also resolves the newest release), so either
+one disproves a "blocked" claim; use the second when the question is specifically about the payload:
+
+```bash
+node scripts/vendor-configs.mjs --check     # local bytes vs lock, plus the staleness notice
+node scripts/vendor-configs.mjs v0.18.0     # refetch the pinned ref; expect a fetchedAt-only diff
+```
+
+Note the second is **not** idempotent in the lock file: `fetchedAt` always moves, so a same-ref
+refresh reports a change even when no payload byte differs. Read the diff before believing it —
+`git diff --stat` naming only `engineering-configs.lock.json` is the no-op signature.
+
+The generalizable point, which is why this is written down rather than deleted: **"is it published"
+and "can I obtain these bytes" are different questions, and only the second one is libro's.** The
+upstream claim, its retraction, and the `403` evidence all answer the first. A retraction inherits
+the scope of the claim it withdraws, so it can be entirely correct and still not reach you — check
+which question your own mechanism asks before acting on either.
 
 The second command above is the same file those repos misread, and it is correct here only
 because it answers a different question. `versions.json` answers *"what is published"*;
