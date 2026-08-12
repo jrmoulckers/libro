@@ -291,8 +291,34 @@ the older payload was correct when it was current, so nothing goes red. It now c
 version tuples and warns only when `latest` is genuinely newer.
 
 Note the ordering is not merely a date-vs-version question here: libro's own tags make a **lexical**
-compare wrong too, since `v0.115.0` sorts below `v0.18.0` as text. Use numeric comparison, or
-`sort -V` in a shell.
+compare wrong too, since `v0.115.0` sorts below `v0.18.0` as text — and `v0.15.4` looks larger than
+`v0.115.0` character by character, the shape that has put three sibling repos on a `v0.15.x`
+pin. Use numeric comparison, or `sort -V` in a shell.
+
+**Do not replace `scripts/vendor-configs.mjs` with upstream's copy, and do not adopt the lock's
+`tool` entry.** Upstream added a `tool` key that hashes the vendoring script so `--check` catches a
+consumer running a stale copy. That mechanism assumes the script *is* a copy. libro's is not — it
+was authored here (`758bb4a`), is not in the payload, and is not hash-locked. Two concrete costs to
+switching:
+
+- upstream's prettier set is `['index.js', 'index.d.ts', 'svelte.js', 'svelte.d.ts']`, so vendoring
+  its script silently reverses libro's deliberate exclusion of the declarations — see the reasoning
+  above; the `.js` already carries `@type {import('prettier').Config}` and a sibling `.d.ts`
+  outranks it;
+- a `tool` hash would assert that libro's script *should* equal upstream's, so every run would
+  report drift for a difference that is a decision.
+
+libro's **8** files and upstream's **10** are therefore two independent choices, not a version skew.
+Re-confirmed by measurement, since this has been misread as a sub-floor signature twice:
+`packages/prettier-config/index.d.ts` is **404 at `v0.15.3`** but **200 at both `v0.112.0` and
+libro's pinned `v0.115.0`** — the declarations exist at the pin and libro still does not take them.
+Availability and selection are different questions, and only the second one explains this count.
+
+**Convergent fixes will not share a name — grep for behaviour, not identifiers.** libro and upstream
+independently fixed the `releases/latest` ordering; libro's helper is `compareRefs`, upstream's is
+`isNewerRef`. A name search reported the fix absent upstream, which would have been a confident,
+checkable, wrong claim. Same class as *"the file that changed is not the file that decides"*: match
+on the comparison being ordered, not on what the function is called.
 
 **That fix was verified against a dead control first, which is why it is worth stating how.**
 Driving the notice by editing `lock.ref` produced *silence in both arms* — not because the fix
