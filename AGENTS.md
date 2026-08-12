@@ -443,7 +443,7 @@ The practical consequence: **generating a lockfile locally is possible but must 
 until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
 lint step.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.13.0 <1.0.0` and replace the local
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.14.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
 **Keep `eslint-plugin-svelte` in `devDependencies`** — libro already declares it, and must
@@ -530,23 +530,39 @@ the freeze invisible. For the same reason, never read a package's version or pee
 tag: `v0.4.0` of the engineering repo shipped `eslint-config` 0.3.0, so the ref resolves cleanly
 and answers the wrong question.
 
-One known defect to avoid on adoption: **do not pass `strictTypeChecked: true` to
-`svelteConfig()`.** It aborts the entire ESLint run on the first `.svelte` file — the type-checked
-rule sets apply unscoped, while the re-disable blocks that rescue `.ts`/`.js` match neither
-`.svelte` nor its variants. **Re-verified against `main` — not a tag — on 2026-08-11, at published
-`eslint-config` 0.12.0: still present.** Re-confirmed at published **0.13.0** on 2026-08-11.
-`svelte.js` grew 1843 → 3894 bytes over that span, but
-every added line is the `eslint-recommended` scoping fix; `base.js`, which owns the rescue blocks,
-contains **zero occurrences of `svelte`**, so the blocks still name only `**/*.{js,jsx,mjs,cjs}`
-and the tooling globs. Reported upstream; a consumer can self-rescue through `extend`, but the
-plain default is unaffected, so leave it alone.
+A defect worth knowing about on adoption, now **fixed** — `strictTypeChecked: true` used to abort
+the entire ESLint run on the first `.svelte` file, because the type-checked rule sets applied
+unscoped while the re-disable blocks that rescue `.ts`/`.js` matched neither `.svelte` nor its
+variants. It was present at published `0.12.0` and `0.13.0`, and is **resolved at `0.14.0`**, which
+parameterises the trailing block as an `untypedFiles` option that `svelteConfig` passes its own
+globs into. That is the general fix rather than a fourth hardcoded `.svelte` block, so the next
+preset covering a file type no `tsconfig` can include does not rediscover it.
 
-Re-check it that way — read the *source at `main`* and grep the rescue blocks for the file class
-you care about. A fixed-in-a-later-release claim is not evidence, and neither is the release note
-that fixed an adjacent defect in the same file: the `.svelte` scoping fix landed in `svelte.js`
-while this defect lives in `base.js`, so a diff that looks like "the Svelte path was fixed" leaves
-it untouched. **A workaround for a fixed bug is just a bug — but retiring one on the strength of a
-nearby fix is worse, because the note makes it feel verified.**
+Verified end-to-end on 2026-08-11 against libro's own sources, **with a positive control**, because
+"it passes now" is not evidence unless the same harness can still produce the failure:
+
+| arm | result |
+| --- | --- |
+| `0.13.0`, `strictTypeChecked: true` | **exit 2** — `await-thenable`, `Parser: svelte-eslint-parser`, nothing linted |
+| `0.14.0`, `strictTypeChecked: true` | **exit 1** — 2 real findings in `App.svelte` |
+| `0.14.0`, bare `svelteConfig()` | exit 0 |
+| `0.14.0`, `no-floating-promises` on a `.ts` | still `2` (error) — typed linting intact |
+
+Note the near-miss in that run, which is the reusable part: with the config placed beside the preset
+under `node_modules/`, ESLint exited **0** while reporting *"File ignored because outside of base
+path"* — a pass that measured nothing, in the exact shape this file warns about elsewhere. Read the
+file count before reading the exit code.
+
+One behavioural change to know: the `extend` self-rescue for `.svelte` **no longer works**, and that
+is deliberate. It only ever worked because no trailing block matched `.svelte`, so a caller's entry
+was last-matching by accident; now an `extend` entry re-enabling `no-floating-promises` on `.svelte`
+resolves to `0`. Drop the workaround rather than reinstating it.
+
+The retired warning is kept in outline because its reasoning recurs: the earlier `.svelte` scoping
+fix landed in `svelte.js` while this defect lived in `base.js`, so a release note that read "the
+Svelte path was fixed" left it untouched. **A workaround for a fixed bug is just a bug — but
+retiring one on the strength of a nearby fix is worse, because the note makes it feel verified.**
+Retire one only against a direct two-arm measurement like the table above.
 
 Do not add the dependency or an `.npmrc` before then: a lockfile that cannot resolve in CI is worse
 than no config, and a committed project-level `.npmrc` outranks the user-level one `setup-node`
