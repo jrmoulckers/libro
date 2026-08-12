@@ -446,6 +446,20 @@ lint step.
 When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.14.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
+**The one thing adoption still adds is the Prettier interop, and its surface here is exactly one
+rule.** libro's config never applies `eslint-config-prettier`, which is the gap the migration brief
+opened with — but "the formatter and the linter can fight" names a risk without bounding it, so
+measure it rather than repeating it. Intersecting libro's **enabled** rules against the 178 that
+`eslint-config-prettier` switches off gives **1** on both file classes: `no-unexpected-multiline`.
+Every other one of those 178 is already absent or off here. So adoption is still correct, and the
+behaviour change it brings is a single rule, not a category.
+
+Read that intersection against **enabled** rules only. `--print-config` lists a rule at severity `0`
+identically to one that runs, and the interop's 178 span nine namespaces — 81 core, 39 `vue/*`,
+19 `@typescript-eslint/*`, 16 `react/*`, 11 `flowtype/*` — so a name-based count of "rules the
+interop touches" is inflated by plugins the repo does not even load. **Grep the severity, not the
+name.** libro resolves 129 rules on a `.svelte` file and 105 of them run.
+
 **Keep `eslint-plugin-svelte` in `devDependencies`** — libro already declares it, and must
 continue to, because `svelte.js` imports the plugin with a static top-level `import`. Omitting it
 fails at config load naming the package, rather than degrading silently. The declared range is
@@ -475,9 +489,17 @@ part a reader can check.
 
 **Write the range that way, not as a caret.** On a `0.x` package a caret permits patch updates
 only — `^0.9.0` is `>=0.9.0 <0.10.0` and can never reach 0.10.0 — so a caret floor silently
-freezes you on the minor you pinned. The failure is invisible in the worst way: install succeeds,
+freezes you on the minor you pinned. Confirmed rather than recalled: `semver.validRange('^0.4.1')`
+is `>=0.4.1 <0.5.0`. The failure is invisible in the worst way: install succeeds,
 CI stays green, and you go on reporting defects that were fixed several releases ago, because the
 fix is unreachable. An explicit `>=x <1.0.0` is the only form that tracks a pre-1.0 package.
+
+**When you do move a floor, diff against the floor — not against the next version.** The rigorous
+check on a bump is to print the effective resolved ruleset on both versions and diff it, and that
+check is sound; what it cannot do is generalize. A diff of `0.6.0` against `0.7.0` is evidence about
+those two versions and nothing else, so an empty result licenses "this bump changes nothing" and
+ends the investigation, while the eight releases between there and the floor go unexamined. Compare
+the version you are on against the version you are going to.
 
 The floor is also **install-time load-bearing**, which is a separate point: libro runs ESLint
 10.8.0, and the peer was `eslint: ^9.0.0` through 0.3.0, so too low a floor fails to *resolve*
@@ -499,13 +521,22 @@ caret reaches it, and its own `typescript: >=4.8.4 <6.1.0` peer is what the pres
 `>=5.5.0 <6.1.0` cap inherits. Do not "fix" it by widening.
 
 **0.11.0 fixes a `.svelte` rule-scoping defect that libro's local config had independently.**
-`typescript-eslint`'s `eslint-recommended` layer is scoped to `**/*.{ts,tsx,mts,cts}`, so it never
-reaches `.svelte`. Because that one layer both disables the core rules the compiler already
-enforces and enables four others, components run **18 rules wrongly on and 4 wrongly off**.
-`no-undef` is the one that bites: it cannot see ambient or namespaced types, so a component
+`typescript-eslint`'s `eslint-recommended` layer is scoped to `**/*.{ts,tsx,mts,cts}` — read off the
+layer's own `files` glob, not inferred — so it never reaches `.svelte`. Because that one layer both
+disables the core rules the compiler already enforces and enables four others, components run
+**19 rules wrongly on and 4 wrongly off**. `no-undef` is the one that bites: it cannot see ambient
+or namespaced types, so a component
 referencing `NodeJS.Timeout` errors while byte-identical `.ts` code does not — and the identifier
 is correct, so it is unfixable in the source. Reproduced here with a two-file probe before the
 fix, and the local config now re-applies the layer to `.svelte`.
+
+That figure was **18** here for several revisions, because it was taken from a resolved-config diff
+rather than from the layer. The two count different things and both are correct answers: a diff
+reports the layer's *net* effect and silently nets out any rule some other config already had in
+the same state, while enumerating the layer reports its *size*. Prefer the layer when the claim is
+about what the layer contains — a diff will drift as the configs around it change, and it shrinks
+precisely when another config starts duplicating the layer, which reads like the layer mattering
+less rather than more.
 
 Verify a rule-scoping claim by diffing **resolved** config per file class, not by reading the
 config source — the defect is invisible there, and a green lint is not evidence, because it only
