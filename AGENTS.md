@@ -373,6 +373,44 @@ Note the second is **not** idempotent in the lock file: `fetchedAt` always moves
 refresh reports a change even when no payload byte differs. Read the diff before believing it —
 `git diff --stat` naming only `engineering-configs.lock.json` is the no-op signature.
 
+**`pnpm install` is token-free here too — but prove it by which host was contacted, not by clearing
+credentials.** A cold run (`--frozen-lockfile --ignore-scripts`, fresh `--store-dir` *and* fresh
+`--config.cacheDir`) exits 0 in 21 s and writes a genuinely populated store — 13,199 files,
+172.9 MB, `reused 0` — so the packages really were downloaded rather than served from a warm cache.
+The load-bearing evidence is the cache's own layout: pnpm creates one directory per registry host
+under `<cacheDir>/v11/metadata/`, and libro's run creates **only `registry.npmjs.org`**. It never
+asks `npm.pkg.github.com` anything, so no credential can be load-bearing regardless of what is
+configured. The control run below creates that second directory, so the discriminator fires both
+ways.
+
+```bash
+pnpm install --frozen-lockfile --ignore-scripts \
+  --store-dir "$(mktemp -d)" --config.cacheDir="$(mktemp -d)"
+ls "$THAT_CACHE/v11/metadata"       # expect registry.npmjs.org alone
+```
+
+**Redirect both, because pnpm has two caches and `--store-dir` moves only one.** The metadata cache
+lives at `%LOCALAPPDATA%\pnpm-cache` (Windows) — a sibling of the store, not inside it, and
+`pnpm config get cacheDir` reports `undefined` rather than naming it. A store-only "cold" probe
+still resolves every packument from disk, which is the warm-cache trap one layer up from where it
+is usually described.
+
+**The credential-absence method that this replaces is unsound, and finding out cost a control run
+that fired in the wrong direction.** Installing `@jrmoulckers/eslint-config` with a scoped `.npmrc`,
+both caches cold, and `GH_TOKEN` / `GITHUB_TOKEN` / `NODE_AUTH_TOKEN` / `NPM_TOKEN` all emptied
+**succeeded**, while anonymous `curl` against the same packument returned `401`. The reconciliation
+is that **pnpm 11 keeps registry auth in its own `auth.ini`**, at
+`%LOCALAPPDATA%\pnpm\config\auth.ini` — not in `~/.npmrc`, not in the project, and **not listed by
+`npm config list`**, which is what the earlier hunt used and why it reported no credential anywhere.
+So an env-var sweep plus an npm-config read can both come back clean on a machine that is fully
+authenticated.
+
+Two transferable points. A probe that clears every credential it *knows about* measures the
+searcher's inventory, not the machine — prefer evidence of what was **contacted**, which does not
+depend on enumerating auth sources correctly. And this is the fourth instance of the same shape: the
+control was the only thing in the run that could have failed, and it failed for a reason nobody had
+proposed. **A control firing unexpectedly is the finding, not noise to re-run.**
+
 The generalizable point, which is why this is written down rather than deleted: **"is it published"
 and "can I obtain these bytes" are different questions, and only the second one is libro's.** The
 upstream claim, its retraction, and the `403` evidence all answer the first. A retraction inherits
