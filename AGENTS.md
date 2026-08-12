@@ -884,7 +884,9 @@ consumer:
 
 So the asymmetry is real but sits at *required vs optional*, not at *errors vs installs*, and the
 original optional-peer design was never the cause of the install-size measurement it was changed to
-fix. 0.12.0 restores them as real optional peers. Keep the control arm in any such probe: without
+fix. 0.12.0 restores them as real optional peers — confirmed later by reading every published
+packument, which also dates the removal precisely: 7 peers through `0.8.0`, 2 at `0.9.0`–`0.11.0`,
+7 again from `0.12.0`. Keep the control arm in any such probe: without
 it, "not installed" is equally consistent with a probe that installed nothing at all.
 
 The transferable rule is that **a measurement is evidence for its number, not for its cause** — the
@@ -898,6 +900,29 @@ freezes you on the minor you pinned. Confirmed rather than recalled: `semver.val
 is `>=0.4.1 <0.5.0`. The failure is invisible in the worst way: install succeeds,
 CI stays green, and you go on reporting defects that were fixed several releases ago, because the
 fix is unreachable. An explicit `>=x <1.0.0` is the only form that tracks a pre-1.0 package.
+
+**Upstream has since reversed that advice back to `^0.17.0`, and the counter-example it rests on
+cannot reach libro's range — measured.** The argument is that a `0.x` minor may break, so a wide
+range takes a breaking minor blind; the evidence offered is `eslint-config`'s framework peers being
+removed and later restored. Both events are real, but the enumeration is off and the conclusion does
+not follow here. Reading `peerDependencies` from the registry packument for all 18 published
+versions: 7 peers through `0.8.0`, **2** at `0.9.0`–`0.11.0`, back to 7 from **`0.12.0`** onward —
+so the window is three releases, not the eight implied by naming `0.16.0` as the restoration.
+libro's declared floor is `>=0.15.0`, which puts the **entire window below the floor**;
+`semver.satisfies` confirms `>=0.15.0 <1.0.0` reaches none of `0.9.0`, `0.10.0`, `0.11.0`. A wide
+range floored above a defect is not exposed to it, and the caret is not what protects you — the
+floor is.
+
+Two further reasons to keep the wide form here. Today the two ranges are **indistinguishable**:
+`^0.17.0` and `>=0.17.0 <1.0.0` both resolve to `0.17.0`, so the choice only becomes observable at
+`0.18.0` — it is a bet about future releases, not a fix for a present defect. And the stated
+mitigation for the caret's stranding failure is that `check-pins` reports staleness; as measured
+under [The registry half](#the-registry-half), that tool reports *"nothing to check"* and **exits
+0** for libro, because libro declares no `@jrmoulckers/*` dependency at all. So adopting the caret
+here would take the freeze without the compensating signal. Revisit if libro ever adopts the
+registry half — and note libro is doubly insulated from the specific failure anyway, since it
+declares `eslint-plugin-svelte` in its own `devDependencies`, so the peer's removal cannot strand
+it.
 
 **When you do move a floor, diff against the floor — not against the next version.** The rigorous
 check on a bump is to print the effective resolved ruleset on both versions and diff it, and that
