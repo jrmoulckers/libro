@@ -691,6 +691,25 @@ ceiling's prescribed fix (grant more scopes) does nothing for it, so eliminating
 their remedies leads away from the answer. Public repositories are unaffected, which makes the split
 look like a configuration difference between two repos whose configuration is identical.
 
+**A control run is only valid if it ran in the same platform state as the test.** The usual control
+for *"did my change break CI"* is the changed branch against an unmodified default branch — but once
+the account is held, the default branch fails too, so the comparison returns "both red" whatever the
+change did. The comparison still completes and still looks like a controlled one; it has simply lost
+the ability to vary. Before treating a red run as evidence about a diff, confirm the account can
+produce a green **at all** — a public repo under the same account is the cheapest check, since its
+minutes are not billed.
+
+libro's own boundary, measured rather than inherited: last green `2026-08-10T21:34:11Z` on `main`
+(seven checks), first red `2026-08-10T21:58:20Z`, and **that first red already carries the billing
+annotation** — as do the two after it, at 8 jobs / 0 steps each. So there is no window of ordinary
+failures preceding the hold to confuse it with. Take the boundary from this repo's own run list;
+a fleet-wide timestamp will be close but not identical, and the interesting question is always
+whether *your* last green predates *your* first red by content or by platform state.
+
+That green is what keeps libro out of the confounded case: a repo whose entire retained run history
+postdates the hold has never observed its own CI pass, so it has no baseline to compare against and
+cannot tell a broken pipeline from a held account by inspection at all.
+
 `reusable-security-ci` needs no registry wiring, despite appearances. It has no install step — only
 checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the default
 registry. Do not add `registry-url` or `packages: read` to that call site.
