@@ -414,6 +414,28 @@ libro's pre-migration configs never set it, so there was nothing to lose. Choose
 package, not per repository; if that ever changes, `node.json` is the answer, and it needs
 `@types/node` or the first run fails with a `TS2688` that reads like a broken preset.
 
+**`include` without `allowJs` is a silent no-op, and libro had it — three files listed and never
+compiled.** `tsconfig.node.json` names `vite.config.ts`, `svelte.config.js`, `eslint.config.js`, and
+`prettier.config.js`, but the vendored `vite-node.json` sets no `allowJs`, so only the `.ts` file
+entered the program. There is no error and no warning: `tsc` exits 0, and the `include` entry makes
+it *look* as though the other three are checked. Measured rather than inferred — `--listFilesOnly`
+returned exactly one non-`node_modules` path. `allowJs: true` plus `checkJs: true` is now set
+locally on that project; all four compile and the check is still clean.
+
+Read the second-order effect, because it is what makes this worth writing down: a config file that
+is silently outside every project **cannot report a type error at all**, so adopting typed presets
+there yields nothing and reads as *"the declarations don't work"* rather than *"the file isn't
+compiled."* Verify with `npx tsc -p <project> --listFilesOnly`, never with the exit code — the
+failure mode is exit 0 by construction. Note also the intermediate arm: `allowJs` alone puts the
+files in the program but reports no errors in them, so the file list and the error count answer
+different questions and you need both.
+
+One coupling this buys, stated so it is not a surprise later: `prettier.config.js` re-exports the
+vendored `config/engineering/prettier/*.js`, which now enter the program too. That is mostly a
+feature — a broken vendored payload becomes a failed typecheck — but it means an upstream refresh
+can turn this gate red on files libro must not edit. Fix such a failure upstream or by re-pinning,
+never by editing the vendored file.
+
 ### The registry half
 
 `eslint.config.js` is still authored locally, but **not because the package is ungrantable** — an
@@ -456,7 +478,7 @@ than only the lint step.
 
 When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.15.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
-Latest read from the registry on 2026-08-12: `eslint-config` **0.15.0** (16 published versions),
+Latest read from the registry on 2026-08-12: `eslint-config` **0.16.0** (17 published versions),
 `prettier-config` **0.4.0**, `tsconfig` **0.4.0** — the latter two are vendored here, so they have
 no specifier and their floors are informational only.
 
@@ -481,6 +503,29 @@ glob.
 libro is not affected either way: its single tooling file, `scripts/vendor-configs.mjs`, matches
 `**/scripts/**/*.mjs` at **both** versions. Spread `toolingFiles` rather than re-authoring it if
 `scripts/` ever grows a `.cjs` or a `*.spec.*` file.
+
+**`0.16.0` splits the type-checked flags — and ships them undeclared, so hold the floor at
+`0.15.0`.** `base.js` gains `typeChecked` (correctness only) and `stylisticTypeChecked` (house
+style), with `strictTypeChecked` retained as an alias for both. But `types.d.ts` and `base.d.ts` are
+**byte-identical to `0.15.0`**, and `BaseOptions` declares only `typeAware`, `strictTypeChecked`,
+and `untypedFiles` — with **no index signature**. So the two new options are implemented and
+unannounced: passing either from a `checkJs` config is a hard `TS2353` naming `BaseOptions`, and the
+release's headline feature is unreachable from exactly the consumer the declarations exist to serve.
+That is the same implementation-versus-declaration split the release is otherwise about, and it is
+why `0.16.0` is not a floor bump for libro: it fixes nothing libro has and adds a feature libro
+could not call.
+
+**It also defeats the shim discriminator, which is the transferable part.** The published rule for a
+stale hand-written `declare module` is to read the *shape* of the failing type — a **named** type
+means the package's real declarations, an **anonymous type literal** means a shim. Here the error
+names `BaseOptions`, so the discriminator reports *healthy* on a genuine defect. It separates
+*whose* declarations you are reading, not whether they match the implementation, and only the second
+question is the one a rejected-but-valid option raises. When a valid option is refused, hash the
+`.d.ts` against the previous version before believing the error.
+
+libro has **no `declare module` shim to remove** — the grep returns nothing, and could not have
+returned anything, since libro never took these as packages at all. Its only `.d.ts` files are
+`src/vite-env.d.ts` and five sync-owned files under `vendor/@jrm/tokens/`.
 
 That coverage claim survived a wrong measurement of mine worth recording, because it failed in the
 one way a parse usually does not. Extracting the glob array textually from `0.15.0` returned

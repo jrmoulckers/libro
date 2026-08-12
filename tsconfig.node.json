@@ -1,7 +1,9 @@
 {
   "extends": "./config/engineering/tsconfig/vite-node.json",
   "compilerOptions": {
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "allowJs": true,
+    "checkJs": true
   },
   "include": ["vite.config.ts", "svelte.config.js", "eslint.config.js", "prettier.config.js"]
 }
