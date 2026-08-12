@@ -3,7 +3,6 @@
   "display": "@jrmoulckers/tsconfig/vite-react",
   "extends": "./vite-app.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
-    "esModuleInterop": true
+    "jsx": "react-jsx"
   }
 }

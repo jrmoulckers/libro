@@ -1,7 +1,7 @@
 {
   "repository": "jrmoulckers/engineering",
-  "ref": "v0.122.0",
-  "fetchedAt": "2026-08-12T16:55:31.045Z",
+  "ref": "v0.143.0",
+  "fetchedAt": "2026-08-12T20:50:15.822Z",
   "refresh": "node scripts/vendor-configs.mjs <newer-ref>",
   "files": {
     "config/engineering/tsconfig/base.json": {
@@ -18,7 +18,7 @@
     },
     "config/engineering/tsconfig/vite-react.json": {
       "source": "packages/tsconfig/vite-react.json",
-      "sha256": "1e4f3b1b5cd05679a41a8b397203943680d1dbb3b588473a085e231e55d46abb"
+      "sha256": "dc485a98473297f694bfe904eb005721bd494168e153b6461145b410e3701d89"
     },
     "config/engineering/tsconfig/next.json": {
       "source": "packages/tsconfig/next.json",

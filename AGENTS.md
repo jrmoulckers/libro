@@ -474,10 +474,10 @@ notice silent** — its absence is never evidence that a pin is current. The ord
 tested by extracting `compareRefs` from the shipped file and running a table against it — six
 cases, including the backport and the lexical trap — rather than by observing the notice.
 
-**The staleness notice keys on the repository tag, and the vendored payload does not.** Every
-refresh since `v0.15.1` has reported `0 file(s) changed content`, because the upstream tags move
-for docs and tooling while `tsconfig` stays at package version `0.4.0` and `prettier-config` at
-`0.3.0`. Measured end to end rather than step by step: vendoring libro's manifest at `v0.15.1` —
+**The staleness notice keys on the repository tag, and the vendored payload mostly does not.** Every
+refresh from `v0.15.1` through `v0.122.0` reported `0 file(s) changed content`, because the upstream
+tags move for docs and tooling while `tsconfig` sat at package version `0.4.0` and `prettier-config`
+at `0.3.0`. Measured end to end rather than step by step: vendoring libro's manifest at `v0.15.1` —
 its **first ever** pin — and again at `v0.122.0`, then diffing the two trees file by file, gives
 **0 of 8 files changed across 107 tags**. All three package versions are unchanged over that span.
 Each move cost a two-line lock diff and nothing else. The `v0.115.0 →
@@ -486,8 +486,22 @@ v0.116.0` step is the sharpest instance: upstream announced that release as carr
 should move a payload — and libro's eight files were still byte-identical, confirmed both by the
 tool's own source-keyed count and by an independent `Get-FileHash` of each file against the
 committed tree. An upstream change is only *your* change if it touches a file your manifest names.
-So the notice has
-never once been right about what it names. To answer *"has my config actually changed"*, compare
+So through `v0.122.0` the notice had
+never once been right about what it names.
+
+**That streak ended at `v0.143.0`, and the exception is as informative as the rule.** The
+`v0.122.0 → v0.143.0` refresh reports **1 file(s) changed content** — libro's first non-zero payload
+move in 128 tags. The file is `tsconfig/vite-react.json`, losing `esModuleInterop`; `tsconfig` went
+`0.4.0 → 0.5.0` and `prettier-config` `0.3.0 → 0.5.0` over the same span. libro vendors that file
+because the manifest takes the whole `tsconfig` set, and **extends it nowhere** — verified by
+`git grep vite-react` outside the vendored tree and the lock. So the payload genuinely moved, the
+notice was genuinely right, and libro's effective delta is still zero. Keep all three facts
+separate: *the tag moved*, *the payload moved*, and *a file you extend moved* are three different
+questions, and only the third can change behaviour here.
+
+That is also why the vendored set is deliberately not trimmed to the files libro extends. A file
+libro ignores costs one hash and makes the diff report real upstream movement; pruning it would
+buy nothing and hide the signal. To answer *"has my config actually changed"*, compare
 the package version rather than the tag:
 
 ```bash
@@ -796,9 +810,26 @@ than only the lint step.
 
 When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.15.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
-Latest read from the registry on 2026-08-12: `eslint-config` **0.16.0** (17 published versions),
-`prettier-config` **0.4.0**, `tsconfig` **0.4.0** — the latter two are vendored here, so they have
+Latest read from the registry on 2026-08-12: `eslint-config` **0.17.0** (18 published versions),
+`prettier-config` **0.5.0**, `tsconfig` **0.5.0** — the latter two are vendored here, so they have
 no specifier and their floors are informational only.
+
+**Read `dist-tags.latest` from a packument; never take the last key of `versions`.** GitHub Packages
+serves that object **lexically sorted**, so for `eslint-config` the key order ends
+`… 0.7.0 0.8.0 0.9.0` while `dist-tags.latest` is `0.17.0` — the last key is eight minors stale and
+looks like a clean answer. `time` has the same order, so a "most recently published" read off it
+fails identically. The trap needs ten releases to appear: `tsconfig` and `prettier-config` have five
+each, where lexical and numeric order coincide and the last key is correct. So a script doing this
+is right on two packages out of three, which is the worst possible amount of right.
+
+```bash
+npm view @jrmoulckers/eslint-config version          # dist-tags.latest
+node -e "…; const v=Object.keys(p.versions).sort(cmp).pop()"   # only with a numeric cmp
+```
+
+This is the lexical-comparison hazard recorded above for repo tags (`v0.115.0` sorting below
+`v0.18.0`), arriving through a JSON object's key order rather than through a string compare anyone
+wrote. Nothing in the response is malformed and no call fails.
 
 **A `>=x <1.0.0` floor names a minimum, not a target — so a floor bump needs a defect to justify
 it, not a newer release.** Any version above the floor installs regardless; that is the whole point
