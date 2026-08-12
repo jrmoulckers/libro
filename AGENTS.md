@@ -296,9 +296,8 @@ converting the one blocker that affects a single package into one that fails `pn
 --frozen-lockfile` outright. Read `channel` before `range`, and treat `range` as meaningful only
 where `channel` is `registry`.
 
-Upstream now ships a top-level `channels` legend answering this as data rather than prose —
-`registry` is `requiresRegistryAuth: true`, `vendored` is `false` — so the question can be resolved
-mechanically instead of by reading a paragraph:
+Upstream ships a top-level `channels` legend answering this as data rather than prose, so the
+question can be resolved mechanically instead of by reading a paragraph:
 
 ```bash
 gh api -X GET repos/jrmoulckers/engineering/contents/versions.json -f ref=main \
@@ -310,17 +309,18 @@ for (const [n, p] of Object.entries(j.packages))
 '
 ```
 
-Note the legend does **not** remove `range` from the vendored entries, so a package can still report
-`requiresRegistryAuth: false` beside a range whose only use is a registry specifier. The legend
-settles whether a token is needed; it does not stop `range` inviting the dependency. Both checks
-still apply, in that order.
+**As of 2026-08-11 that legend lists exactly one channel, `registry`, and all three packages use
+it** — the `vendored` channel and its `requiresRegistryAuth: false` were removed outright, not
+corrected in place. So the mechanical check now returns `true` three times and can no longer
+distinguish the packages at all. Keep running it, but read it as *"every package requires a
+token"*, which is the current fact, rather than as the discriminator it was introduced to be.
 
-**`requiresRegistryAuth` was retracted upstream on 2026-08-11 (v0.56.0) — do not rely on it, and do
-not draw the conclusion the retraction draws either.** The legend asserted `tsconfig` and
-`prettier-config` were unpublished; in fact `publish.yml` publishes every directory under
-`packages/` unconditionally and never reads `channel`, all three are `private: false`, and a
-consumer's CI got `403 permission_denied: read_package` for `@jrmoulckers/tsconfig`. So the
-metadata was false and the whole legend is now untrustworthy as a token oracle.
+Historical note, kept because the reasoning recurs: the legend originally reported `tsconfig` and
+`prettier-config` as `vendored` / `requiresRegistryAuth: false`, and that was **retracted upstream
+on 2026-08-11 (v0.56.0)**. `publish.yml` publishes every directory under `packages/`
+unconditionally and never reads `channel`, all three are `private: false`, and a consumer's CI got
+`403 permission_denied: read_package` for `@jrmoulckers/tsconfig`. Do not resurrect the field from
+an older ref, and do not draw the conclusion the retraction draws either — see below.
 
 **That does not touch libro, because libro does not consume those two as packages at all.** The
 retraction and the `403` are both about a *registry tarball read* on `npm.pkg.github.com`.
@@ -443,7 +443,7 @@ The practical consequence: **generating a lockfile locally is possible but must 
 until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
 lint step.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.12.0 <1.0.0` and replace the local
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.13.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
 
 **Keep `eslint-plugin-svelte` in `devDependencies`** — libro already declares it, and must
@@ -534,7 +534,8 @@ One known defect to avoid on adoption: **do not pass `strictTypeChecked: true` t
 `svelteConfig()`.** It aborts the entire ESLint run on the first `.svelte` file — the type-checked
 rule sets apply unscoped, while the re-disable blocks that rescue `.ts`/`.js` match neither
 `.svelte` nor its variants. **Re-verified against `main` — not a tag — on 2026-08-11, at published
-`eslint-config` 0.12.0: still present.** `svelte.js` grew 1843 → 3894 bytes over that span, but
+`eslint-config` 0.12.0: still present.** Re-confirmed at published **0.13.0** on 2026-08-11.
+`svelte.js` grew 1843 → 3894 bytes over that span, but
 every added line is the `eslint-recommended` scoping fix; `base.js`, which owns the rescue blocks,
 contains **zero occurrences of `svelte`**, so the blocks still name only `**/*.{js,jsx,mjs,cjs}`
 and the tooling globs. Reported upstream; a consumer can self-rescue through `extend`, but the
@@ -618,6 +619,27 @@ detect it, and **a green history is not protection**: the ceiling only binds onc
 a ref whose callee declares the scope, so a run that has passed for months can go dark on a re-pin
 that changed nothing else. Re-pin and re-verify every caller/callee pair **in the same commit**,
 by reading each callee's declared `permissions:` at the *target* ref — not the current one.
+
+**Do not diagnose a logless, step-less failure by elimination — ask for the annotation.** At least
+three distinct causes produce the same signature (every job `failure` with `steps: 0`, no log,
+`output.title` and `output.summary` both `null`, zero billable time): the permission ceiling above,
+an unresolvable pinned ref, and a **billing hold on the account**. Those four probes cannot vary
+with the cause, so drawing a conclusion from four empty results is reading noise. One endpoint does
+vary, and it answers in plain English:
+
+```bash
+run=$(gh api "repos/jrmoulckers/libro/actions/runs?per_page=1" --jq '.workflow_runs[0].id')
+job=$(gh api "repos/jrmoulckers/libro/actions/runs/$run/jobs" --jq '.jobs[0].id')
+gh api "repos/jrmoulckers/libro/check-runs/$job/annotations" --jq '.[].message'
+```
+
+On 2026-08-11 that returned, for libro: *"The job was not started because recent account payments
+have failed or your spending limit needs to be increased."* Owner-side, and it gates **all** CI on
+every private repo in the studio, so a red check here is not evidence of anything in the diff. It
+is also indistinguishable from the permission ceiling without this probe — and the ceiling's
+prescribed fix (grant more scopes) does nothing for it, so eliminating causes by trying their
+remedies leads away from the answer. Public repositories are unaffected, which makes the split look
+like a configuration difference between two repos whose configuration is identical.
 
 `reusable-security-ci` needs no registry wiring, despite appearances. It has no install step — only
 checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the default
