@@ -677,10 +677,20 @@ Three are losses and each is accounted for:
 
 - **`sourceMap`** — dropped deliberately. `@tsconfig/svelte` sets it to place Svelte compiler
   diagnostics correctly, a rationale that predates Svelte 5; upstream documents dropping it.
-- **`esModuleInterop`** — dropped on the app project and **not** re-added. Nothing in `src/`
-  default-imports a CommonJS module, so `svelte-check` is clean without it. The node project is
-  different: it keeps a local `allowSyntheticDefaultImports: true`, which is the one genuine local
-  retention in either file.
+- **`esModuleInterop`** — dropped on the app project and **not** re-added, and the reason recorded
+  here was wrong in libro's favour. It said `svelte-check` is clean because nothing in `src/`
+  default-imports a CommonJS module — which is the *green gate hides the delta* mistake this file
+  warns about: it cannot distinguish "the option was not needed" from "the option was lost and
+  nothing depends on it yet." Measured instead, with a live control. Against libro's own vendored
+  `base.json` a default import of an `export =` module compiles **clean**; add
+  `allowSyntheticDefaultImports: false` and the same file fails **TS1259** naming that flag. So the
+  pass is caused by `moduleResolution: "bundler"` implying the flag, not by an absence of demand,
+  and `noEmit: true` makes the emit half moot. The same two arms run against `vite-node.json` give
+  the same result, which means the node project's local `allowSyntheticDefaultImports: true` is
+  **inert today** — it was previously described here as the one genuine local retention in either
+  file, and that is not true. It is kept as an unenforced guard: it would become load-bearing the
+  moment any project overrides `moduleResolution` away from `bundler`. Nothing in libro tests that,
+  so treat it as a comment with an effect rather than as a control.
 - **`target`** `ESNext` → `ES2023` — a narrowing, not a loss, and `lib` is now pinned rather than
   inferred.
 
@@ -1389,6 +1399,32 @@ is read as a claimed name, so libro's existing lowercase glosses — `(separate 
 budgets)`, `(smallest explicit boundary…)` — are left alone; if you add a descriptive gloss, start
 it lowercase or it will be checked as a name. The name is a label, not the obligation: it does not
 substitute for reading the principle's **Statement** before asserting scope.
+
+**That capital-letter rule is a real hazard, not a stylistic note — reproduced against the upstream
+checker.** The heuristic is `\(([A-Z][^)/#\n]{2,59})\)`, so *any* parenthetical starting with a
+capital is treated as a claimed name, including glosses whose first word is a proper noun or an
+acronym. Three sentence-shaped glosses libro would plausibly write all fail with a `claimed:`/
+`actual:` diff on citations that are entirely correct:
+
+```
+ENG-INT-001   →  (Svelte components are the framework edge)
+ENG-WEB-003   →  (LCP is judged against the SPA shell)
+ENG-LOCAL-001 →  (IndexedDB is the system of record)
+```
+
+The arrows are load-bearing: the pattern requires the parenthetical to follow the ID directly, so
+writing these examples in their natural adjacent form makes **this file** fail its own citation
+gate. Documenting the hazard in the obvious way reproduces it.
+
+libro passes today — 56 citations, 19 stated names matched, exit 0 — but only because its glosses
+happen to start lowercase, which is luck rather than design. The failure presents as *"the checker
+is broken"* on a correct citation, so it costs trust in the gate rather than catching anything.
+
+The discriminator that separates the two populations is **membership in the title set**, not
+capitalisation: a genuine miscitation names some *other* principle's real title, while a
+descriptive gloss matches no title at all. Verified against `principles/index.json` — `Local
+durable ownership` and `Minimal directed boundaries` are titles; all three glosses above are not.
+Keep glosses lowercase here until the heuristic changes.
 
 `jrmoulckers/engineering` is consumed in three layers. The first two are read from the repository
 and move with its tags; the third is configuration, delivered over two channels — vendored at a
