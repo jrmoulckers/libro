@@ -786,6 +786,25 @@ That green is what keeps libro out of the confounded case: a repo whose entire r
 postdates the hold has never observed its own CI pass, so it has no baseline to compare against and
 cannot tell a broken pipeline from a held account by inspection at all.
 
+**The converse matters more while the hold lasts: a check that is already red for a known reason
+has stopped being a signal for anything landed underneath it.** The rule above says a red run is
+not evidence *against* the diff; this says it is not evidence *for* it either. Both conditions
+surface as one status in one colour, so a second, unrelated failure introduced during the outage is
+indistinguishable from the noise — and the local gates cannot cover the gap, because the failures
+that only appear in CI are precisely the ones a local run cannot produce. So **treat the first green
+run after billing clears as the first real measurement of everything committed since
+`2026-08-10T21:58:20Z`**, not as confirmation of what was already validated here. When a status is
+untrustworthy, the reliable move is to find the last *successful* run and diff what it actually
+contained, rather than reading the aggregate.
+
+libro is not exposed to the external-host variant of this — GitHub Packages authenticates every
+read and an off-GitHub builder sends anonymously, so an external host would fail install with
+`ERR_PNPM_FETCH_401` while Actions stayed green on the same commit and lockfile. Verified here
+rather than assumed, because a host can be connected with nothing committed to the repo: `0`
+deployments, `0` environments, no host configuration in the tree, and the preview job is the
+`artifact` provider rather than a hosting one. If an external host is ever connected, it needs its
+own `.npmrc` and a **classic** PAT with `read:packages` — fine-grained tokens are not accepted.
+
 `reusable-security-ci` needs no registry wiring, despite appearances. It has no install step — only
 checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the default
 registry. Do not add `registry-url` or `packages: read` to that call site.
