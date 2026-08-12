@@ -1012,8 +1012,22 @@ exception to confirm it is as narrow as its comment claims. The tradeoff the lay
 components are `lang="ts"` and `svelte-check` type-checks them. Reconsider if one is ever added
 without it.
 
-Where a preset defect is reported, quote the **resolved** version — read it from the lockfile or
-`node -p "require('@jrmoulckers/eslint-config/package.json').version"`. A pinned range is not an
+Where a preset defect is reported, quote the **resolved** version — but **not** with
+`node -p "require('@jrmoulckers/eslint-config/package.json').version"`, which is the obvious recipe
+and fails in the worst possible direction. `./package.json` entered the package's `exports` map
+somewhere after `0.13.0`, so that command returns cleanly on a current version and throws
+`ERR_PACKAGE_PATH_NOT_EXPORTED` on an old one — measured, `0.13.0` exits 1 with a stack while
+`0.17.0` prints `0.17.0`. A version probe that only works once you are already new enough is
+useless precisely when you need it, since the reason to ask is almost always that you suspect an
+old pin. Worse, the throw reads as a broken install rather than as an answer. Use a route that does
+not go through `exports`:
+
+```bash
+npm ls @jrmoulckers/eslint-config --depth=0
+node -e "console.log(JSON.parse(require('fs').readFileSync('node_modules/@jrmoulckers/eslint-config/package.json','utf8')).version)"
+```
+
+Both return `0.13.0` on the version that throws. A pinned range is not an
 observation; under a caret freeze the two routinely disagree, and that gap is exactly what makes
 the freeze invisible. For the same reason, never read a package's version or peers from a *repo*
 tag: `v0.4.0` of the engineering repo shipped `eslint-config` 0.3.0, so the ref resolves cleanly
@@ -1042,6 +1056,22 @@ Verified end-to-end on 2026-08-11 against libro's own sources, **with a positive
 | `0.14.0`, `strictTypeChecked: true` | **exit 1** — 2 real findings in `App.svelte` |
 | `0.14.0`, bare `svelteConfig()` | exit 0 |
 | `0.14.0`, `no-floating-promises` on a `.ts` | still `2` (error) — typed linting intact |
+
+Re-measured at **`0.17.0`**, the newest published version, against the same `App.svelte` and with
+`0.13.0` re-run as the control in the same harness: `0.13.0` **exit 2**, aborting on the parser;
+`0.17.0` **exit 1** with the same two stylistic findings plus two more on a companion `.ts`. So the
+fix holds at the head of the line, and the control still reproduces the original failure — which is
+the only thing that makes the pass meaningful.
+
+**Do not expect a vendored re-pin to change this, and do not accept a diagnosis that says it
+will.** `strictTypeChecked` lives in `eslint-config`, which libro consumes over the **registry**
+channel and has not adopted; the vendored `SETS` names `packages/tsconfig` and
+`packages/prettier-config` only. So moving `engineering-configs.lock.json` forward cannot alter
+ESLint behaviour by construction, however many releases it spans. A prescribed experiment whose
+outcome is fixed in advance by which channel a package arrives on will "confirm" whatever it is
+pointed at; check the manifest before running it. The same reasoning disposes of the related claim
+that a re-pin would make two `.d.ts` files appear — they are in upstream's prettier set, not in
+libro's, which names `['index.js', 'svelte.js']` at every ref.
 
 Note the near-miss in that run, which is the reusable part: with the config placed beside the preset
 under `node_modules/`, ESLint exited **0** while reporting *"File ignored because outside of base
