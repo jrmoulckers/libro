@@ -597,7 +597,13 @@ which measures the whole output directory exactly as before, and libro emits no 
 them, or the budget will be spent on bytes no user downloads.
 
 **`packages: read` is mandatory on the caller**, and it tracks what the callee *declares*, not
-whether it installs — `reusable-perf-budget` runs no install and still needs the grant. A caller
+whether it installs. `reusable-perf-budget` is the case that proves the distinction: its two
+install steps are conditional on `artifact-name == ''`, and libro passes an artifact from the `web`
+job, so **libro's invocation runs no install at all** — yet the grant is still mandatory, because
+the callee declares `packages: read` unconditionally at the job level, and permissions resolve
+before any `if:` is evaluated. Do not restate that as "perf-budget does not install": it does, for
+callers that build standalone. The install is a property of the invocation; the declaration is a
+property of the callee, and only the declaration decides the grant. A caller
 `permissions:` block replaces the defaults rather than adding to them, and a called workflow can
 never hold a scope its caller lacks, so omitting one fails the run at `startup_failure` with no
 readable log. `reusable-ci-lint` additionally needs `pull-requests: read`. `actionlint` does not
