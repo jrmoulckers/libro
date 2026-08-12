@@ -620,26 +620,43 @@ a ref whose callee declares the scope, so a run that has passed for months can g
 that changed nothing else. Re-pin and re-verify every caller/callee pair **in the same commit**,
 by reading each callee's declared `permissions:` at the *target* ref — not the current one.
 
-**Do not diagnose a logless, step-less failure by elimination — ask for the annotation.** At least
-three distinct causes produce the same signature (every job `failure` with `steps: 0`, no log,
-`output.title` and `output.summary` both `null`, zero billable time): the permission ceiling above,
-an unresolvable pinned ref, and a **billing hold on the account**. Those four probes cannot vary
-with the cause, so drawing a conclusion from four empty results is reading noise. One endpoint does
-vary, and it answers in plain English:
+**Do not diagnose a logless, step-less failure by elimination — count the jobs, then ask for the
+annotation.** At least three distinct causes produce a fast, logless failure: the permission ceiling
+above, an unresolvable pinned ref, and a **billing hold on the account**. The four probes people
+reach for first — the log, `output.title`, `output.summary`, and the step count — cannot vary with
+the cause, so drawing a conclusion from four empty results is reading noise.
+
+The job count does vary, and it separates the ceiling from the other two by mechanism rather than by
+correlation: a caller asking for a scope it does not hold is rejected *before any job is created*,
+whereas a billing hold creates every job and then cannot allocate a runner.
+
+| Cause | `/jobs` | `/timing` |
+| --- | --- | --- |
+| caller grant below callee | **0 jobs** | `billable: {}`, `run_duration_ms: null` |
+| billing hold | **all jobs present**, `steps: 0` | `UBUNTU` present, `total_ms: 0` per job |
+
+Measured on libro's run `31562081343`: 8 jobs (5 `failure`, 3 `skipped`), every one `steps: 0`,
+`total_ms: 0` across 6 billable jobs, and `run_duration_ms: 12000` — a run that lasted twelve
+seconds and was billed for none of it. **No jobs means it was never admitted; jobs with zero time
+mean it was admitted and never ran.** Note that *absent* and *zero* billable time are different
+answers; treating both as "zero billable time" is what collapses the two causes into one signature.
+
+Ordering matters, because the annotation recipe reads `.jobs[0].id` and therefore has nothing to
+index in the ceiling case — on its own it can only diagnose the cause it was first tested against:
 
 ```bash
 run=$(gh api "repos/jrmoulckers/libro/actions/runs?per_page=1" --jq '.workflow_runs[0].id')
+gh api "repos/jrmoulckers/libro/actions/runs/$run/jobs" --jq '.jobs | length'   # 0 => ceiling
 job=$(gh api "repos/jrmoulckers/libro/actions/runs/$run/jobs" --jq '.jobs[0].id')
 gh api "repos/jrmoulckers/libro/check-runs/$job/annotations" --jq '.[].message'
 ```
 
 On 2026-08-11 that returned, for libro: *"The job was not started because recent account payments
 have failed or your spending limit needs to be increased."* Owner-side, and it gates **all** CI on
-every private repo in the studio, so a red check here is not evidence of anything in the diff. It
-is also indistinguishable from the permission ceiling without this probe — and the ceiling's
-prescribed fix (grant more scopes) does nothing for it, so eliminating causes by trying their
-remedies leads away from the answer. Public repositories are unaffected, which makes the split look
-like a configuration difference between two repos whose configuration is identical.
+every private repo in the studio, so a red check here is not evidence of anything in the diff. The
+ceiling's prescribed fix (grant more scopes) does nothing for it, so eliminating causes by trying
+their remedies leads away from the answer. Public repositories are unaffected, which makes the split
+look like a configuration difference between two repos whose configuration is identical.
 
 `reusable-security-ci` needs no registry wiring, despite appearances. It has no install step — only
 checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory data from the default
