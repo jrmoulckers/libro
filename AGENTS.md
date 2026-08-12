@@ -285,7 +285,7 @@ staleness notice is an unauthenticated call to `api.github.com` on every lint. S
 (`pnpm vendor:check`) now passes `--no-remote` and is hermetic, and `pnpm vendor:staleness` is the
 deliberate online probe. Two reasons the gate is the wrong place for the network call: libro has
 already been bitten by that endpoint's rate limit, which is what made an earlier verification a dead
-control; and the notice keys on the repository tag while the payload has not moved in 100 tags, so
+control; and the notice keys on the repository tag while the payload has not moved in 107 tags, so
 it has never once been right about what it names.
 
 **Both no-answer cases now say so, because silence was doing double duty.** "No newer release",
@@ -382,6 +382,24 @@ fix was unreachable from libro's ref. The rule it confirms is the one libro was 
 **check a claim against the consumer's ref, never against `main`** — and note that a repo can
 publish a staleness notice at its consumers while its own release is stale.
 
+**The mirror of that rule is to read the consumer's *current* ref, not a ref it once held.** libro
+was later diagnosed as pinned at `v0.16.0`, 119 releases behind, with a crawl path
+(`v0.15.3 → v0.15.5 → v0.15.6 → v0.16.0`) attached. That is not another repo's pin — libro really
+did hold `v0.16.0`, for part of one afternoon on 2026-08-11, four pins before `v0.18.0`. So this
+failure is not misattribution but **staleness about the right repo**, which is harder to dismiss
+because every particular checks out against some commit in the history. It also inverts the
+conclusion drawn from it: the crawl was said to hide a large aggregate by never comparing against
+latest, when libro's very next move was a single **97-tag jump** (`v0.18.0 → v0.115.0`) — the
+recommended remedy, already taken, and it reported `0 file(s) changed content` then too.
+
+The cheap defence is that a pin is a **committed one-line fact**, so a diagnosis about it should
+quote the line and the commit that set it:
+
+```bash
+node -e "console.log(require('./engineering-configs.lock.json').ref)"
+git log --format='%h %ad' --date=short -- engineering-configs.lock.json
+```
+
 libro's **8** files and upstream's **10** are therefore two independent choices, not a version skew.
 Re-confirmed by measurement, since this has been misread as a sub-floor signature three times, most
 recently as a shipped diagnostic — *"if your script reported 8, you are sub-floor."* **libro is a
@@ -438,9 +456,10 @@ cases, including the backport and the lexical trap — rather than by observing 
 **The staleness notice keys on the repository tag, and the vendored payload does not.** Every
 refresh since `v0.15.1` has reported `0 file(s) changed content`, because the upstream tags move
 for docs and tooling while `tsconfig` stays at package version `0.4.0` and `prettier-config` at
-`0.3.0`. Measured across the full span from `v0.18.0` to `v0.118.0` — **100 tags** — all three
-package versions are unchanged and **all eight vendored payload blobs are byte-identical**; the pin
-now sits at `v0.118.0` and each move cost a two-line lock diff and nothing else. The `v0.115.0 →
+`0.3.0`. Measured end to end rather than step by step: vendoring libro's manifest at `v0.15.1` —
+its **first ever** pin — and again at `v0.122.0`, then diffing the two trees file by file, gives
+**0 of 8 files changed across 107 tags**. All three package versions are unchanged over that span.
+Each move cost a two-line lock diff and nothing else. The `v0.115.0 →
 v0.116.0` step is the sharpest instance: upstream announced that release as carrying a
 `prettier-config` **exports fix shipped without a version bump**, which is exactly the shape that
 should move a payload — and libro's eight files were still byte-identical, confirmed both by the
@@ -620,7 +639,7 @@ Resolve a newer ref before reporting anything about versions.
 coincides with a real sub-floor signature.** Upstream reports a full set of 10 and reads `8` as
 *"this repo predates the two `prettier-config` declarations."* That inference is sound upstream and
 false here: `SETS` in `scripts/vendor-configs.mjs` hardcodes `files: ['index.js', 'svelte.js']` for
-prettier, so a refresh at **any** ref fetches exactly those two, and re-pinning 100 tags forward
+prettier, so a refresh at **any** ref fetches exactly those two, and re-pinning 107 tags forward
 changed the count not at all. The count is a property of the consumer's manifest, and a diagnostic
 keyed on it silently assumes every consumer takes the whole set.
 
@@ -893,6 +912,15 @@ The transferable rule is that **a measurement is evidence for its number, not fo
 75 MB was real throughout while the mechanism blamed for it was not. When reporting install weight,
 send `npm ls <pkg>` or `pnpm why <pkg>` alongside the figure, because the dependency path is the
 part a reader can check.
+
+Upstream later reproduced this independently — packing the tarball at `0.17.0` and at `0.8.0` as a
+control, and finding all five framework plugins absent in both. That is genuine corroboration,
+because the two probes could have disagreed and did not. It also **retires the counter-example
+offered for the caret**: if no consumer ever received these plugins from the package, then the
+`0.9.0` peer removal changed nothing observable. A consumer who declared `eslint-plugin-svelte`
+worked before and after; one who did not was already broken at `0.8.0`. So the removal is not a
+breaking minor for anybody, and the argument that a wide range "takes a breaking minor blind" has
+no instance behind it here.
 
 **Write the range that way, not as a caret.** On a `0.x` package a caret permits patch updates
 only — `^0.9.0` is `>=0.9.0 <0.10.0` and can never reach 0.10.0 — so a caret floor silently
