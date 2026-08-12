@@ -256,6 +256,53 @@ staleness would make pinning automatic in effect, because a red build pressures 
 into bumping the ref without deciding to accept the change. It runs as the first step of
 `pnpm lint`, so drift is caught by CI rather than by memory.
 
+**A guard that has never been seen failing is a claim about intent, not about the repo — so
+tamper-test it.** Append a byte to a vendored file, confirm `--check` exits **1** naming that file,
+then `git checkout --` it and confirm exit **0**. Measured here on `config/engineering/tsconfig/
+base.json`: 1 then 0. Read the exit code from a bare invocation — piping through
+`Select-Object -First` silently reports `0` for a run that exited `1`, which is the failure mode
+this test exists to detect, arriving through the harness instead of the code.
+
+**Never pass `--dest` at a path outside the repo.** The evaluation recipe
+`vendor-configs.mjs <ref> --dest "$(mktemp -d)"` used to rewrite the real lock with **absolute**
+scratch paths. `--check` then passes while examining no file in the repository at all — disarmed
+rather than weakened, because every absolute path still resolves on the machine that wrote it, and
+it surfaces only on a runner as `missing` on a path that never existed there. libro's lock was
+never poisoned (no absolute keys, and no `--dest` run in its history), but **libro owns its own
+copy of the script and carried the defect latently**, so it is fixed here rather than waited on:
+
+- a `--dest` run now writes **no lock at all** and prints that nothing is committable;
+- `--check` refuses a lock with absolute keys, naming the cause and the re-vendor command;
+- the "changed content" count is keyed by **upstream source path**, not by destination. Keyed by
+  destination it missed on every entry the moment `--dest` moved, reporting *all* files changed —
+  meaningless in the one place the recipe tells you to read the number. Verified dest-independent:
+  the same probe across `v0.115.0 → v0.18.0` reports `0 file(s) changed content`.
+
+```bash
+node scripts/vendor-configs.mjs --check                # refuses an absolute-keyed lock
+git grep -nE '"([A-Za-z]:/|/)' engineering-configs.lock.json   # any hit = poisoned
+```
+
+**`releases/latest` is ordered by tag date, not by version**, so a backported patch on an older
+line can be "latest" while being *older* than the pin. The notice compared `latest !== pinned`,
+which advertises that as an update — and for a lock file an update in the wrong direction is the
+silent failure named under [Check the direction](#things-that-stay-true-across-both-channels):
+the older payload was correct when it was current, so nothing goes red. It now compares parsed
+version tuples and warns only when `latest` is genuinely newer.
+
+Note the ordering is not merely a date-vs-version question here: libro's own tags make a **lexical**
+compare wrong too, since `v0.115.0` sorts below `v0.18.0` as text. Use numeric comparison, or
+`sort -V` in a shell.
+
+**That fix was verified against a dead control first, which is why it is worth stating how.**
+Driving the notice by editing `lock.ref` produced *silence in both arms* — not because the fix
+worked, but because the anonymous releases API was rate-limited (`403 API rate limit exceeded`), so
+`latestRef()` returned `null` and the notice could not have fired for any pin. `latestRef` is
+deliberately null-safe, so **an offline, rate-limited, or unauthenticated run makes the staleness
+notice silent** — its absence is never evidence that a pin is current. The ordering was therefore
+tested by extracting `compareRefs` from the shipped file and running a table against it — six
+cases, including the backport and the lexical trap — rather than by observing the notice.
+
 **The staleness notice keys on the repository tag, and the vendored payload does not.** Every
 refresh since `v0.15.1` has reported `0 file(s) changed content`, because the upstream tags move
 for docs and tooling while `tsconfig` stays at package version `0.4.0` and `prettier-config` at

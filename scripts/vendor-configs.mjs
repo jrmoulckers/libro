@@ -117,6 +117,28 @@ async function latestRef() {
 }
 
 /**
+ * Order two version-shaped tags. `releases/latest` is ordered by tag date, not
+ * by version, so a backported patch on an older line can be "latest" while
+ * being older than the pin. An inequality test then advertises it as an
+ * update, which for a lock file is a downgrade — the one direction that fails
+ * silently, because the older payload was correct when it was current.
+ * Returns >0 when `a` is newer, and 0 when the two cannot be compared.
+ */
+function compareRefs(a, b) {
+  const parse = (ref) => {
+    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(ref.trim());
+    return match ? match.slice(1, 4).map(Number) : null;
+  };
+  const left = parse(a);
+  const right = parse(b);
+  if (!left || !right) return a === b ? 0 : 1;
+  for (let i = 0; i < 3; i += 1) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return 0;
+}
+
+/**
  * Verify the vendored tree still matches the lock, then report staleness.
  *
  * The split in severity is the whole point. Drift is a local integrity failure
@@ -136,6 +158,19 @@ async function check() {
 
   const entries = Object.entries(lock.files ?? {});
   if (entries.length === 0) fail(`${LOCK} records no files`, 'Re-run the vendor step.');
+
+  // An absolute key means the lock was written by a run with --dest pointing
+  // outside the repo. Every path still resolves on the machine that wrote it,
+  // so --check passes while examining no file in the repository at all — the
+  // guard is disarmed rather than weakened, and it fails only on a runner,
+  // as `missing` on a path that never existed there.
+  const absolute = entries.map(([dest]) => dest).filter((dest) => /^([A-Za-z]:[/\\]|[/\\])/.test(dest));
+  if (absolute.length > 0) {
+    fail(
+      `${LOCK} records ${absolute.length} absolute path(s), so it guards nothing here:\n  ${absolute.join('\n  ')}`,
+      `Written by a --dest run outside the repo. Re-vendor without --dest: node scripts/vendor-configs.mjs ${lock.ref}`,
+    );
+  }
 
   const drifted = [];
   for (const [dest, meta] of entries) {
@@ -159,7 +194,7 @@ async function check() {
   process.stdout.write(`${entries.length} vendored file(s) match ${LOCK} at ${lock.ref}.\n`);
 
   const latest = await latestRef();
-  if (latest && latest !== lock.ref) {
+  if (latest && compareRefs(latest, lock.ref) > 0) {
     process.stdout.write(
       `\nNotice: pinned at ${lock.ref}; newest release is ${latest}.\n` +
         `This is not a failure. Update deliberately when you choose to:\n` +
@@ -278,16 +313,32 @@ async function main() {
     // No previous lock: this is a first vendor.
   }
 
-  await writeFile(LOCK, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
+  // Key the comparison by upstream source path, never by destination. A
+  // dest-keyed lookup misses on every entry as soon as --dest moves, turning
+  // the count into "all changed" — meaningless in the one place the evaluation
+  // recipe tells you to read it.
+  const priorBySource = new Map(
+    Object.values(previous?.files ?? {}).map((meta) => [meta.source, meta.sha256]),
+  );
+  const changed = staged.filter((item) => priorBySource.get(item.path) !== sha256(item.text));
+
+  const scratch = flags.dest !== undefined;
+  if (!scratch) {
+    await writeFile(LOCK, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
+  }
 
   process.stdout.write(`Vendored ${staged.length} file(s) from ${REPO}@${ref} into ${dest}/\n`);
   if (previous && previous.ref !== ref) {
-    const changed = staged.filter(
-      (item) => previous.files?.[item.dest.split('\\').join('/')]?.sha256 !== sha256(item.text),
-    );
     process.stdout.write(
       `Ref moved ${previous.ref} -> ${ref}; ${changed.length} file(s) changed content.\n`,
     );
+  }
+  if (scratch) {
+    process.stdout.write(
+      `Evaluation run: --dest was given, so ${LOCK} was left untouched and nothing here is committable.\n` +
+        `Re-run without --dest to adopt this ref.\n`,
+    );
+    return;
   }
   process.stdout.write(`Recorded ref and SHA-256 of each file in ${LOCK}. Commit both.\n`);
 }
