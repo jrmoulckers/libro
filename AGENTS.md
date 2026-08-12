@@ -263,7 +263,8 @@ base.json`: 1 then 0. Read the exit code from a bare invocation — piping throu
 `Select-Object -First` silently reports `0` for a run that exited `1`, which is the failure mode
 this test exists to detect, arriving through the harness instead of the code.
 
-**Never pass `--dest` at a path outside the repo.** The evaluation recipe
+**Never pass `--dest` at a path outside the repo unless you mean it as a throwaway probe.** The
+evaluation recipe
 `vendor-configs.mjs <ref> --dest "$(mktemp -d)"` used to rewrite the real lock with **absolute**
 scratch paths. `--check` then passes while examining no file in the repository at all — disarmed
 rather than weakened, because every absolute path still resolves on the machine that wrote it, and
@@ -271,12 +272,28 @@ it surfaces only on a runner as `missing` on a path that never existed there. li
 never poisoned (no absolute keys, and no `--dest` run in its history), but **libro owns its own
 copy of the script and carried the defect latently**, so it is fixed here rather than waited on:
 
-- a `--dest` run now writes **no lock at all** and prints that nothing is committable;
+- a `--dest` run **pointing outside `config/engineering`** now writes **no lock at all** and prints
+  that nothing is committable;
 - `--check` refuses a lock with absolute keys, naming the cause and the re-vendor command;
 - the "changed content" count is keyed by **upstream source path**, not by destination. Keyed by
   destination it missed on every entry the moment `--dest` moved, reporting *all* files changed —
   meaningless in the one place the recipe tells you to read the number. Verified dest-independent:
   the same probe across `v0.115.0 → v0.18.0` reports `0 file(s) changed content`.
+
+**That first fix was initially keyed on the wrong thing, and upstream's own refresh recipe is what
+exposed it.** It tested whether `--dest` was *passed*, not where the files *landed* — so
+`--dest config/engineering`, which upstream documents as the way to re-vendor, was classified as a
+throwaway evaluation: the eight real files were rewritten in place while the lock kept the old ref.
+Here that was harmless only because the payload was byte-identical; with a moved payload it silently
+produces the inverse of the poisoned lock — correct lock, **wrong tree** — and `--check` reports the
+drift as a local edit to files nobody touched. It now compares `resolve(dest)` against the default
+destination, so the discriminator is the destination rather than the flag. Both arms measured:
+a scratch dest writes no lock, and `--dest config/engineering` writes one.
+
+The reusable point is that **a guard keyed on how you were invoked rather than on what you did will
+misfire on any equivalent invocation** — and the invocation that tripped it was not exotic, it was
+the upstream-documented one. The same reasoning retires the previous heading, which said never to
+pass `--dest` at all.
 
 ```bash
 node scripts/vendor-configs.mjs --check                # refuses an absolute-keyed lock
@@ -308,16 +325,35 @@ switching:
 - a `tool` hash would assert that libro's script *should* equal upstream's, so every run would
   report drift for a difference that is a decision.
 
+Upstream now ships that refresh as a literal `curl -fsSL … -o scripts/vendor-configs.mjs`, so the
+instruction is no longer merely implied — running it as given silently reverts the `.d.ts`
+exclusion **and** the four local fixes (`compareRefs`, absolute-key refusal, source-keyed count,
+destination-keyed evaluation mode). Port a behaviour if one is genuinely missing; never take the
+file.
+
+Two of upstream's own corrections are worth recording, because they change how much weight a
+broadcast claim carries. The `tool` entry was reported here as shipped when it existed **only in
+their working tree**: measured, the script at `v0.115.0` is 302 lines with no `toolEntry`, and the
+feature first appears at `v0.116.0` (872 lines). The cause was systemic — `publish.yml` triggers on
+a manually pushed tag, so `releases/latest` sat **30 commits behind `main`** and every "this
+shipped" sent to the fleet was false. That retroactively explains several rounds where a claimed
+fix was unreachable from libro's ref. The rule it confirms is the one libro was already applying:
+**check a claim against the consumer's ref, never against `main`** — and note that a repo can
+publish a staleness notice at its consumers while its own release is stale.
+
 libro's **8** files and upstream's **10** are therefore two independent choices, not a version skew.
 Re-confirmed by measurement, since this has been misread as a sub-floor signature three times, most
 recently as a shipped diagnostic — *"if your script reported 8, you are sub-floor."* **libro is a
-standing counterexample.** At libro's pinned `v0.115.0`, all four upstream prettier payload files
-return **200** (`index.js`, `index.d.ts`, `svelte.js`, `svelte.d.ts`), and a vendor run at that same
+standing counterexample.** At libro's pin, all four upstream prettier payload files
+return **200** (`index.js`, `index.d.ts`, `svelte.js`, `svelte.d.ts`) — re-measured at both
+`v0.115.0` and `v0.116.0` — and a vendor run at that same
 ref still writes exactly **8** — 6 tsconfig plus 2 prettier. Below the floor `index.d.ts` is a
 genuine 404 (`v0.15.3`), so the count and the cause coincide *for a consumer running upstream's
 manifest*, and only for them. Availability and selection are different questions; the file count
 answers the second. Read the `ref` out of `engineering-configs.lock.json` to learn the pin — that is
-the fact being asked about, and it cannot be inferred from a total.
+the fact being asked about, and it cannot be inferred from a total. Upstream has since asked twice
+for the *resolved version* of any consumer "still seeing no `.d.ts`" — libro sees them, takes
+neither, and the answer does not change with the ref.
 
 **libro needs no `{"type": "module"}` marker in the vendored tree, and adding one would guard
 nothing.** Upstream's `prettier-config` declares `"type": "module"` and its vendoring script did not
@@ -361,9 +397,15 @@ cases, including the backport and the lexical trap — rather than by observing 
 **The staleness notice keys on the repository tag, and the vendored payload does not.** Every
 refresh since `v0.15.1` has reported `0 file(s) changed content`, because the upstream tags move
 for docs and tooling while `tsconfig` stays at package version `0.4.0` and `prettier-config` at
-`0.3.0`. Measured across the full span from `v0.18.0` to `v0.115.0` — **97 tags** — all three
+`0.3.0`. Measured across the full span from `v0.18.0` to `v0.116.0` — **98 tags** — all three
 package versions are unchanged and **all eight vendored payload blobs are byte-identical**; the pin
-now sits at `v0.115.0` and the move cost a two-line lock diff and nothing else. So the notice has
+now sits at `v0.116.0` and each move cost a two-line lock diff and nothing else. The `v0.115.0 →
+v0.116.0` step is the sharpest instance: upstream announced that release as carrying a
+`prettier-config` **exports fix shipped without a version bump**, which is exactly the shape that
+should move a payload — and libro's eight files were still byte-identical, confirmed both by the
+tool's own source-keyed count and by an independent `Get-FileHash` of each file against the
+committed tree. An upstream change is only *your* change if it touches a file your manifest names.
+So the notice has
 never once been right about what it names. To answer *"has my config actually changed"*, compare
 the package version rather than the tag:
 
@@ -468,7 +510,7 @@ one disproves a "blocked" claim; use the second when the question is specificall
 
 ```bash
 node scripts/vendor-configs.mjs --check     # local bytes vs lock, plus the staleness notice
-node scripts/vendor-configs.mjs v0.115.0    # refetch the pinned ref; expect a fetchedAt-only diff
+node scripts/vendor-configs.mjs v0.116.0    # refetch the pinned ref; expect a fetchedAt-only diff
 ```
 
 Note the second is **not** idempotent in the lock file: `fetchedAt` always moves, so a same-ref
@@ -537,7 +579,7 @@ Resolve a newer ref before reporting anything about versions.
 coincides with a real sub-floor signature.** Upstream reports a full set of 10 and reads `8` as
 *"this repo predates the two `prettier-config` declarations."* That inference is sound upstream and
 false here: `SETS` in `scripts/vendor-configs.mjs` hardcodes `files: ['index.js', 'svelte.js']` for
-prettier, so a refresh at **any** ref fetches exactly those two, and re-pinning 97 tags forward
+prettier, so a refresh at **any** ref fetches exactly those two, and re-pinning 98 tags forward
 changed the count not at all. The count is a property of the consumer's manifest, and a diagnostic
 keyed on it silently assumes every consumer takes the whole set.
 

@@ -31,7 +31,7 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 
 const REPO = 'jrmoulckers/engineering';
 const LOCK = 'engineering-configs.lock.json';
@@ -261,6 +261,8 @@ async function fetchFile(ref, path) {
 
 const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 
+const DEFAULT_DEST = 'config/engineering';
+
 async function main() {
   const { positional, flags } = parseArgs(process.argv.slice(2));
   if (flags.check) {
@@ -274,7 +276,7 @@ async function main() {
   if (!ref) {
     fail('a ref is required', 'Pass a tag, not a branch: node scripts/vendor-configs.mjs v1.2.3');
   }
-  const dest = flags.dest ?? 'config/engineering';
+  const dest = flags.dest ?? DEFAULT_DEST;
   const names = (flags.set ?? Object.keys(SETS).join(',')).split(',').map((s) => s.trim());
   for (const name of names) {
     if (!SETS[name]) fail(`unknown set '${name}'`, `Known sets: ${Object.keys(SETS).join(', ')}`);
@@ -327,7 +329,12 @@ async function main() {
   );
   const changed = staged.filter((item) => priorBySource.get(item.path) !== sha256(item.text));
 
-  const scratch = flags.dest !== undefined;
+  // Key the evaluation mode on where the files actually landed, not on whether
+  // the flag was passed. Upstream's own refresh recipe passes the real path
+  // explicitly (`--dest config/engineering`), and keying on flag presence
+  // treated that as scratch: the tree was rewritten in place while the lock
+  // kept the old ref. Benign only while the payload is identical.
+  const scratch = resolve(dest) !== resolve(DEFAULT_DEST);
   if (!scratch) {
     await writeFile(LOCK, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
   }
@@ -340,8 +347,8 @@ async function main() {
   }
   if (scratch) {
     process.stdout.write(
-      `Evaluation run: --dest was given, so ${LOCK} was left untouched and nothing here is committable.\n` +
-        `Re-run without --dest to adopt this ref.\n`,
+      `Evaluation run: --dest pointed outside ${DEFAULT_DEST}, so ${LOCK} was left untouched and nothing here is committable.\n` +
+        `Re-run without --dest, or with --dest ${DEFAULT_DEST}, to adopt this ref.\n`,
     );
     return;
   }
