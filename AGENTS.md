@@ -309,10 +309,15 @@ switching:
   report drift for a difference that is a decision.
 
 libro's **8** files and upstream's **10** are therefore two independent choices, not a version skew.
-Re-confirmed by measurement, since this has been misread as a sub-floor signature twice:
-`packages/prettier-config/index.d.ts` is **404 at `v0.15.3`** but **200 at both `v0.112.0` and
-libro's pinned `v0.115.0`** — the declarations exist at the pin and libro still does not take them.
-Availability and selection are different questions, and only the second one explains this count.
+Re-confirmed by measurement, since this has been misread as a sub-floor signature three times, most
+recently as a shipped diagnostic — *"if your script reported 8, you are sub-floor."* **libro is a
+standing counterexample.** At libro's pinned `v0.115.0`, all four upstream prettier payload files
+return **200** (`index.js`, `index.d.ts`, `svelte.js`, `svelte.d.ts`), and a vendor run at that same
+ref still writes exactly **8** — 6 tsconfig plus 2 prettier. Below the floor `index.d.ts` is a
+genuine 404 (`v0.15.3`), so the count and the cause coincide *for a consumer running upstream's
+manifest*, and only for them. Availability and selection are different questions; the file count
+answers the second. Read the `ref` out of `engineering-configs.lock.json` to learn the pin — that is
+the fact being asked about, and it cannot be inferred from a total.
 
 **Convergent fixes will not share a name — grep for behaviour, not identifiers.** libro and upstream
 independently fixed the `releases/latest` ordering; libro's helper is `compareRefs`, upstream's is
