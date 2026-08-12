@@ -249,12 +249,53 @@ does not merely go stale — a tag can carry guidance a later release reversed, 
 number someone wrote down can reintroduce the behaviour the document exists to prevent. Upstream
 now writes these recipes with a placeholder for that reason.
 
+**That rule is about recipes, and it inverts for evidence.** A measurement names the artifact it was
+taken from, so "verified at `v0.115.0`" is a claim about specific bytes; swapping in a resolver
+re-points it at different code on every read and quietly destroys the evidence. Nearly every
+measured figure in this file is deliberately pinned for that reason — the 302-line script, the
+`v0.15.3` 404, the 98-tag span. Resolve a ref when you are about to *act*; pin it when you are
+*reporting*.
+
+**Do not use `gh api …/tags` to decide whether a tag exists.** It paginates at 30 and returns a
+valid `200` with no indication that anything is missing, and page 1 holds only the newest tags — so
+every tag it cannot see is old, which is exactly the population a stale-pin audit examines.
+Reproduced here: that call returns **30** while the repository has **156** tags, an 80% false
+negative rate. A false "this ref does not exist" is worse than no finding, because you act on it by
+rewriting a pin that was correct. Use a form that cannot silently truncate:
+
+```bash
+git ls-remote --tags https://github.com/jrmoulckers/engineering   # no token, no pagination
+gh api --paginate repos/jrmoulckers/engineering/tags --jq '.[].name'
+```
+
+libro was never exposed — its script reads `releases/latest`, not `/tags` — and all seven refs this
+file cites (`v0.15.3`, `v0.18.0`, `v0.103.0`, `v0.112.0`, `v0.115.0`, `v0.116.0`, `v0.118.0`) were
+re-confirmed to exist by `ls-remote`.
+
 `pnpm vendor:check` verifies the tree against the lock. The two severities are deliberate and
 worth preserving: **drift exits non-zero** (a generated file was edited or a write was lost — a
 local integrity failure), while **a newer upstream release only warns, exit 0**. Failing on
 staleness would make pinning automatic in effect, because a red build pressures the next person
 into bumping the ref without deciding to accept the change. It runs as the first step of
 `pnpm lint`, so drift is caught by CI rather than by memory.
+
+**A green `--check` means the tree matches the lock, not that the pin is current** — and those were
+two unrelated mechanisms behind one flag. The hash comparison is offline and authoritative; the
+staleness notice is an unauthenticated call to `api.github.com` on every lint. So the gate
+(`pnpm vendor:check`) now passes `--no-remote` and is hermetic, and `pnpm vendor:staleness` is the
+deliberate online probe. Two reasons the gate is the wrong place for the network call: libro has
+already been bitten by that endpoint's rate limit, which is what made an earlier verification a dead
+control; and the notice keys on the repository tag while the payload has not moved in 100 tags, so
+it has never once been right about what it names.
+
+**Both no-answer cases now say so, because silence was doing double duty.** "No newer release",
+"the API was unreachable", and "rate-limited" all printed nothing, so the reassuring output was
+indistinguishable from a run that compared nothing. `latestRef()` returns a discriminated result and
+each branch states its own gap — `--no-remote` prints *"This says nothing about whether `<ref>` is
+current"*, and a failed call prints the reason plus a note that the hash comparison is unaffected.
+Verified across four arms; the unreachable arm needs `NODE_USE_ENV_PROXY=1`, since **Node's `fetch`
+ignores `HTTPS_PROXY` by default** and the first attempt at it printed the success path — a dead
+control in the probe for the fix to dead silence.
 
 **A guard that has never been seen failing is a claim about intent, not about the repo — so
 tamper-test it.** Append a byte to a vendored file, confirm `--check` exits **1** naming that file,
@@ -397,9 +438,9 @@ cases, including the backport and the lexical trap — rather than by observing 
 **The staleness notice keys on the repository tag, and the vendored payload does not.** Every
 refresh since `v0.15.1` has reported `0 file(s) changed content`, because the upstream tags move
 for docs and tooling while `tsconfig` stays at package version `0.4.0` and `prettier-config` at
-`0.3.0`. Measured across the full span from `v0.18.0` to `v0.116.0` — **98 tags** — all three
+`0.3.0`. Measured across the full span from `v0.18.0` to `v0.118.0` — **100 tags** — all three
 package versions are unchanged and **all eight vendored payload blobs are byte-identical**; the pin
-now sits at `v0.116.0` and each move cost a two-line lock diff and nothing else. The `v0.115.0 →
+now sits at `v0.118.0` and each move cost a two-line lock diff and nothing else. The `v0.115.0 →
 v0.116.0` step is the sharpest instance: upstream announced that release as carrying a
 `prettier-config` **exports fix shipped without a version bump**, which is exactly the shape that
 should move a payload — and libro's eight files were still byte-identical, confirmed both by the
@@ -510,7 +551,7 @@ one disproves a "blocked" claim; use the second when the question is specificall
 
 ```bash
 node scripts/vendor-configs.mjs --check     # local bytes vs lock, plus the staleness notice
-node scripts/vendor-configs.mjs v0.116.0    # refetch the pinned ref; expect a fetchedAt-only diff
+node scripts/vendor-configs.mjs v0.118.0    # refetch the pinned ref; expect a fetchedAt-only diff
 ```
 
 Note the second is **not** idempotent in the lock file: `fetchedAt` always moves, so a same-ref
@@ -579,7 +620,7 @@ Resolve a newer ref before reporting anything about versions.
 coincides with a real sub-floor signature.** Upstream reports a full set of 10 and reads `8` as
 *"this repo predates the two `prettier-config` declarations."* That inference is sound upstream and
 false here: `SETS` in `scripts/vendor-configs.mjs` hardcodes `files: ['index.js', 'svelte.js']` for
-prettier, so a refresh at **any** ref fetches exactly those two, and re-pinning 98 tags forward
+prettier, so a refresh at **any** ref fetches exactly those two, and re-pinning 100 tags forward
 changed the count not at all. The count is a property of the consumer's manifest, and a diagnostic
 keyed on it silently assumes every consumer takes the whole set.
 

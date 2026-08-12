@@ -90,10 +90,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg === '--check') {
       flags.check = true;
+    } else if (arg === '--no-remote') {
+      flags.noRemote = true;
     } else if (arg.startsWith('--')) {
       fail(
         `unknown option ${arg}`,
-        'Usage: vendor-configs.mjs <ref> [--dest <dir>] [--set a,b] | vendor-configs.mjs --check',
+        'Usage: vendor-configs.mjs <ref> [--dest <dir>] [--set a,b] | vendor-configs.mjs --check [--no-remote]',
       );
     } else {
       positional.push(arg);
@@ -104,20 +106,31 @@ function parseArgs(argv) {
 
 /**
  * Report whether a newer release exists. Never throws and never fails the
- * caller: a tag pushed upstream must not turn an unrelated PR red. Returns null
- * when the answer cannot be determined, which is treated the same as "fine" —
- * an offline or rate-limited runner is not a staleness signal.
+ * caller: a tag pushed upstream must not turn an unrelated PR red.
+ *
+ * Returns a discriminated result rather than a bare tag, because "no newer
+ * release" and "could not ask" are different answers that used to share one
+ * output: silence. An offline, rate-limited, or unauthenticated run printed
+ * exactly what an up-to-date pin printed, so the reassuring case was
+ * indistinguishable from the case where nothing was compared at all. This is
+ * not hypothetical here -- the first attempt to verify the ordering fix was a
+ * dead control for precisely this reason (403 API rate limit exceeded).
  */
 async function latestRef() {
   try {
     const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: { accept: 'application/vnd.github+json' },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return { ok: false, reason: `HTTP ${response.status} from the releases API` };
+    }
     const body = await response.json();
-    return typeof body.tag_name === 'string' ? body.tag_name : null;
-  } catch {
-    return null;
+    if (typeof body.tag_name !== 'string') {
+      return { ok: false, reason: 'the releases API returned no tag_name' };
+    }
+    return { ok: true, ref: body.tag_name };
+  } catch (error) {
+    return { ok: false, reason: error?.message ?? 'the releases API was unreachable' };
   }
 }
 
@@ -152,8 +165,14 @@ function compareRefs(a, b) {
  * warns. Failing on staleness would make pinning automatic in effect: a red
  * build pressures the next person into bumping the ref without deciding to
  * accept the change, which is the property pinning exists to protect.
+ *
+ * These are also two unrelated mechanisms behind one flag: the hash comparison
+ * is offline and authoritative, the staleness notice is an unauthenticated call
+ * to api.github.com on every lint. `--no-remote` drops the second and keeps the
+ * first. A green run means the tree matches the lock; it never means the pin is
+ * current.
  */
-async function check() {
+async function check(noRemote = false) {
   let lock;
   try {
     lock = JSON.parse(await readFile(LOCK, 'utf8'));
@@ -198,12 +217,27 @@ async function check() {
 
   process.stdout.write(`${entries.length} vendored file(s) match ${LOCK} at ${lock.ref}.\n`);
 
-  const latest = await latestRef();
-  if (latest && compareRefs(latest, lock.ref) > 0) {
+  if (noRemote) {
     process.stdout.write(
-      `\nNotice: pinned at ${lock.ref}; newest release is ${latest}.\n` +
+      `\nStaleness not checked (--no-remote). This says nothing about whether ${lock.ref} is current.\n`,
+    );
+    return;
+  }
+
+  const latest = await latestRef();
+  if (!latest.ok) {
+    process.stdout.write(
+      `\nStaleness could not be checked: ${latest.reason}.\n` +
+        `The hash comparison above is unaffected -- it is offline and authoritative.\n` +
+        `This says nothing about whether ${lock.ref} is current.\n`,
+    );
+    return;
+  }
+  if (compareRefs(latest.ref, lock.ref) > 0) {
+    process.stdout.write(
+      `\nNotice: pinned at ${lock.ref}; newest release is ${latest.ref}.\n` +
         `This is not a failure. Update deliberately when you choose to:\n` +
-        `  node scripts/vendor-configs.mjs ${latest}\n`,
+        `  node scripts/vendor-configs.mjs ${latest.ref}\n`,
     );
   }
 }
@@ -269,7 +303,7 @@ async function main() {
     if (positional.length > 0) {
       fail('--check takes no ref', 'It verifies the ref already recorded in the lock file.');
     }
-    await check();
+    await check(flags.noRemote === true);
     return;
   }
   const ref = positional[0];
