@@ -296,6 +296,31 @@ converting the one blocker that affects a single package into one that fails `pn
 --frozen-lockfile` outright. Read `channel` before `range`, and treat `range` as meaningful only
 where `channel` is `registry`.
 
+**Upstream's `check-pins.mjs` inherits that defect, and libro's own reading of it is the trap.**
+The script fetches `versions.json` over plain HTTPS and compares each declared `@jrmoulckers/*`
+range against the published version — genuinely token-free, verified here with `GH_TOKEN`,
+`GITHUB_TOKEN`, `NODE_AUTH_TOKEN` and `NPM_TOKEN` all emptied, and with a positive control that
+correctly flagged a synthetic `^0.8.0` as unable to reach `0.16.0`. It is a good tool for the
+registry channel. But it reads **only** `dependencies` / `devDependencies` / `peerDependencies`, and
+it never consults `channel`: given a synthetic `@jrmoulckers/tsconfig` range it reported `ok`, for a
+package that should carry no range at all.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jrmoulckers/engineering/main/scripts/check-pins.mjs \
+  | node - ./package.json
+```
+
+On libro that prints *"no `@jrmoulckers/*` packages declared — nothing to check"* and exits **0**,
+which is correct and is also the same exit code as *"every pin is current"*. **An absence answers
+here with a pass**, so wiring this into CI as a pin gate would give a vendoring repo a permanent
+green from a check that inspected nothing. Worse is the obvious way to "fix" a nothing-to-check
+result: adding the three packages to `devDependencies` is exactly the ADR-0001 violation above.
+
+libro *does* have a pin — the ref in `engineering-configs.lock.json` — and this tool cannot see it.
+`pnpm vendor:check` is the gate that covers it, and the two are not substitutes: one checks a
+**range against a published version**, the other checks **bytes against a hash**. Run both only if
+libro ever adopts the registry half.
+
 Upstream ships a top-level `channels` legend answering this as data rather than prose, so the
 question can be resolved mechanically instead of by reading a paragraph:
 
