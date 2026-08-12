@@ -443,8 +443,42 @@ The practical consequence: **generating a lockfile locally is possible but must 
 until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
 lint step.
 
-When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.14.0 <1.0.0` and replace the local
+When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.15.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
+Latest read from the registry on 2026-08-12: `eslint-config` **0.15.0** (16 published versions),
+`prettier-config` **0.4.0**, `tsconfig` **0.4.0** — the latter two are vendored here, so they have
+no specifier and their floors are informational only.
+
+**A `>=x <1.0.0` floor names a minimum, not a target — so a floor bump needs a defect to justify
+it, not a newer release.** Any version above the floor installs regardless; that is the whole point
+of dropping the caret. For libro the *binding* release is still `0.14.0`, the `untypedFiles` crash
+fix, and `0.15.0` is alignment rather than necessity: hashing both tarballs file by file,
+`svelte.js` is **byte-identical**, as are `dependencies` and `peerDependencies`. Only `base.js`,
+`ignores.js`, `package.json`, `README.md` move, plus a new `ignores.d.ts`. So if a resolution ever
+lands on `0.14.0`, that is not a defect here — which is worth knowing before spending a change on
+it.
+
+**`0.15.0`'s actual content is the enumeration bug again, in the ignore direction.** `toolingFiles`
+goes 9 → 24 globs and is exported as `@jrmoulckers/eslint-config/ignores`. The upstream docblock
+gives the reason: the old list carried `*.test.js` but not `*.spec.js`, and `*.config.mjs` but not
+`*.config.cjs`, so whether a file counted as tooling depended on which of two interchangeable
+suffixes its author picked. That is the same root cause as the `strictTypeChecked` crash — a list
+built by **enumerating extensions** silently omits what it does not name — reached from the other
+side, and it is why the fix is *exhaustive list plus an export to extend* rather than one more
+glob.
+
+libro is not affected either way: its single tooling file, `scripts/vendor-configs.mjs`, matches
+`**/scripts/**/*.mjs` at **both** versions. Spread `toolingFiles` rather than re-authoring it if
+`scripts/` ever grows a `.cjs` or a `*.spec.*` file.
+
+That coverage claim survived a wrong measurement of mine worth recording, because it failed in the
+one way a parse usually does not. Extracting the glob array textually from `0.15.0` returned
+`['services/**/*.ts', 'no-console', 'off']` — the docblock's *example* array — and reported
+`scripts/` as uncovered. The parse succeeded, returned a plausible-looking list, and was only
+obviously wrong because two entries were **rule names rather than globs**. A result of the wrong
+*kind* is detectable; a result of the right kind and wrong content would have shipped. Read the
+source when a source-derived figure contradicts an upstream claim, rather than reporting the
+contradiction.
 
 **The one thing adoption still adds is the Prettier interop, and its surface here is exactly one
 rule.** libro's config never applies `eslint-config-prettier`, which is the gap the migration brief
