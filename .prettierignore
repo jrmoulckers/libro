@@ -19,9 +19,3 @@ AGENTS.md
 # engineering-configs.lock.json. Formatting these would change their bytes and
 # break the hash check, turning an upstream-drift signal into a local edit.
 config/engineering/
-
-# Fetched from the same upstream ref, but NOT covered by the lock's hashes — so a
-# reformat here breaks nothing loudly, it just silently forks the refresh tool from
-# the copy it is meant to reproduce. Ignored so the byte comparison against upstream
-# stays meaningful.
-scripts/vendor-configs.mjs

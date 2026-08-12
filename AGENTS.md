@@ -694,6 +694,25 @@ vendored file would change its bytes and break the hash, converting a real upstr
 into an apparent local edit. That the files happen to be Prettier-clean today is luck, not a
 guarantee — the ignore is what makes it safe.
 
+**`scripts/vendor-configs.mjs` was Prettier-ignored alongside it, and that was a misclassification —
+now removed.** It was added in `e85dbe8` on the premise, written into the comment, that the script
+is *"fetched from the same upstream ref"* and ignored so *"the byte comparison against upstream
+stays meaningful."* Neither half holds: the script was **authored here** (`758bb4a`), it is not in
+the
+payload, and libro deliberately diverges from upstream's copy on five points (the `.d.ts` exclusion
+plus `compareRefs`, absolute-key refusal, source-keyed counting, destination-keyed evaluation mode).
+There is no byte comparison to keep meaningful — the divergence is the decision. So an
+`AGENTS.md`-documented choice and a `.prettierignore` comment had contradicted each other for
+sixteen commits, and the formatter was excluded from a first-party source file on the strength of
+the stale one.
+
+Read the discriminator as **provenance, not location**: `config/engineering/` is ignored because its
+bytes are hashed and reformatting would forge a drift signal; a first-party script is ignored for no
+reason at all. The two entries looked alike because they arrived in the same commit. Note the
+upstream advice to drop this entry is right by coincidence — it reasons that a script *covered* by
+`lock.tool` no longer needs the ignore, which is inverted: a hashed script would need it **more**.
+Verified after unignoring and reformatting that the guard's four arms still read 0 / 1 / 1 / 0.
+
 Two consequences worth knowing. Vendoring normally costs the version signal a registry provides;
 here the lock file supplies it, so a refresh is a reviewable diff and drift is detectable. And
 `@tsconfig/svelte` is gone — `tsconfig.app.json` extends the vendored `vite-app.json` instead, and
@@ -1468,7 +1487,8 @@ The arrows are load-bearing: the pattern requires the parenthetical to follow th
 writing these examples in their natural adjacent form makes **this file** fail its own citation
 gate. Documenting the hazard in the obvious way reproduces it.
 
-libro passes today — 56 citations, 19 stated names matched, exit 0 — but only because its glosses
+libro passes today — 59 citations, 19 stated names matched, exit 0, and **zero** redundant-name
+warnings under checker v11's new duplicated-name check — but only because its glosses
 happen to start lowercase, which is luck rather than design. The failure presents as *"the checker
 is broken"* on a correct citation, so it costs trust in the gate rather than catching anything.
 
@@ -1476,7 +1496,22 @@ The discriminator that separates the two populations is **membership in the titl
 capitalisation: a genuine miscitation names some *other* principle's real title, while a
 descriptive gloss matches no title at all. Verified against `principles/index.json` — `Local
 durable ownership` and `Minimal directed boundaries` are titles; all three glosses above are not.
-Keep glosses lowercase here until the heuristic changes.
+Verified across all **66** indexed titles at `v0.144.0`, checker **v11**, where the false-fail is
+still live: `(Minimal directed boundaries)` on `ENG-ARCH-001` passes with a stated-name count,
+another principle's real title fails correctly, and a capitalised gloss on the *same correct
+citation* fails identically to a genuine miscitation. Keep glosses lowercase here until the
+heuristic changes.
+
+**The first attempt to re-test this measured nothing, and only the controls said so.** Written the
+natural way — `` [`ENG-ARCH-001`](url) (Gloss) `` with the link before the parenthetical — every arm
+returned exit 0 and reported *"all IDs exist"* with **no stated-name count at all**, because the
+pattern requires the gloss to follow the ID directly and a URL between them suppresses the match
+entirely. Read alone, that looks exactly like *"upstream fixed it."* What exposed it was the
+positive control failing to fail: a deliberately wrong name on a correct ID also passed. Same
+adjacency requirement that makes the arrows above load-bearing, arriving as a silently vacuous test
+instead of as a false failure — so the one property this hazard turns on defeats the obvious way to
+check for it, in both directions. **A citation test that reports no stated-name count has not
+exercised the stated-name check**; read that number before the exit code.
 
 `jrmoulckers/engineering` is consumed in three layers. The first two are read from the repository
 and move with its tags; the third is configuration, delivered over two channels — vendored at a

@@ -188,7 +188,9 @@ async function check(noRemote = false) {
   // so --check passes while examining no file in the repository at all — the
   // guard is disarmed rather than weakened, and it fails only on a runner,
   // as `missing` on a path that never existed there.
-  const absolute = entries.map(([dest]) => dest).filter((dest) => /^([A-Za-z]:[/\\]|[/\\])/.test(dest));
+  const absolute = entries
+    .map(([dest]) => dest)
+    .filter((dest) => /^([A-Za-z]:[/\\]|[/\\])/.test(dest));
   if (absolute.length > 0) {
     fail(
       `${LOCK} records ${absolute.length} absolute path(s), so it guards nothing here:\n  ${absolute.join('\n  ')}`,
