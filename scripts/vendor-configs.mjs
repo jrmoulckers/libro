@@ -215,6 +215,32 @@ async function check(noRemote = false) {
     );
   }
 
+  // The loop above compares the lock against the disk, so it can only see files
+  // the lock already names. SETS is what decides that set, and it is edited by
+  // hand — so a file added to SETS and never vendored is absent from the lock,
+  // absent from disk, and invisible to every comparison above. --check then
+  // passes while the tree is missing a file the manifest says belongs there.
+  // Compare the two directly: the lock is evidence about a file set, and only
+  // SETS says which set that should be.
+  const expected = Object.entries(SETS).flatMap(([name, set]) =>
+    set.files.map((file) => join(DEFAULT_DEST, name, file).split('\\').join('/')),
+  );
+  const locked = new Set(entries.map(([dest]) => dest.split('\\').join('/')));
+  const unvendored = expected.filter((dest) => !locked.has(dest));
+  const orphaned = [...locked].filter((dest) => !expected.includes(dest));
+
+  if (unvendored.length > 0 || orphaned.length > 0) {
+    const lines = [
+      ...unvendored.map((d) => `${d}: named by SETS, absent from the lock`),
+      ...orphaned.map((d) => `${d}: in the lock, no longer named by SETS`),
+    ];
+    fail(
+      `${LOCK} does not match the manifest in scripts/vendor-configs.mjs:\n  ${lines.join('\n  ')}`,
+      `SETS changed without a re-vendor, so the lock describes the previous file set. ` +
+        `Re-run: node scripts/vendor-configs.mjs ${lock.ref}`,
+    );
+  }
+
   process.stdout.write(`${entries.length} vendored file(s) match ${LOCK} at ${lock.ref}.\n`);
 
   if (noRemote) {

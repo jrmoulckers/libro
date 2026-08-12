@@ -304,6 +304,27 @@ base.json`: 1 then 0. Read the exit code from a bare invocation — piping throu
 `Select-Object -First` silently reports `0` for a run that exited `1`, which is the failure mode
 this test exists to detect, arriving through the harness instead of the code.
 
+**A hash comparison can only see files the lock already names, so the manifest that decides that
+set has to be compared too.** `--check` walked the lock and compared each entry against disk — a
+closed loop: `SETS` in `scripts/vendor-configs.mjs` is hand-edited, so adding a file there and not
+re-vendoring left it absent from the lock, absent from disk, and invisible to every comparison.
+Measured before the fix: `--check` exited **0** while the manifest named a file the tree did not
+have. That is the fleet finding *"the lock records the ref requested, not the vintage of the tool
+that wrote it"* in its libro-shaped form — the lock is evidence about a file set, and nothing was
+checking it still described the set the manifest asks for.
+
+`--check` now compares both directions and fails naming the cause: `named by SETS, absent from the
+lock` and `in the lock, no longer named by SETS`. Four arms measured, so both outcomes are reachable
+for the right reason — unchanged manifest **0**, a file added **1**, a file removed **1**, restored
+**0**. Note the subset case is deliberately caught too: the lock is *replaced* rather than merged,
+so a `--set tsconfig` run leaves the prettier files genuinely unverified, and that now says so.
+
+Building it exposed the same class one level down. The first draft derived the expected paths with
+`basename(set.from)`, which yields `prettier-config`, while the vendor step writes `join(dest, name,
+file)` — `prettier`. Every entry would have mismatched, so the guard would have failed loudly on a
+correct tree and been "fixed" by deleting it. **Derive a check's expectation from the code that
+does the work, not from a plausible reconstruction of it.**
+
 **Never pass `--dest` at a path outside the repo unless you mean it as a throwaway probe.** The
 evaluation recipe
 `vendor-configs.mjs <ref> --dest "$(mktemp -d)"` used to rewrite the real lock with **absolute**
