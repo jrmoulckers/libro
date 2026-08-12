@@ -215,7 +215,7 @@ its file format, and the split is recorded upstream in
 | --- | --- | --- |
 | `@jrmoulckers/tsconfig` | vendored at a pinned ref | yes |
 | `@jrmoulckers/prettier-config` | vendored at a pinned ref | yes |
-| `@jrmoulckers/eslint-config` | GitHub Packages registry | **no — blocked** |
+| `@jrmoulckers/eslint-config` | GitHub Packages registry | **no — pending, billing only** |
 
 **"Vendored" here describes how libro obtains a config, not whether upstream publishes it.** All
 three *are* published to GitHub Packages; libro simply does not install two of them from there,
@@ -320,7 +320,10 @@ Historical note, kept because the reasoning recurs: the legend originally report
 on 2026-08-11 (v0.56.0)**. `publish.yml` publishes every directory under `packages/`
 unconditionally and never reads `channel`, all three are `private: false`, and a consumer's CI got
 `403 permission_denied: read_package` for `@jrmoulckers/tsconfig`. Do not resurrect the field from
-an older ref, and do not draw the conclusion the retraction draws either — see below.
+an older ref, and do not draw the conclusion the retraction draws either — see below. Note that
+that consumer's `403` is no longer decisive on its own: as measured under
+[The registry half](#the-registry-half), a missing `read:packages` scope returns `403` too, with a
+different body.
 
 **That does not touch libro, because libro does not consume those two as packages at all.** The
 retraction and the `403` are both about a *registry tarball read* on `npm.pkg.github.com`.
@@ -413,35 +416,43 @@ package, not per repository; if that ever changes, `node.json` is the answer, an
 
 ### The registry half
 
-`eslint.config.js` is still authored locally, because `@jrmoulckers/eslint-config` cannot be
-installed: the package is **private**, and that flip is owner-only. `jrmoulckers/engineering` is
-itself a public repo, which does not make its packages public — the two settings are independent,
-and no registry error distinguishes them, since an anonymous read 401s and a scopeless token 403s
-whether the package is public or not.
+`eslint.config.js` is still authored locally, but **not because the package is ungrantable** — an
+earlier revision of this section said so and was wrong. All three packages report
+`visibility: private` (`gh api /user/packages/npm/<name>`), yet a package **linked** to a repository
+inherits that repository's access permissions, and `jrmoulckers/engineering` is public
+(`"private": false`). So the `private` label describes the package record, not the grant, and no
+per-package "Manage Actions access" flip is required. Upstream retracted the blocker after two
+consumers installed it in CI on `GITHUB_TOKEN` alone with `packages: read`.
 
-Read the two codes as different failures rather than degrees of the same one. **`401` is
-authentication** — no token, wrong host, or the wrong class of token — and is fixable from here.
-**`403 permission_denied: read_package` is authorization**, and no amount of token work resolves
-it. The tell is metadata resolving while only the tarball download fails: that means the request
-authenticated fine and was refused on access, so the remaining blocker is a grant or a visibility
-flip, not the wiring.
+**libro cannot verify that claim, and the reason is worth more than the claim.** Every credential
+available here belongs to the account that owns the packages, so a `200` is equally consistent with
+"public inheritance" and "the owner can always read their own private package." The probe cannot
+distinguish the hypotheses, which makes a passing result no evidence at all — the same defect as a
+control run that cannot fail. Only a token belonging to someone who is *not* the owner settles it,
+which is exactly what the consumer CI logs are. Accept it on their evidence, not on ours.
 
-**The blocker is CI-only, and narrower than "cannot be installed" suggests.** Probed directly
-against `https://npm.pkg.github.com` with a PAT carrying `read:packages`: metadata returns `200`
-for all three packages, and the `eslint-config@0.9.0` **tarball also returns `200`** and extracts
-to the expected tree. So a developer holding a scoped PAT can install and generate a lockfile
-today — the earlier claim that no token here could do so was wrong.
+**What libro's own probe does settle is the 401/403 reading, and it corrects this file.** Three
+arms against `https://npm.pkg.github.com`, same package, same moment:
 
-What remains blocked is **CI**, structurally rather than for want of configuration: the packages
-are `visibility: private` (confirmed via `gh api users/jrmoulckers/packages/npm/<name>`), and
-libro's `GITHUB_TOKEN` is scoped to libro, so it cannot read a private package owned by
-`jrmoulckers/engineering` without an explicit grant. No amount of workflow wiring changes that,
-which is why the wiring is already correct and still insufficient. Do not "fix" CI by widening a
-permission; the grant or the visibility flip is owner-only.
+| credential | packument | body |
+| --- | --- | --- |
+| none | `401` | `authentication token not provided` |
+| PAT **without** `read:packages` | `403` | `permission_denied: The token provided does not match expected scopes` |
+| PAT **with** `read:packages` | `200` | tarball also `200`, 13,945 bytes |
 
-The practical consequence: **generating a lockfile locally is possible but must not be committed
-until CI can install**, because a lockfile CI cannot resolve fails every job rather than only the
-lint step.
+This file used to say that `403 permission_denied` is authorization and *"no amount of token work
+resolves it."* That is false: the middle arm becomes the bottom arm by changing nothing but the
+token's scopes. **There are two different 403s, and only the body distinguishes them** — a scope
+mismatch, which you can fix, versus a genuine package-access denial, which you cannot. Read the
+response body, not the status code; a rule keyed on `403` alone sends you to an owner-only setting
+for a failure that is yours to fix. Note also that the earlier "metadata resolves, only the tarball
+fails" tell never fired here — the scope failure blocks the packument too, so absence of that
+signature does not mean the wiring is fine.
+
+**Nothing about the registry half is a libro blocker any more**, so the remaining wait is billing
+alone. The practical consequence is unchanged: **a lockfile may be generated locally but must not
+be committed until CI can install**, because a lockfile CI cannot resolve fails every job rather
+than only the lint step.
 
 When it is unblocked, adopt at `@jrmoulckers/eslint-config@>=0.15.0 <1.0.0` and replace the local
 file with `svelteConfig()`; libro's current rule set is a strict subset, so nothing is lost.
