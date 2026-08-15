@@ -4,9 +4,13 @@ coverage/
 pnpm-lock.yaml
 vendor/
 .impeccable/
-# synced from jrmoulckers/.github — canonical source, not authored here
+# synced from jrmoulckers/.github — canonical source, not authored here.
+# These must cover every path in .studio-sync.lock.json that Prettier can parse,
+# or a canon sync turns format:check red on branches that touched none of it.
+# Re-check against the lock file when the sync adds a path.
 .github/agents/
 .github/skills/
 .github/prompts/
 .github/instructions/
+.github/copilot-instructions.md
 AGENTS.md

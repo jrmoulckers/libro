@@ -202,7 +202,7 @@ type). See
 Lint, format, and TypeScript settings are still authored locally in `eslint.config.js`,
 `.prettierrc.json`, and `tsconfig.*.json`. They are **intended** to come from
 `@jrmoulckers/eslint-config`, `@jrmoulckers/prettier-config`, and `@jrmoulckers/tsconfig`
-(published to GitHub Packages — currently 0.3.0, 0.2.0, and 0.3.0 respectively), but adoption is
+(published to GitHub Packages — currently 0.4.0, 0.2.0, and 0.3.0 respectively), but adoption is
 not complete — see the tracking
 issue and [docs/adopting.md](https://github.com/jrmoulckers/engineering/blob/main/docs/adopting.md).
 
@@ -230,19 +230,26 @@ only checkout, `setup-node`, and `pnpm audit` — and audit resolves advisory da
 default registry rather than the `@jrmoulckers`-scoped one. Do not add `registry-url` or
 `packages: read` to that call site.
 
-When adoption does happen, pin `@jrmoulckers/eslint-config` and `@jrmoulckers/tsconfig` at
-`^0.3.0`, and `@jrmoulckers/prettier-config` at `^0.2.0`. Those floors are not cosmetic: **on a
-`0.x` package a caret permits patch updates only**, so `^0.2.0` resolves to `>=0.2.0 <0.3.0` and
-can never reach 0.3.0. A too-low floor is also the one mistake this repo cannot catch by testing,
-because verifying a preset through a `file:` or `link:` dependency resolves current source and
-never consults the declared range at all — only lockfile generation, the step still blocked, would
-surface it. Verify by staging the exact published version instead.
+When adoption does happen, pin `@jrmoulckers/eslint-config` at `^0.4.0`,
+`@jrmoulckers/tsconfig` at `^0.3.0`, and `@jrmoulckers/prettier-config` at `^0.2.0`. Those floors
+are not cosmetic: **on a `0.x` package a caret permits patch updates only**, so `^0.2.0` resolves
+to `>=0.2.0 <0.3.0` and can never reach 0.3.0. A too-low floor is also the one mistake this repo
+cannot catch by testing, because verifying a preset through a `file:` or `link:` dependency
+resolves current source and never consults the declared range at all — only lockfile generation,
+the step still blocked, would surface it. Verify by staging the exact published version instead.
 
-Two peer ranges are still narrower than libro's toolchain: `eslint: ^9.0.0` against our 10.8.0, and
-`prettier-plugin-svelte: ^3.2.0` against our 4.1.1. Both presets were run against the real
-toolchain at 0.3.0 — lint, format check, and both typecheck projects pass — so these are stale
-declarations rather than real incompatibilities, and they must be widened upstream, never
-overridden here. pnpm only warns on an unmet peer; npm and `strict-peer-dependencies` hard-fail.
+The `eslint-config` floor is specifically an **install-time** requirement here, not a preference.
+libro runs ESLint 10.8.0, and through 0.3.0 the preset declared a peer of `eslint: ^9.0.0`, so
+`^0.3.0` would fail to resolve rather than fail to lint. 0.4.0 widens it to `^9.0.0 || ^10.0.0`;
+nothing was ever genuinely incompatible, since `typescript-eslint` and `eslint-plugin-svelte`
+both already supported ESLint 10.
+
+One peer range is still narrower than libro's toolchain: `prettier-plugin-svelte: ^3.2.0` against
+our 4.1.1. The preset was run against the real toolchain — lint, format check, and both typecheck
+projects pass — so this is a stale declaration rather than a real incompatibility, and it must be
+widened upstream, never overridden here. pnpm only warns on an unmet peer; npm and
+`strict-peer-dependencies` hard-fail, which is what turns a stale declaration into a broken
+install.
 
 The `typescript` peers, by contrast, are **deliberately different between the two packages — do not
 align them.** `@jrmoulckers/tsconfig` declares `^5.5.0 || ^6.0.0 || ^7.0.0`, while
@@ -251,8 +258,8 @@ whose own peer stops below 6.1. libro runs TypeScript 6.0.3, which satisfies bot
 does not bite here yet — but a future move to TypeScript 7 means adopting `tsconfig` and holding
 `eslint-config` back, not widening either.
 
-Package versions also track independently of the engineering repo's own tags: repo tag `v0.4.0`
-ships `eslint-config` 0.3.0, `prettier-config` 0.2.0, and `tsconfig` 0.3.0, so a repo tag is never
+Package versions also track independently of the engineering repo's own tags: repo tag `v0.5.0`
+ships `eslint-config` 0.4.0, `prettier-config` 0.2.0, and `tsconfig` 0.3.0, so a repo tag is never
 an actionable npm specifier.
 
 Until the visibility flip, do not add an `@jrmoulckers/*` dependency and do not commit an
