@@ -19,7 +19,7 @@ import type { RemoteProgress } from './reconcile';
 export class SyncError extends Error {
   constructor(
     message: string,
-    readonly cause?: unknown,
+    override readonly cause?: unknown,
   ) {
     super(message);
     this.name = 'SyncError';

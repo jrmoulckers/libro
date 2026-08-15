@@ -90,7 +90,10 @@ export class IdbListeningStore implements ListeningStore {
       this.#request<ListeningPosition[]>(db, (store) => store.getAll()),
     ]);
     const map = new Map<string, ListeningPosition>();
-    keys.forEach((key, i) => map.set(String(key), values[i]));
+    keys.forEach((key, i) => {
+      const value = values[i];
+      if (value !== undefined) map.set(String(key), value);
+    });
     return map;
   }
 

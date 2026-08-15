@@ -88,7 +88,7 @@ describe('dedupeBooks', () => {
     ]);
 
     expect(merged).toHaveLength(1);
-    expect(merged[0].sourceProviderId).toBe('abs');
+    expect(merged[0]!.sourceProviderId).toBe('abs');
   });
 
   it('falls back to a title/authors/mediaType signature when identifiers differ', () => {
@@ -98,7 +98,7 @@ describe('dedupeBooks', () => {
     ]);
 
     expect(merged).toHaveLength(1);
-    expect(merged[0].id).toBe('a');
+    expect(merged[0]!.id).toBe('a');
   });
 
   it('keeps items that only differ by media type', () => {

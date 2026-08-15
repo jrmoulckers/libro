@@ -74,6 +74,7 @@ export async function aggregateLibrary(
 
   settled.forEach((result, index) => {
     const provider = providers[index];
+    if (!provider) return;
     if (result.status === 'fulfilled') {
       books.push(...result.value);
     } else {

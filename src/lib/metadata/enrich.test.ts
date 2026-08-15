@@ -40,9 +40,9 @@ describe('enrichBooks', () => {
     const { books, errors } = await enrichBooks([input], deps);
 
     expect(errors).toEqual([]);
-    expect(books[0].coverUrl).toBe('existing-cover'); // preserved
-    expect(books[0].authors).toEqual(['Joshua Bloch']); // filled by OL
-    expect(books[0].description).toBe('gb-desc'); // filled by GB fallback
+    expect(books[0]!.coverUrl).toBe('existing-cover'); // preserved
+    expect(books[0]!.authors).toEqual(['Joshua Bloch']); // filled by OL
+    expect(books[0]!.description).toBe('gb-desc'); // filled by GB fallback
     expect(ol).toHaveBeenCalledTimes(1);
     expect(gb).toHaveBeenCalledTimes(1); // description still missing after OL
     // The combined patch was cached.
@@ -85,7 +85,7 @@ describe('enrichBooks', () => {
       fetchGoogleBooks: gb,
     });
 
-    expect(books[0].description).toBe('cached');
+    expect(books[0]!.description).toBe('cached');
     expect(ol).not.toHaveBeenCalled();
     expect(gb).not.toHaveBeenCalled();
   });
@@ -97,7 +97,7 @@ describe('enrichBooks', () => {
     const deps: EnrichDeps = { cache, fetchOpenLibrary: ol, fetchGoogleBooks: gb };
 
     const first = await enrichBooks([book('1', ISBN_A)], deps);
-    expect(first.books[0].description).toBeUndefined(); // unchanged
+    expect(first.books[0]!.description).toBeUndefined(); // unchanged
     expect(await cache.get(ISBN_A)).toEqual({}); // empty patch cached
 
     // A second run reuses the cache — no further network.
@@ -121,7 +121,7 @@ describe('enrichBooks', () => {
     });
 
     expect(books).toHaveLength(2);
-    expect(books[1].description).toBe('ok'); // the other book still enriched
+    expect(books[1]!.description).toBe('ok'); // the other book still enriched
     expect(errors).toEqual([{ isbn: ISBN_A, source: 'googlebooks', reason: 'boom' }]);
   });
 
@@ -137,7 +137,7 @@ describe('enrichBooks', () => {
     });
 
     expect(errors[0]?.source).toBe('openlibrary');
-    expect(books[0].description).toBe('from-gb'); // fallback carried the load
+    expect(books[0]!.description).toBe('from-gb'); // fallback carried the load
   });
 
   it('passes through books without an ISBN or without gaps, preserving order', async () => {
@@ -161,7 +161,7 @@ describe('enrichBooks', () => {
     });
 
     expect(books.map((b) => b.id)).toEqual(['noisbn', 'needs', 'complete']); // order kept
-    expect(books[1].description).toBe('d');
+    expect(books[1]!.description).toBe('d');
     // Only the one eligible ISBN was requested.
     expect(ol).toHaveBeenCalledWith([ISBN_A]);
   });

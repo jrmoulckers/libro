@@ -40,8 +40,8 @@ describe('loadPlugins', () => {
     });
     expect(errors).toEqual([]);
     expect(providers).toHaveLength(1);
-    const books = await providers[0].listBooks();
-    expect(books[0].title).toBe('Loaded Book');
+    const books = await providers[0]!.listBooks!();
+    expect(books[0]!.title).toBe('Loaded Book');
   });
 
   it('builds a wasm provider from a manifest + bytes', async () => {
@@ -61,8 +61,8 @@ describe('loadPlugins', () => {
       },
     );
     expect(errors).toEqual([]);
-    const books = await providers[0].listBooks();
-    expect(books[0].id).toBe('a1');
+    const books = await providers[0]!.listBooks!();
+    expect(books[0]!.id).toBe('a1');
   });
 
   it('records an invalid manifest as an error without aborting the batch', () => {
@@ -73,13 +73,13 @@ describe('loadPlugins', () => {
     const { providers, errors } = loadPlugins(entries);
     expect(providers).toHaveLength(1);
     expect(errors).toHaveLength(1);
-    expect(errors[0].id).toBe('bad');
-    expect(errors[0].error.kind).toBe('invalid');
+    expect(errors[0]!.id).toBe('bad');
+    expect(errors[0]!.error!.kind).toBe('invalid');
   });
 
   it('errors a wasm entry with no module bytes', () => {
     const { providers, errors } = loadPlugins([{ manifest: WASM_MANIFEST }]);
     expect(providers).toEqual([]);
-    expect(errors[0].error.message).toMatch(/missing its module bytes/);
+    expect(errors[0]!.error!.message).toMatch(/missing its module bytes/);
   });
 });

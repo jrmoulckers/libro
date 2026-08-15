@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "vendor:check": "node scripts/vendor-configs.mjs --check --no-remote",
+    "vendor:staleness": "node scripts/vendor-configs.mjs --check",
+    "lint": "pnpm vendor:check && eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
@@ -17,7 +19,6 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
-    "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^26.1.2",
     "eslint": "^10.8.0",
     "eslint-plugin-svelte": "^3.22.0",

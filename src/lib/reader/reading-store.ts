@@ -80,7 +80,10 @@ export class IdbReadingStore implements ReadingStore {
       this.#request<ReadingPosition[]>(db, (store) => store.getAll()),
     ]);
     const map = new Map<string, ReadingPosition>();
-    keys.forEach((key, i) => map.set(String(key), values[i]));
+    keys.forEach((key, i) => {
+      const value = values[i];
+      if (value !== undefined) map.set(String(key), value);
+    });
     return map;
   }
 
