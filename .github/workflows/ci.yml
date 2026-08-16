@@ -73,8 +73,10 @@ jobs:
       package-manager: pnpm
       run-package-audit: true
       run-secret-scan: true
-      # Libro does not currently have the GitHub dependency graph capability required by this job.
-      run-dependency-review: false
+      # Enabled since libro became a public repository: the GitHub dependency graph
+      # this job requires is on by default for public repos. The job declares its own
+      # `contents: read`, which this call site already grants.
+      run-dependency-review: true
       dependency-fail-severity: high
 
   preview:
