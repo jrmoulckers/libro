@@ -2,15 +2,17 @@
  * Global stylesheet.
  *
  * Design values come from @jrm/tokens, which the studio sync engine vendors from
- * jrmoulckers/studio into ./vendor/@jrm/tokens. Until the first chore(sync) PR lands,
- * that directory does not exist and the import below stays commented out.
+ * jrmoulckers/studio into ./vendor/@jrm/tokens. That tree is generated and
+ * provenance-stamped — never edit, copy, or hand-write anything under vendor/.
  *
- * Once it lands, uncomment (relative to this file, at src/app.css):
- *   @import '../vendor/@jrm/tokens/css/default/index.css';
+ * The import must stay first: the token stylesheet defines the custom properties
+ * every rule below and every component resolves against.
  *
  * Do not hardcode colors, radii, shadows, or durations here — reference the semantic
  * custom properties (var(--color-surface), var(--radius-md), …) instead.
  */
+
+@import '../vendor/@jrm/tokens/css/default/index.css';
 
 :root {
   color-scheme: light dark;

@@ -3,11 +3,11 @@
  *
  * The studio rule (AGENTS.md) is that appearance switches **only** via
  * `document.documentElement.dataset.theme` — `dark` sets the attribute, and
- * **light removes it** (light is the default, attribute-absent state). The actual
- * color *values* for each theme arrive later with the `@jrm/tokens` sync; this
- * module never hardcodes a color. `src/app.css` therefore stays value-free: the
- * toggle only flips the attribute, and the vendored token stylesheet will supply
- * the `[data-theme='dark'] { … }` values once it lands.
+ * **light removes it** (light is the default, attribute-absent state). The color
+ * *values* for each theme come from the vendored `@jrm/tokens` stylesheet, which
+ * `src/app.css` imports; this module never hardcodes a color. The toggle only flips
+ * the attribute, and the token stylesheet supplies the `[data-theme='dark'] { … }`
+ * values.
  *
  * The pure pieces ({@link resolveInitialTheme}, {@link nextTheme}, {@link isTheme})
  * are unit-tested; the `localStorage`/`matchMedia`/DOM helpers are the thin shell.
