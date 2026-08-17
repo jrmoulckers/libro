@@ -3099,6 +3099,24 @@ a kill, an applied-and-killed one scores as a survivor when the harness misrepor
 bystander test scores as coverage of the thing you meant, and an equivalence scores as a gap. All
 four are invisible in the total and visible in the failing test **names**. So read kills off names.
 
+A fifth way the tally lies is the **denominator moving under you**. A mutation that breaks module
+load for a test file removes that file's tests from the run: the sweep that found the `isSlug`
+survivor scored two arms at 366 tests against a 458-test baseline, because widening the predicate
+made whole fixtures unparseable. Both of those were kills, so nothing was lost -- but **a survivor
+scored at a reduced denominator is a false null**, since the tests that would have killed it may be
+precisely the ones that never ran. A harness must compare the mutant's test count against the
+baseline and report `DENOMINATOR MOVED` instead of a verdict, rather than letting a shrunken run
+report *nothing killed this*.
+
+**A predicate has two blind directions and they are independent measurements.** Mutating it one way
+only -- the usual habit -- reports whichever arm you happened to pick. Over four shared predicates in
+`sync/lib`, three were far weaker widened (up to *unbounded*: `isSlug` had 42 owners narrowed and
+**zero** widened) and one, `sameBaseline`, inverted it with 4 widened against 1 narrowed. So there is
+no rule of thumb to substitute for running both arms; neither number predicts the other. The
+survivor this found was a validator used only in rejections, whose suite proved that well-formed
+input is accepted and never that malformed input is refused -- the shape to suspect wherever a
+predicate's call sites are all `if (!pred(x)) error`.
+
 The self-inflicted case worth knowing: a round-trip test iterated the entries of what it assumed was
 an object and was in fact a map, so it quantified over the empty set and **passed while the
 invariant under test was deliberately broken**. A green test and an empty test are the same
