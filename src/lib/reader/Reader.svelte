@@ -210,6 +210,7 @@
     display: flex;
     align-items: stretch;
     justify-content: center;
+    /* Functional dimming scrim (not a themed surface). */
     background: rgba(0, 0, 0, 0.5);
     z-index: 100;
   }
@@ -219,22 +220,27 @@
     flex-direction: column;
     width: min(60rem, 100%);
     height: 100%;
+    color: var(--semantic-text-primary);
+    background: var(--semantic-background-primary);
   }
 
   .bar,
   .nav {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-sm) var(--spacing-lg);
   }
 
   .bar {
     justify-content: space-between;
+    background: var(--semantic-background-elevated);
+    border-block-end: 1px solid var(--semantic-border-default);
   }
 
   .nav {
     justify-content: space-between;
+    border-block-start: 1px solid var(--semantic-border-default);
   }
 
   .meta {
@@ -244,16 +250,18 @@
   }
 
   .book-title {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
+    color: var(--semantic-text-primary);
   }
 
   .chapter {
-    font-size: 0.875rem;
+    font-size: var(--text-label-size);
+    color: var(--semantic-text-secondary);
   }
 
   .actions {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--spacing-sm);
   }
 
   .body {
@@ -268,6 +276,8 @@
     width: 16rem;
     max-width: 40%;
     overflow: auto;
+    background: var(--semantic-background-secondary);
+    border-inline-end: 1px solid var(--semantic-border-default);
   }
 
   .toc ul {
@@ -279,12 +289,22 @@
   .toc button {
     display: block;
     width: 100%;
+    min-height: 0;
     text-align: start;
-    padding: 0.5rem 1rem;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    color: var(--semantic-text-secondary);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .toc button:hover {
+    background: var(--semantic-background-raised);
   }
 
   .toc button.current {
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
+    color: var(--semantic-text-primary);
   }
 
   .page {
@@ -292,9 +312,11 @@
     width: 100%;
     height: 100%;
     border: 0;
+    background: var(--semantic-background-elevated);
   }
 
   .status {
     margin: auto;
+    color: var(--semantic-text-secondary);
   }
 </style>
