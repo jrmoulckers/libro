@@ -2,12 +2,17 @@
   "version": 1,
   "backbone": "jrmoulckers/.github",
   "classifierSha256": "de7337e8bf0b270e6b75a2b1e4bc69b7a91c770dcc1f8bd8f669f02508239d89",
-  "generatedAt": "2026-08-17T07:54:51.857Z",
+  "generatedAt": "2026-09-21T13:43:48.354Z",
   "entries": {
     ".gitattributes": {
       "sourceSha256": "4be6041de14159436002446da3193a178a4defa235fe71585c04002d070d80c7",
       "targetSha256": "a591a7816b02daf54849d69af18396ff6175f24de0b06d0a1def97d0b5a9274a",
       "syncedAt": "2026-08-11T04:27:21.839Z"
+    },
+    ".github/agents/3d-print-specialist.agent.md": {
+      "sourceSha256": "52b8b229d57d4cbc519cd1990213ce69806f8d410e180b8e3ae7bf608d933faa",
+      "targetSha256": "d49253ace120841304bfeeb48922ff3867653c251038fd65959049291712e06b",
+      "syncedAt": "2026-09-21T13:43:48.346Z"
     },
     ".github/agents/accessibility-reviewer.agent.md": {
       "sourceSha256": "f83d90b50ea87be04935ba849c0a93eda729452a2d7eee81e0cb02b4bf04dae5",
@@ -150,9 +155,9 @@
       "syncedAt": "2026-08-16T17:15:44.090Z"
     },
     ".github/instructions/workflow.instructions.md": {
-      "sourceSha256": "68eb1c69f316267c520319772f60a969250bd64a30d11b1e7ab29dde70db5cea",
-      "targetSha256": "901992802fe799a74ea821609d4c8e1e4c07e9f2e30d56218b9179c3571b5eaa",
-      "syncedAt": "2026-08-17T07:54:51.847Z"
+      "sourceSha256": "3c83cf8a9e76f554671d4e5d06cb70c1c9ed07f92a78535b54e90f50f399a556",
+      "targetSha256": "9e9cd5f54a70af90aec7c81157760194595a55ab0a20bdc855c32f9c49a0f08d",
+      "syncedAt": "2026-09-21T13:43:48.349Z"
     },
     ".github/prompts/backlog.prompt.md": {
       "sourceSha256": "662578e4e512ac591b86127f50c601283a27b6ce96c9e09b022b833f720fe750",
@@ -194,6 +199,11 @@
       "targetSha256": "350f984d725ae4042418f65e8f91888a12dd651c543060fb6ce4e3e131cf16b4",
       "syncedAt": "2026-08-08T21:04:16.341Z"
     },
+    ".github/skills/3d-print-preparation/SKILL.md": {
+      "sourceSha256": "e741a53196c1e423d4d8b8fd14269087b39309ce0f8af8b85941e5bd18784bcf",
+      "targetSha256": "26bba404fb867678c2c5610b60cce3eda9b145ab8c68a954b246c601fd51816c",
+      "syncedAt": "2026-09-21T13:43:48.347Z"
+    },
     ".github/skills/accessibility-testing/CHECKLIST.md": {
       "sourceSha256": "3beba6418cb63661b908ed82bb156ecd1fd4b588996f5f0dbdad7443655670ad",
       "targetSha256": "65d5d6308744222aa381a70b4d3e8788ef98595ed06202623ff13ae9bb853890",
@@ -203,6 +213,11 @@
       "sourceSha256": "2a4ff58e1192b16406315daaedefef83e115f32ac3fd5540797f4b540978d0dc",
       "targetSha256": "59b3ffef44de6cff6af48adbe07249c6375ac5f14a9617fa384cd728cf0f18eb",
       "syncedAt": "2026-08-05T19:07:10.456Z"
+    },
+    ".github/skills/autodesk-fusion/SKILL.md": {
+      "sourceSha256": "d320e4a846b394d119a4fbf6495032197cf212e092bd66aa1ff781ff24c28625",
+      "targetSha256": "46a616acbf1f6c55584330b1a63a8ab705cae93eae8c057ce68345a989d8bb76",
+      "syncedAt": "2026-09-21T13:43:48.347Z"
     },
     ".github/skills/design-tokens/SKILL.md": {
       "sourceSha256": "4bbef30133d1ea560287819e72c8dbcbb716932dd7514e8035297367d5620c8a",
@@ -300,9 +315,9 @@
       "syncedAt": "2026-08-05T19:07:10.458Z"
     },
     "AGENTS.md": {
-      "sourceSha256": "d2cc55e24f581d56c30303987e638ec0896a301798a0d3e75203dbb655c31a72",
-      "targetSha256": "124fb6bf5454b6e1acda7b24277ec843776923a69446eb9e19998b026538921e",
-      "syncedAt": "2026-08-16T17:15:44.080Z"
+      "sourceSha256": "0a6f12532435d1c68e4f7e8b1e8e7a26205b11fddf9698866bddb08c51daf7c2",
+      "targetSha256": "89d8875f6d7ce17611383aa9b3a9b64160821c06117fa8b7ce67fffe89507bdc",
+      "syncedAt": "2026-09-21T13:43:48.343Z"
     },
     "agency.toml": {
       "sourceSha256": "b097fc1ca3d98462ac07d6ba013858773a3c4eee4d98262f8373223709286e1a",
