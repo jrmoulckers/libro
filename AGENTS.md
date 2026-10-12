@@ -1713,6 +1713,6 @@ Scope-specific rules live alongside the code — read the relevant one before wo
 
 The procedure for checking whether your managed regions match canon — and the warning against
 diffing a spliced file whole — lives in `.github/copilot-instructions.md`, under "Checking a managed
-region". It is stated once, there rather than here, because this file is distributed to six of the
-eleven members while that one reaches all eleven.
+region". It is stated once, there rather than here, because this file is distributed to seven of the
+twelve members while that one reaches all twelve.
 <!-- studio:base:end -->
