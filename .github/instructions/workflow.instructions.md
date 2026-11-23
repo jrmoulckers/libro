@@ -1630,8 +1630,8 @@ population of itself.
 
 **And the instance you generalize from is not a random draw — it is the one that made the pattern
 visible, which for a uniformity is the one with the least variance.** Published from here: that
-across all eleven members every sync-lock entry's `syncedAt` equals the lock's `generatedAt`, so the
-field was decorative and only its presence informative. A census of all eleven refutes it by exact
+across the whole fleet every sync-lock entry's `syncedAt` equals the lock's `generatedAt`, so the
+field was decorative and only its presence informative. A census of every member refutes it by exact
 match everywhere — 0 of 60 on the member that objected, never more than 3 anywhere. At
 seconds-precision it survives on exactly one member, which carries 6 distinct values across 57
 entries: the lowest variance in the fleet. That is not sampling luck. A uniformity announces itself
@@ -2414,7 +2414,8 @@ other, and the invitation is strongest for whoever established it.
 repairs.** Non-subscribers are excluded because they have no region to describe. A second exclusion
 exists with the opposite structural cause: a file whose managed region *is* the whole file has
 nothing outside the region to describe it from. A denominator built on *has a region* counts it as
-eligible, because it has one. Measured across all eleven members, on both managed targets:
+eligible, because it has one. Measured across every member of the fleet as it then stood, on both
+managed targets:
 
 ```
 AGENTS.md                          region carriers   6   with member-authored space   6
@@ -3726,9 +3727,9 @@ matters because the remedies are unrelated. 404 is fixed by configuring the bran
 only by changing plan or visibility, and until then no amount of workflow correctness makes a check
 enforceable.
 
-**That paragraph was written from a three-repo sample and is superseded by a census of all eleven
-members.** Its claim that only the backbone returned 200 is now false, and the shape of the fleet is
-not what a sample of three suggested:
+**That paragraph was written from a three-repo sample and is superseded by a census of every member
+of the fleet as it then stood.** Its claim that only the backbone returned 200 is now false, and the
+shape of the fleet is not what a sample of three suggested:
 
 | protection endpoint | count | members |
 | --- | --- | --- |
@@ -3742,8 +3743,9 @@ six of them the enforcement state cannot be read at all from this account — wh
 **Re-measured `2026-08-12` keyed on each repository's own `default_branch` — scope stated, since the
 paragraph above counts the backbone separately and this one does not: thirteen repositories, being
 eleven members, the backbone, and one recorded exclusion.** `200` × 2 (`.github`, `finance`), `404`
-× 4 (`studio`, `score-king`, `jrm-recipes`, `engineering`), `403` × 7 (`homelab`, `libro`,
-`cartridge`, `docket`, `product`, `game-library`, `windows`). So *one member in eleven* enforces
+× 4 (`studio`, `score-king`, `jrm-recipes`, `engineering`), `403` × 7 — six members (`homelab`,
+`libro`, `cartridge`, `docket`, `product`, `windows`) plus the recorded exclusion `game-library`. So
+*one member in eleven* enforces
 anything — still `finance` alone, the other `200` being the backbone — and `game-library` is the
 addition, landing in the bucket that cannot be read. Only one `404` body occurs naturally anywhere
 in the fleet — `Branch not
@@ -4128,16 +4130,19 @@ level below where the floor was placed. **Put the floor on the population that d
 population that is walked.** A walked corpus and an evaluated corpus are different numbers, and only
 the second one is the instrument.
 
-The live corpus already holds the specimen. `docs/sync.md` names all eleven members in a plain
-unbackticked table; the guard sees nothing there. It is correct today and it is not protected: when
-a twelfth member lands, the two backticked blocks in this file fire and that one stays silent. So
-the falsifiability that makes a complete enumeration stronger than a hedge is delivered by the
-backticks, not by the completeness. **An unbackticked complete list has a hedge's safety profile
-while reading as the strong form** -- the same inversion, in the guise the fix did not cover.
+The live corpus already held the specimen. `docs/sync.md` named the whole fleet in a plain
+unbackticked table; the guard saw nothing there. It was correct as written and it was not protected:
+when a twelfth member landed, the two backticked blocks in this file would fire and that one would
+stay silent. So the falsifiability that makes a complete enumeration stronger than a hedge was
+delivered by the backticks, not by the completeness. **An unbackticked complete list has a hedge's
+safety profile while reading as the strong form** -- the same inversion, in the guise the fix did
+not cover. The twelfth member has since landed, and because the detector had been widened off the
+backtick convention by then, that table did fire: it was rewritten to state each row's own size
+rather than be outgrown in silence.
 
 **Visibility does not discriminate protection, but it exactly discriminates the refusal — and those
-are two questions wearing one word.** Measuring visibility and protection in a single pass across all
-eleven members:
+are two questions wearing one word.** Measuring visibility and protection in a single pass across
+every member of the fleet as it then stood:
 
 | visibility | count | protection endpoint |
 | --- | --- | --- |
@@ -6406,16 +6411,17 @@ thing that answers.
 
 **And a ratio between a member rendering and canon measures neither lag nor completeness.** That
 5.5% was published here as a ranking -- *by any aggregate measure the worst artifact in the
-comparison*. Measured across the whole fleet at the same path, by blob id rather than by size:
+comparison*. Measured across the whole fleet as it then stood, at the same path, by blob id rather
+than by size:
 
 ```
-blob      bytes     members
-5932d34   23,263    jrm-recipes, score-king, finance, engineering
-2cf4679   12,537    cartridge, product
-50c3b25    9,834    libro (default branch)
-dd37364   48,840    docket
-28c236a  308,014    studio (largest member holding)
---            --    homelab, windows -- not retrievable, non-zero exit
+blob      bytes     count  members
+5932d34   23,263     4     jrm-recipes, score-king, finance, engineering
+2cf4679   12,537     2     cartridge, product
+50c3b25    9,834     1     libro (default branch)
+dd37364   48,840     1     docket
+28c236a  308,014     1     studio (largest member holding)
+--            --     2     homelab, windows -- not retrievable, non-zero exit
 ```
 
 **Four healthy members hold the pending delivery byte-for-byte.** So 5.5% is the current member
@@ -6703,7 +6709,7 @@ informative is entry *membership*: the two members with no canon entry are exact
 never opted in.
 
 The claim held here until a member disputed it was that every entry's `syncedAt` equals the lock's
-`generatedAt` across all eleven members, making the per-item field a constant column. Measured
+`generatedAt` across the whole fleet, making the per-item field a constant column. Measured
 across all eleven locks -- extracting with a regex, because `ConvertFrom-Json` on 7.x returns a
 `DateTime` whose `Kind` follows the producer's spelling and can shift the rendered value:
 
@@ -8407,8 +8413,9 @@ most trusted and least verified, because it was authored to be read by humans an
 a machine fact.
 
 **An audience is a set, and a count of it is invariant to its members differing.** A guard here
-checks that `AGENTS.md` reaches six of the eleven members by resolving each member through the
-engine. The numerator is correct and it is correct at the members, not merely in the plan:
+checks that `AGENTS.md` reaches seven of the twelve members by resolving each member through the
+engine. The numerator was correct at the members and not merely in the plan when it last stood at
+six:
 
 ```
 five members   region  8,307 B   body  8,199 B   canon 85fda85e  2026-08-08T22:36:26Z
@@ -8417,8 +8424,8 @@ four members   AGENTS.md present, no canonical region
 one member     no AGENTS.md at all
 ```
 
-Six carry it, the membership matches, and the companion claim that four of the five unserved
-members hold the file without the region reproduces exactly. **And the six do not carry the same
+Six carried it, the membership matched, and the companion claim that four of the five unserved
+members held the file without the region reproduced exactly. **And the six did not carry the same
 document** -- two revisions, 3,592 bytes and two and a half days apart. Cardinality is the one
 property of a set that survives its contents disagreeing, so a reach claim validated by counting is
 true and silent about whether the document is the same document at the far end. The count is the
@@ -8464,7 +8471,7 @@ that never needed it.
 **A correction must be made on the axis of the claim it replaces.** This file recorded four members
 as having no sync PR at all. A correspondent recovered two of them and published the remaining
 three as `none at/after lock` -- a *joinability* result standing in for an *existence* claim.
-Enumerated by head ref, **all eleven members have one**, so the original claim was wrong four times
+Enumerated by head ref, **every member has one**, so the original claim was wrong four times
 out of four and the correction repaired half of it while appearing to confirm the rest:
 
 ```
@@ -9684,7 +9691,7 @@ consumer exactly as much as dropping it and a membership digest is blind to that
 it is published as one.**
 
 **That paragraph read "now emits" for its first day, and no lockfile in the fleet contained the
-field.** Measured across all eleven members: `present 0 of 11`. `serializeLock` writes
+field.** Measured across every member: `present 0 of 11`. `serializeLock` writes
 it unconditionally, so any lock written after the feature would carry it — the feature landed at
 `2026-08-12T17:22:14Z` and the most recent distribution run in the entire history is
 `2026-08-12T14:27:19Z`, two hours and fifty-five minutes earlier. The field had never been emitted
